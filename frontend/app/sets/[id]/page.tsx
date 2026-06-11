@@ -1,0 +1,290 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { useAuth } from "@/components/AuthProvider";
+import { CardThumb } from "@/components/CardThumb";
+import { FilterSidebar } from "@/components/FilterSidebar";
+import { Pagination } from "@/components/Pagination";
+import {
+  DEFAULT_PAGE_SIZE,
+  PageSizeSelector,
+} from "@/components/PageSizeSelector";
+import { SetCompletion } from "@/components/SetCompletion";
+import {
+  browseCards,
+  BrowseParams,
+  CardList,
+  getSet,
+  SetWithCardCount,
+} from "@/lib/api";
+import { getToken } from "@/lib/auth";
+
+export default function SetDetailPage() {
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const setId = params.id;
+
+  const [set, setSet] = useState<SetWithCardCount | null>(null);
+  const [data, setData] = useState<CardList | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const pageSize =
+    Number(searchParams.get("page_size") ?? String(DEFAULT_PAGE_SIZE)) ||
+    DEFAULT_PAGE_SIZE;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await getSet(setId);
+        if (!cancelled) setSet(s);
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("404")) {
+          notFound();
+        }
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Unknown error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    const browseParams: BrowseParams = {
+      set_id: setId,
+      sort: "number_asc",
+      page_size: pageSize,
+      page: Number(searchParams.get("page") ?? "1") || 1,
+    };
+    for (const key of [
+      "q",
+      "rarity",
+      "supertype",
+      "type",
+      "subtype",
+      "artist",
+      "owned",
+      "condition",
+      "sort",
+    ] as const) {
+      const v = searchParams.get(key);
+      if (v) (browseParams as Record<string, unknown>)[key] = v;
+    }
+    for (const key of ["hp_min", "hp_max", "price_min", "price_max"] as const) {
+      const v = searchParams.get(key);
+      if (v) (browseParams as Record<string, unknown>)[key] = Number(v);
+    }
+
+    (async () => {
+      try {
+        const token = user ? getToken() ?? undefined : undefined;
+        const result = await browseCards(browseParams, token);
+        if (!cancelled) setData(result);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Unknown");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setId, searchParams, user, pageSize]);
+
+  const currentPage = Number(searchParams.get("page") ?? "1") || 1;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 0;
+
+  const goToPage = (n: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (n === 1) next.delete("page");
+    else next.set("page", String(n));
+    router.push(`/sets/${setId}?${next.toString()}`);
+  };
+
+  const changePageSize = (size: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (size === DEFAULT_PAGE_SIZE) next.delete("page_size");
+    else next.set("page_size", String(size));
+    next.delete("page");
+    router.push(`/sets/${setId}?${next.toString()}`);
+  };
+
+  const releaseDate = set?.release_date
+    ? new Date(set.release_date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  const hasActiveFilters = Array.from(searchParams.entries()).some(
+    ([k]) => k !== "page",
+  );
+
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-8">
+      <nav className="mb-6 text-sm text-text-secondary">
+        <Link href="/" className="hover:text-text-primary">
+          Home
+        </Link>
+        <span className="mx-2 text-text-tertiary">/</span>
+        <Link href="/sets" className="hover:text-text-primary">
+          Sets
+        </Link>
+        <span className="mx-2 text-text-tertiary">/</span>
+        <span className="text-text-primary">{set?.name ?? setId}</span>
+      </nav>
+
+      {error && (
+        <div className="rounded-card bg-accent-red/10 border border-accent-red/30 p-4 text-sm mb-6">
+          <div className="font-semibold mb-1">Failed</div>
+          <div className="text-text-secondary font-mono">{error}</div>
+        </div>
+      )}
+
+      {set && (
+        <header className="mb-8 flex flex-col md:flex-row gap-6 items-center md:items-end">
+          <div className="flex-shrink-0">
+            {set.logo_url ? (
+              <Image
+                src={set.logo_url}
+                alt={set.name}
+                width={280}
+                height={112}
+                className="max-h-28 w-auto object-contain"
+                unoptimized
+                priority
+              />
+            ) : (
+              <div className="h-28 w-56 flex items-center justify-center text-text-tertiary">
+                no logo
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 text-center md:text-left">
+            <h1 className="text-3xl font-bold mb-1 tracking-tight">
+              {set.name}
+            </h1>
+            <div className="text-text-secondary text-sm flex flex-wrap gap-x-4 gap-y-1 justify-center md:justify-start">
+              {set.series && (
+                <span>
+                  <span className="text-text-tertiary">Series ·</span>{" "}
+                  {set.series}
+                </span>
+              )}
+              {releaseDate && (
+                <span>
+                  <span className="text-text-tertiary">Released ·</span>{" "}
+                  {releaseDate}
+                </span>
+              )}
+              {set.ptcgo_code && (
+                <span className="font-mono text-text-tertiary">
+                  {set.ptcgo_code}
+                </span>
+              )}
+            </div>
+            <div className="mt-3 font-mono text-sm">
+              <span className="text-accent-yellow">{set.card_count}</span>
+              <span className="text-text-tertiary">
+                {" / "}
+                {set.total ?? set.printed_total ?? "?"} cards
+                {set.printed_total &&
+                  set.total &&
+                  set.total > set.printed_total && (
+                    <span>
+                      {" "}
+                      ({set.printed_total} printed + {set.total - set.printed_total}{" "}
+                      secret)
+                    </span>
+                  )}
+              </span>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {set && (
+        <div className="mb-6">
+          <SetCompletion setId={set.id} totalCards={set.card_count} />
+        </div>
+      )}
+
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="md:w-60 flex-shrink-0">
+          <div className="md:sticky md:top-20 md:max-h-[calc(100vh-5.5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 filter-scroll">
+            <FilterSidebar basePath={`/sets/${setId}`} lockedSetId={setId} />
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {data && (
+            <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+              <div className="text-sm text-text-secondary">
+                <span className="text-text-primary font-medium">
+                  {data.total.toLocaleString()}
+                </span>{" "}
+                {hasActiveFilters ? "matching" : "cards"}
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                {totalPages > 1 && (
+                  <span className="font-mono text-text-tertiary">
+                    page {currentPage} / {totalPages}
+                  </span>
+                )}
+                <PageSizeSelector value={pageSize} onChange={changePageSize} />
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div className="text-text-tertiary py-12 text-center">Loading…</div>
+          )}
+
+          {!loading && data && data.items.length === 0 && (
+            <div className="rounded-card border border-border bg-bg-surface p-8 text-center">
+              <h2 className="font-semibold mb-2">
+                {hasActiveFilters
+                  ? "No cards match these filters"
+                  : "No cards seeded yet"}
+              </h2>
+            </div>
+          )}
+
+          {!loading && data && data.items.length > 0 && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
+                {data.items.map((c, idx) => (
+                  <CardThumb key={c.id} card={c} priority={idx < 8} />
+                ))}
+              </div>
+
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                total={data.total}
+                pageSize={pageSize}
+                onPageChange={goToPage}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}

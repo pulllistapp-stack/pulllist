@@ -1,0 +1,153 @@
+export type User = {
+  id: string;
+  email: string;
+  name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+};
+
+export type TokenResponse = {
+  access_token: string;
+  token_type: string;
+  user: User;
+};
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+
+const TOKEN_KEY = "pulllist_token";
+
+export function saveToken(token: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(TOKEN_KEY, token);
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${60 * 60 * 24 * 14}; samesite=lax`;
+}
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function clearToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(TOKEN_KEY);
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
+}
+
+async function authFetch<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let detail = `API ${res.status}`;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      // ignore
+    }
+    throw new Error(detail);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export async function signup(
+  email: string,
+  password: string,
+  name?: string,
+): Promise<TokenResponse> {
+  return authFetch<TokenResponse>("/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ email, password, name }),
+  });
+}
+
+export async function login(
+  email: string,
+  password: string,
+): Promise<TokenResponse> {
+  return authFetch<TokenResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function fetchMe(): Promise<User> {
+  return authFetch<User>("/auth/me");
+}
+
+export type CollectionSummary = {
+  total_entries: number;
+  unique_cards: number;
+  total_qty: number;
+  sets_touched: number;
+  estimated_value_usd: number;
+};
+
+export type SetCompletion = {
+  set_id: string;
+  set_name: string;
+  total_cards: number;
+  owned_unique: number;
+  owned_total_qty: number;
+  completion_pct: number;
+  estimated_value_usd: number;
+};
+
+export type CollectionItemDetail = {
+  id: number;
+  card_id: string;
+  qty: number;
+  condition: string;
+  is_graded: boolean;
+  grade: string | null;
+  acquired_at: string | null;
+  notes: string | null;
+  created_at: string;
+  card_name: string;
+  card_number: string | null;
+  image_small: string | null;
+  rarity: string | null;
+  market_price_usd: number | null;
+  set_id: string;
+  set_name: string;
+};
+
+export async function toggleOwned(cardId: string): Promise<{ owned: boolean }> {
+  return authFetch<{ owned: boolean }>(`/collection/cards/${cardId}/toggle`, {
+    method: "POST",
+  });
+}
+
+export async function ownedIds(setId?: string): Promise<string[]> {
+  const qs = setId ? `?set_id=${encodeURIComponent(setId)}` : "";
+  return authFetch<string[]>(`/collection/owned-ids${qs}`);
+}
+
+export async function setCompletion(setId: string): Promise<SetCompletion> {
+  return authFetch<SetCompletion>(`/collection/sets/${setId}/completion`);
+}
+
+export async function collectionSummary(): Promise<CollectionSummary> {
+  return authFetch<CollectionSummary>(`/collection/summary`);
+}
+
+export async function listMyItems(
+  setId?: string,
+): Promise<CollectionItemDetail[]> {
+  const qs = setId ? `?set_id=${encodeURIComponent(setId)}` : "";
+  return authFetch<CollectionItemDetail[]>(`/collection/items${qs}`);
+}

@@ -1,0 +1,43 @@
+from datetime import date, datetime
+
+from sqlalchemy import Date, DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class Set(Base):
+    __tablename__ = "sets"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    series: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    printed_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ptcgo_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    release_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+
+    symbol_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+    language: Mapped[str] = mapped_column(
+        String(8), default="en", server_default="en", nullable=False, index=True
+    )
+    """ISO 639 lang code — 'en' / 'ja' / 'ko' / 'zh-CN' / 'zh-TW'."""
+
+    name_local: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    """Native-language set name (e.g., リザードンEXパック). Use `name` for English."""
+
+    parent_set_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    """If this set is a translation of another, points to the source set id."""
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    cards: Mapped[list["Card"]] = relationship(  # noqa: F821
+        back_populates="set", cascade="all, delete-orphan"
+    )
