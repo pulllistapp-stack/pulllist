@@ -9,7 +9,9 @@ async function fetchHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      // 30s to tolerate Render free-tier cold starts (50s worst case still misses,
+      // but we don't want to block the page that long).
+      signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) return { status: "down" };
     return res.json();
