@@ -115,6 +115,24 @@ export async function getAlternates(cardId: string, limit = 12): Promise<Card[]>
   return apiFetch<Card[]>(`/cards/${cardId}/alternates?limit=${limit}`);
 }
 
+export type CardNeighbor = {
+  id: string;
+  name: string;
+  number: string | null;
+  image_small: string | null;
+};
+
+export type CardNeighbors = {
+  prev: CardNeighbor | null;
+  next: CardNeighbor | null;
+  position: number | null;
+  total: number;
+};
+
+export async function getCardNeighbors(cardId: string): Promise<CardNeighbors> {
+  return apiFetch<CardNeighbors>(`/cards/${cardId}/neighbors`);
+}
+
 export type FilterOptions = {
   rarities: string[];
   supertypes: string[];

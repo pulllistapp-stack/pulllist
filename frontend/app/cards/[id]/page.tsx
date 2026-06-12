@@ -2,12 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { CardNeighborsNav } from "@/components/CardNeighborsNav";
 import { CardThumb } from "@/components/CardThumb";
 import { OwnedToggle } from "@/components/OwnedToggle";
 import { PriceBreakdown } from "@/components/PriceBreakdown";
 import { RarityChip } from "@/components/RarityChip";
-import type { Card } from "@/lib/api";
-import { getAlternates, getCard } from "@/lib/api";
+import type { Card, CardNeighbors } from "@/lib/api";
+import { getAlternates, getCard, getCardNeighbors } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,13 @@ export default async function CardDetailPage({ params }: Props) {
     throw e;
   }
 
-  let alternates: Card[] = [];
-  try {
-    alternates = await getAlternates(id, 12);
-  } catch {
-    // non-fatal
-  }
+  const [alternates, neighbors] = await Promise.all([
+    getAlternates(id, 12).catch(() => [] as Card[]),
+    getCardNeighbors(id).catch(
+      () =>
+        ({ prev: null, next: null, position: null, total: 0 }) as CardNeighbors,
+    ),
+  ]);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -53,6 +55,12 @@ export default async function CardDetailPage({ params }: Props) {
         <span className="mx-2 text-text-tertiary">/</span>
         <span className="text-text-primary">{card.name}</span>
       </nav>
+
+      <CardNeighborsNav
+        setId={card.set_id}
+        setName={card.set_name}
+        neighbors={neighbors}
+      />
 
       <div className="grid md:grid-cols-[400px_1fr] gap-10 mb-16">
         <div className="flex justify-center md:justify-start">

@@ -192,6 +192,46 @@ async def suggest_cards(
     ]
 
 
+@router.get("/cards/{card_id}/neighbors")
+async def get_neighbors(
+    card_id: str, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Previous/next card in the same set by sort order (number_int, number)."""
+    base = await db.get(Card, card_id)
+    if not base:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    stmt = (
+        select(Card.id, Card.name, Card.number, Card.image_small)
+        .where(Card.set_id == base.set_id)
+        .order_by(
+            Card.number_int.is_(None),
+            Card.number_int,
+            Card.number,
+        )
+    )
+    rows = (await db.execute(stmt)).all()
+
+    idx = next((i for i, r in enumerate(rows) if r.id == card_id), None)
+    if idx is None:
+        return {"prev": None, "next": None, "position": None, "total": len(rows)}
+
+    def serialize(r) -> dict:
+        return {
+            "id": r.id,
+            "name": r.name,
+            "number": r.number,
+            "image_small": r.image_small,
+        }
+
+    return {
+        "prev": serialize(rows[idx - 1]) if idx > 0 else None,
+        "next": serialize(rows[idx + 1]) if idx < len(rows) - 1 else None,
+        "position": idx + 1,
+        "total": len(rows),
+    }
+
+
 @router.get("/cards/{card_id}/alternates", response_model=list[CardRead])
 async def list_alternates(
     card_id: str,
