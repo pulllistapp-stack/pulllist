@@ -4,6 +4,8 @@ import { CardThumb } from "@/components/CardThumb";
 import { SearchPagination } from "./SearchPagination";
 import { Card as CardType, CardList, searchCards } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 const DEFAULT_PAGE_SIZE = 50;
 const ALLOWED_PAGE_SIZES = new Set([30, 50, 100]);
 

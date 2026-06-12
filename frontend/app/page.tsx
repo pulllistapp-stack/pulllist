@@ -1,9 +1,15 @@
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
+
 async function fetchHealth() {
   try {
-    const res = await fetch("http://localhost:8000/api/v1/health", {
+    const res = await fetch(`${API_BASE}/health`, {
       cache: "no-store",
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return { status: "down" };
     return res.json();
@@ -36,8 +42,7 @@ export default async function HomePage() {
             }`}
           />
           <span className="text-text-secondary">
-            API {online ? "online" : "offline"} ·{" "}
-            <span className="text-text-tertiary">localhost:8000</span>
+            API {online ? "online" : "offline"}
           </span>
         </div>
       </section>
@@ -58,8 +63,8 @@ export default async function HomePage() {
         <Card
           title="Collection"
           body="Track what you own. See your set completion %. Share with friends."
-          href="/collection"
-          status="coming"
+          href="/me/collection"
+          status="ready"
         />
       </section>
     </main>

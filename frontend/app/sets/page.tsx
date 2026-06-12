@@ -3,6 +3,8 @@ import Link from "next/link";
 import { SetCard } from "@/components/SetCard";
 import { listSets, SetWithCardCount } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 export default async function SetsPage() {
   let sets: SetWithCardCount[] = [];
   let error: string | null = null;

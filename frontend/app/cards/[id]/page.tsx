@@ -9,6 +9,8 @@ import { RarityChip } from "@/components/RarityChip";
 import type { Card } from "@/lib/api";
 import { getAlternates, getCard } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{ id: string }>;
 };
