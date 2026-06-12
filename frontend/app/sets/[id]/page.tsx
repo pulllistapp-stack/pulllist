@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { CardThumb } from "@/components/CardThumb";
@@ -24,6 +24,22 @@ import {
 import { getToken } from "@/lib/auth";
 
 export default function SetDetailPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <SetDetailContent />
+    </Suspense>
+  );
+}
+
+function PageLoading() {
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-8">
+      <div className="text-text-tertiary py-12 text-center">Loading…</div>
+    </main>
+  );
+}
+
+function SetDetailContent() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();

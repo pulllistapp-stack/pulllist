@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { CardThumb } from "@/components/CardThumb";
@@ -16,6 +16,22 @@ import { browseCards, BrowseParams, CardList } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
 export default function BrowseCardsPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <BrowseCardsContent />
+    </Suspense>
+  );
+}
+
+function PageLoading() {
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-8">
+      <div className="text-text-tertiary py-12 text-center">Loading…</div>
+    </main>
+  );
+}
+
+function BrowseCardsContent() {
   const router = useRouter();
   const params = useSearchParams();
   const { user } = useAuth();
