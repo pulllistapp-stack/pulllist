@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { useAuth } from "./AuthProvider";
+import { invalidateApiCache } from "@/lib/api";
 import { ownedIds as fetchOwnedIds, toggleOwned } from "@/lib/auth";
 
 type CollectionContextValue = {
@@ -62,6 +63,8 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
         else next.delete(cardId);
         return next;
       });
+      // Drop browse/owned caches so collection-filtered lists pick this up.
+      invalidateApiCache("/cards/browse");
       return result.owned;
     },
     [user],

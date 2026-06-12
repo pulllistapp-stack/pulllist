@@ -45,14 +45,47 @@ export type Card = {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
 
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-  });
+/**
+ * Tiny in-memory cache for GET responses. Keeps navigation between pages
+ * snappy — clicking back to a set you just visited shows instantly while
+ * we revalidate in the background. Mutations call `invalidateApiCache()`
+ * to drop stale entries.
+ */
+type CacheEntry = { data: unknown; expires: number };
+const cache = new Map<string, CacheEntry>();
+const DEFAULT_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export function invalidateApiCache(prefix?: string) {
+  if (!prefix) {
+    cache.clear();
+    return;
+  }
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) cache.delete(key);
+  }
+}
+
+async function apiFetch<T>(path: string, ttlMs = DEFAULT_TTL_MS): Promise<T> {
+  // Server-side rendering: don't cache (separate process per request).
+  if (typeof window === "undefined") {
+    const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+    return res.json() as Promise<T>;
+  }
+
+  const now = Date.now();
+  const cached = cache.get(path);
+  if (cached && cached.expires > now) {
+    return cached.data as T;
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`API ${res.status}: ${path}`);
   }
-  return res.json() as Promise<T>;
+  const data = (await res.json()) as T;
+  cache.set(path, { data, expires: now + ttlMs });
+  return data;
 }
 
 export type CardList = {
@@ -169,6 +202,8 @@ export type BrowseParams = {
   page_size?: number;
 };
 
+const BROWSE_TTL_MS = 60 * 1000; // 1 minute — browse can change with collection toggles
+
 export async function browseCards(
   params: BrowseParams,
   token?: string,
@@ -178,6 +213,17 @@ export async function browseCards(
     if (v === undefined || v === null || v === "") continue;
     qs.set(k, String(v));
   }
+  const cacheKey = `/cards/browse?${qs.toString()}${token ? `::auth=${token.slice(0, 12)}` : ""}`;
+
+  // Server-side: skip cache
+  if (typeof window !== "undefined") {
+    const now = Date.now();
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expires > now) {
+      return cached.data as CardList;
+    }
+  }
+
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -186,5 +232,10 @@ export async function browseCards(
     headers,
   });
   if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json() as Promise<CardList>;
+  const data = (await res.json()) as CardList;
+
+  if (typeof window !== "undefined") {
+    cache.set(cacheKey, { data, expires: Date.now() + BROWSE_TTL_MS });
+  }
+  return data;
 }
