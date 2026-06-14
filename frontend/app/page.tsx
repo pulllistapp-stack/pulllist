@@ -8,6 +8,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { FinalCTA, HeroCTA } from "@/components/HomeCTAs";
+
 export const dynamic = "force-dynamic";
 
 const API_BASE =
@@ -99,21 +101,7 @@ export default async function HomePage() {
               indexed.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/signup"
-                className="inline-flex items-center gap-2 rounded-full bg-accent-yellow text-gray-900 font-bold px-6 py-3 text-sm hover:brightness-105 shadow-lg shadow-accent-yellow/30 transition-all"
-              >
-                Start collecting — free
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-              <Link
-                href="/sets"
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-6 py-3 text-sm hover:border-teal-400/40 hover:text-teal-500 dark:hover:text-teal-300 transition-colors"
-              >
-                Browse sets
-              </Link>
-            </div>
+            <HeroCTA />
 
             {/* Stats strip */}
             <dl className="mt-10 flex flex-wrap items-end gap-x-10 gap-y-4">
@@ -235,19 +223,7 @@ export default async function HomePage() {
             aria-hidden
             className="absolute bottom-8 right-12 h-5 w-5 text-teal-400 fill-teal-400 opacity-60 [animation:pl-float-a_5s_ease-in-out_infinite]"
           />
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-text-primary">
-            Your pulls deserve a vault.
-          </h2>
-          <p className="mt-3 text-text-secondary max-w-lg mx-auto">
-            Free forever. No card limits, no paywall on history.
-          </p>
-          <Link
-            href="/signup"
-            className="mt-7 inline-flex items-center gap-2 rounded-full bg-accent-yellow text-gray-900 font-bold px-7 py-3 text-sm hover:brightness-105 shadow-lg shadow-accent-yellow/30 transition-all"
-          >
-            Create your free account
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
+          <FinalCTA />
         </div>
 
         {/* System status — tiny, bottom-right */}
