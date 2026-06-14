@@ -24,3 +24,6 @@ class User(Base):
     collection: Mapped[list["CollectionItem"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )
+    wishlist: Mapped[list["WishlistItem"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )

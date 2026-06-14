@@ -36,6 +36,7 @@ async def init_db() -> None:
         set as set_model,
         snapshot,
         user,
+        wishlist,
     )
 
     async with engine.begin() as conn:
