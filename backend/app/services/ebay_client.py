@@ -44,6 +44,7 @@ _DEFAULT_EXCLUDE_TERMS = ()
 # Title substrings used by `price_summary` to drop junk listings AFTER fetching.
 # Reliable because we control the filter in code.
 _TITLE_NOISE_DEFAULT = (
+    # Online codes / accessories
     "code card", "code cards", "online code", "tcgo code",
     "sleeves", "sleeve",
     "playmat",
@@ -51,13 +52,28 @@ _TITLE_NOISE_DEFAULT = (
     "proxy",
     "fake", "replica",
     "custom",
-)
-
-_TITLE_NOISE_FOR_SINGLES = _TITLE_NOISE_DEFAULT + (
+    # Graded slabs trade for 3-10x the raw card price — drop them so a single
+    # PSA 10 listing doesn't dominate when there are no raw listings.
+    "psa 10", "psa 9", "psa 8", "psa 7",
+    "bgs 10", "bgs 9.5", "bgs 9", "bgs 8",
+    "cgc 10", "cgc 9.5", "cgc 9", "cgc 8",
+    "graded",
+    # Sealed product — not a single-card price signal.
+    "booster box", "booster pack", "elite trainer box", "etb",
+    " sealed",  # leading space avoids matching "Resealed" / "concealed"
+    # Multi-card listings
     "lot of", "bulk lot",
-    "binder",
     "pick your card", "you choose", "you pick",
 )
+
+# Minimum eBay listings required before we trust the median. With fewer than
+# this many results, a single outlier (graded slab, sealed booster) can
+# dominate the snapshot. Without this guard, me2-125 (Mega Charizard X ex)
+# matched exactly one $2,799 PSA listing and recorded that as the price even
+# though TCGplayer market was $831.
+_MIN_LISTINGS_FOR_PRICE = 3
+
+_TITLE_NOISE_FOR_SINGLES = _TITLE_NOISE_DEFAULT + ("binder",)
 
 # Kept for backwards-compat / callers that explicitly request stricter q-string excludes
 EXCLUDE_FOR_SINGLES = _DEFAULT_EXCLUDE_TERMS
@@ -288,7 +304,10 @@ class EbayClient:
             relaxed = {k: v for k, v in filters.items() if k != "buyingOptions"}
             prices = await _fetch_prices(relaxed)
 
-        if not prices:
+        # Require a minimum sample size — a single listing isn't a median.
+        # Better to record nothing than to capture a PSA-slab outlier as the
+        # market price for a raw card.
+        if not prices or len(prices) < _MIN_LISTINGS_FOR_PRICE:
             return None
 
         prices.sort()
