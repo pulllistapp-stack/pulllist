@@ -777,13 +777,18 @@ export function PullListCardDetail({
           </div>
 
           <div className="flex flex-col gap-5">
-            <div>
-              <h1 className={cn("text-balance text-2xl font-extrabold tracking-tight lg:text-4xl", heading)}>
-                {card.name}
-              </h1>
-              <p className={cn("mt-1 text-sm", muted)}>
-                {card.number ?? "—"} · {card.set_name ?? card.set_id}
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h1 className={cn("text-balance text-2xl font-extrabold tracking-tight lg:text-4xl", heading)}>
+                  {card.name}
+                </h1>
+                <p className={cn("mt-1 text-sm", muted)}>
+                  {card.number ?? "—"} · {card.set_name ?? card.set_id}
+                </p>
+              </div>
+              <div className="shrink-0 pt-1">
+                <WishlistHeart cardId={card.id} variant="inline" />
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -808,12 +813,7 @@ export function PullListCardDetail({
 
             <CheapestHero
               data={cheapest}
-              ownedToggle={
-                <div className="flex flex-wrap items-center gap-2 w-full">
-                  <OwnedToggle cardId={card.id} variant="hero" />
-                  <WishlistHeart cardId={card.id} variant="inline" />
-                </div>
-              }
+              ownedToggle={<OwnedToggle cardId={card.id} variant="hero" />}
             />
           </div>
         </div>
