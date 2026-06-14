@@ -17,8 +17,19 @@ function formatReleaseDate(d: string | null): string | null {
   return `${months[monthNum - 1] ?? ""} ${year}`;
 }
 
+function fmtValue(v: number | null): string | null {
+  if (v == null || v <= 0) return null;
+  if (v >= 10000) return `$${(v / 1000).toFixed(1)}k`;
+  if (v >= 1000) return `$${(v / 1000).toFixed(2)}k`;
+  return `$${v.toFixed(0)}`;
+}
+
 export function SetCard({ set }: Props) {
   const releaseLabel = formatReleaseDate(set.release_date);
+  const valueLabel = fmtValue(set.total_value_usd);
+  const progress = set.owned_unique != null && set.card_count > 0
+    ? (set.owned_unique / set.card_count) * 100
+    : null;
 
   return (
     <Link
@@ -58,10 +69,40 @@ export function SetCard({ set }: Props) {
       </div>
 
       <div className="mt-2 flex items-center justify-center gap-2 text-xs font-mono text-text-tertiary">
-        <span>{set.card_count}</span>
-        <span className="opacity-50">·</span>
-        {releaseLabel && <span>{releaseLabel}</span>}
+        <span>{set.card_count} cards</span>
+        {releaseLabel && (
+          <>
+            <span className="opacity-50">·</span>
+            <span>{releaseLabel}</span>
+          </>
+        )}
       </div>
+
+      {progress != null && (
+        <div className="mt-3 px-1">
+          <div className="flex items-baseline justify-between text-xs font-mono mb-1">
+            <span className="uppercase tracking-wider text-text-tertiary">Collected</span>
+            <span className="text-accent-green font-semibold">
+              {set.owned_unique}/{set.card_count}
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg/60">
+            <div
+              className="h-full rounded-full bg-accent-green transition-all"
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {valueLabel && (
+        <div className="mt-3 flex items-center justify-between text-xs px-1">
+          <span className="font-mono uppercase tracking-wider text-text-tertiary">
+            Set value
+          </span>
+          <span className="font-mono font-bold text-accent-yellow">{valueLabel}</span>
+        </div>
+      )}
     </Link>
   );
 }

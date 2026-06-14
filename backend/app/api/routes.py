@@ -1,11 +1,12 @@
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user_optional
 from app.database import get_db
-from app.models import Card, CardPriceSnapshot, Set
+from app.models import Card, CardPriceSnapshot, CollectionItem, Set, User
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
 from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
@@ -22,9 +23,14 @@ async def health() -> dict[str, str]:
 async def list_sets(
     db: AsyncSession = Depends(get_db),
     series: str | None = Query(None, description="Filter by series name"),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> list[SetWithCardCount]:
     stmt = (
-        select(Set, func.count(Card.id).label("card_count"))
+        select(
+            Set,
+            func.count(Card.id).label("card_count"),
+            func.sum(Card.market_price_usd).label("total_value"),
+        )
         .outerjoin(Card, Card.set_id == Set.id)
         .group_by(Set.id)
         .order_by(Set.release_date.desc().nullslast())
@@ -32,14 +38,31 @@ async def list_sets(
     if series:
         stmt = stmt.where(Set.series == series)
 
-    result = await db.execute(stmt)
-    rows = result.all()
+    rows = (await db.execute(stmt)).all()
+
+    # Per-user owned counts in one query if logged in
+    owned_map: dict[str, int] = {}
+    if current_user is not None:
+        owned_stmt = (
+            select(
+                Card.set_id,
+                func.count(distinct(CollectionItem.card_id)).label("owned"),
+            )
+            .join(CollectionItem, CollectionItem.card_id == Card.id)
+            .where(CollectionItem.user_id == current_user.id)
+            .group_by(Card.set_id)
+        )
+        for set_id, owned in (await db.execute(owned_stmt)).all():
+            owned_map[set_id] = int(owned)
+
     return [
         SetWithCardCount(
             **SetRead.model_validate(set_row).model_dump(),
             card_count=count,
+            total_value_usd=float(total_value) if total_value is not None else None,
+            owned_unique=owned_map.get(set_row.id) if current_user else None,
         )
-        for set_row, count in rows
+        for set_row, count, total_value in rows
     ]
 
 

@@ -23,3 +23,7 @@ class SetRead(SetBase):
 
 class SetWithCardCount(SetBase):
     card_count: int
+    total_value_usd: float | None = None
+    """Sum of market_price_usd across all cards in the set (None if no prices)."""
+    owned_unique: int | None = None
+    """Distinct cards from this set in the requesting user's collection. None if anonymous."""

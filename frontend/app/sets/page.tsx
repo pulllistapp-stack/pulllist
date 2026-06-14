@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { SetCard } from "@/components/SetCard";
+import { SetsBrowser } from "@/components/SetsBrowser";
 import { listSets, SetWithCardCount } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -15,43 +15,29 @@ export default async function SetsPage() {
     error = e instanceof Error ? e.message : "Unknown error";
   }
 
-  const bySeries = sets.reduce<Record<string, SetWithCardCount[]>>((acc, s) => {
-    const key = s.series ?? "Other";
-    (acc[key] ??= []).push(s);
-    return acc;
-  }, {});
-
-  const orderedSeries = Object.keys(bySeries).sort((a, b) => {
-    const aMax = Math.max(
-      ...bySeries[a].map((s) => Date.parse(s.release_date ?? "1970-01-01")),
-    );
-    const bMax = Math.max(
-      ...bySeries[b].map((s) => Date.parse(s.release_date ?? "1970-01-01")),
-    );
-    return bMax - aMax;
-  });
+  const totalCards = sets.reduce((n, s) => n + s.card_count, 0);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
-      <nav className="mb-8">
-        <Link href="/" className="text-text-secondary hover:text-text-primary">
+      <nav className="mb-6">
+        <Link href="/" className="text-sm text-text-secondary hover:text-text-primary">
           ← Home
         </Link>
       </nav>
 
-      <h1 className="text-3xl font-bold mb-2">Browse sets</h1>
-      <p className="text-text-secondary mb-10">
-        {sets.length} sets · {sets.reduce((n, s) => n + s.card_count, 0)} cards
-        seeded
-      </p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold mb-1">Expansion Sets</h1>
+          <p className="text-text-secondary text-sm">
+            {sets.length} sets · {totalCards} cards seeded · Explore every generation of the Pokémon TCG
+          </p>
+        </div>
+      </div>
 
       {error && (
-        <div className="rounded-card bg-accent-red/10 border border-accent-red/30 p-4 text-sm">
+        <div className="rounded-card bg-accent-red/10 border border-accent-red/30 p-4 text-sm mb-6">
           <div className="font-semibold mb-1">Could not reach API</div>
           <div className="text-text-secondary font-mono">{error}</div>
-          <div className="text-text-secondary mt-2">
-            Start the backend: <code>uvicorn app.main:app --reload</code>
-          </div>
         </div>
       )}
 
@@ -64,24 +50,33 @@ export default async function SetsPage() {
         </div>
       )}
 
-      {orderedSeries.map((series) => (
-        <section key={series} className="mb-12">
-          <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
-            {series}
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {bySeries[series]
-              .sort(
-                (a, b) =>
-                  Date.parse(b.release_date ?? "1970-01-01") -
-                  Date.parse(a.release_date ?? "1970-01-01"),
-              )
-              .map((s) => (
-                <SetCard key={s.id} set={s} />
-              ))}
-          </div>
-        </section>
-      ))}
+      {!error && sets.length > 0 && <SetsBrowser sets={sets} />}
+
+      {/* Complete your Pokedex CTA */}
+      <section className="mt-16 rounded-card border-2 border-dashed border-accent-yellow/30 bg-accent-yellow/5 p-8 text-center">
+        <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent-yellow/15">
+          <span className="text-2xl">📖</span>
+        </div>
+        <h2 className="text-lg font-bold mb-1">Complete your Pokédex!</h2>
+        <p className="mx-auto max-w-md text-sm text-text-secondary">
+          Connect your collection to see automatic completion tracking for every set. Our scout
+          even suggests the cheapest way to finish your binder.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Link
+            href="/signup"
+            className="rounded-full bg-accent-yellow px-5 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
+          >
+            Start tracking — free
+          </Link>
+          <Link
+            href="/cards"
+            className="rounded-full border border-border bg-bg-surface px-5 py-2 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
+          >
+            Browse master sets
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

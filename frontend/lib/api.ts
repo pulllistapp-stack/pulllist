@@ -9,6 +9,8 @@ export type SetWithCardCount = {
   symbol_url: string | null;
   logo_url: string | null;
   card_count: number;
+  total_value_usd: number | null;
+  owned_unique: number | null;
 };
 
 export type Card = {
