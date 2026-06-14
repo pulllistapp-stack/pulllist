@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -22,9 +23,22 @@ export function TopNav() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
         <Link
           href="/"
-          className="text-xl font-bold tracking-tight flex-shrink-0 hover:opacity-90"
+          className="flex items-center gap-2 flex-shrink-0 hover:opacity-90"
         >
-          Pull<span className="text-accent-yellow">List</span>
+          <span className="relative h-9 w-9 overflow-hidden rounded-full ring-2 ring-amber-300/60 bg-amber-100">
+            <Image
+              src="/pullist-mascot.png"
+              alt="PullList mascot"
+              fill
+              className="object-cover"
+              sizes="36px"
+              priority
+              unoptimized
+            />
+          </span>
+          <span className="text-xl font-bold tracking-tight">
+            Pull<span className="text-accent-yellow">List</span>
+          </span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-5 text-sm text-text-secondary">

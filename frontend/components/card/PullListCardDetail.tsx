@@ -169,7 +169,7 @@ function CheapestHero({ data, ownedToggle }: { data: CheapestData | null; ownedT
           href={data.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-amber-400 px-4 py-3 text-sm font-bold text-amber-950 transition-colors hover:bg-amber-300"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-gray-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-800 dark:bg-zinc-100 dark:text-gray-900 dark:hover:bg-white"
         >
           <ShoppingCart className="h-4 w-4" />
           Buy on {data.source}
@@ -197,7 +197,7 @@ const SOURCE_COLORS = {
   cardmarket: "#FFCB05",
 } as const;
 
-function PriceChart({ cardId, height = 300 }: { cardId: string; height?: number }) {
+function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string; height?: number; isOnFire?: boolean }) {
   const [days, setDays] = useState(30);
   const [history, setHistory] = useState<CardHistory | null>(null);
   const [loading, setLoading] = useState(true);
@@ -361,7 +361,15 @@ function PriceChart({ cardId, height = 300 }: { cardId: string; height?: number 
         ))}
       </div>
 
-      <div className="mt-4" style={{ height }}>
+      <div className="relative mt-4" style={{ height }}>
+        {isOnFire && !loading && points.length > 1 && (
+          <div className="pointer-events-none absolute right-2 top-2 z-10 flex items-center gap-2">
+            <div className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 shadow-md dark:border-[#2D3543] dark:bg-[#1A1F29] dark:text-zinc-100">
+              This card is on fire lately! 🔥
+            </div>
+            <MascotMark className="h-7 w-7" />
+          </div>
+        )}
         {loading ? (
           <div className="h-full flex items-center justify-center text-sm text-gray-400">Loading…</div>
         ) : points.length === 0 ? (
@@ -694,22 +702,26 @@ export function PullListCardDetail({
         </div>
 
         {/* Price chart */}
-        <PriceChart cardId={card.id} height={300} />
+        <PriceChart
+          cardId={card.id}
+          height={300}
+          isOnFire={Math.max(ebayDelta7d ?? 0, tcgDelta7d ?? 0, cardmarketDelta7d ?? 0) >= 10}
+        />
 
         {/* Secondary prices */}
         <SecondaryPrices items={secondaryPrices} />
 
         {/* Empty state mascot if we have very little data */}
         {!cheapest && (
-          <div className={cn(surface, "flex flex-col items-center justify-center gap-3 p-6 text-center")}>
-            <MascotMark className="h-16 w-16" />
-            <div>
-              <p className={cn("text-sm font-bold", heading)}>Hunting for prices…</p>
-              <p className={cn("mt-0.5 flex items-center justify-center gap-1 text-xs", muted)}>
-                <Search className="h-3 w-3" />
-                Daily snapshots will fill in as the market settles
-              </p>
+          <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-10 text-center dark:border-[#2D3543] dark:bg-[#1A1F29]/50">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-400/15">
+              <Search className="h-7 w-7 text-teal-600 dark:text-teal-400" />
+              <MascotMark className="-ml-3 -mt-6 h-8 w-8" />
             </div>
+            <p className={cn("mt-4 text-base font-bold", heading)}>No active price snapshot yet</p>
+            <p className={cn("mt-1 mx-auto max-w-md text-sm", muted)}>
+              We&apos;re hunting prices for you 🔍. Our dragon scouts are checking auction history as we speak!
+            </p>
           </div>
         )}
 
