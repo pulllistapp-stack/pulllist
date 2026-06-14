@@ -22,6 +22,7 @@ import {
 
 import { LiveListings } from "@/components/card/LiveListings";
 import { OwnedToggle } from "@/components/OwnedToggle";
+import { RarityChip } from "@/components/RarityChip";
 import { getCardHistory, type Card, type CardHistory, type CardNeighbors } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -785,11 +786,7 @@ export function PullListCardDetail({
             </div>
 
             <div className="flex flex-wrap gap-1.5">
-              {card.rarity && (
-                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-300 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30">
-                  {card.rarity}
-                </span>
-              )}
+              {card.rarity && <RarityChip rarity={card.rarity} size="md" />}
               {types.map((t) => (
                 <span
                   key={t}
