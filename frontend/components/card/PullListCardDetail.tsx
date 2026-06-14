@@ -43,19 +43,24 @@ function fmtEUR(v: number | null | undefined) {
 }
 
 /* ============================================================
-   Mascot mark (placeholder — drop /public/pullist-mascot.png to swap)
+   Mascot mark
    ============================================================ */
 function MascotMark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "relative inline-flex items-center justify-center rounded-full",
-        "bg-gradient-to-br from-amber-300 to-amber-500",
-        "ring-2 ring-amber-300/60",
+        "relative inline-block overflow-hidden rounded-full ring-2 ring-amber-300/60",
         className,
       )}
     >
-      <Sparkles className="h-3.5 w-3.5 text-amber-900" />
+      <Image
+        src="/pullist-mascot.png"
+        alt="PullList mascot"
+        fill
+        className="object-cover"
+        sizes="80px"
+        unoptimized
+      />
     </span>
   );
 }
