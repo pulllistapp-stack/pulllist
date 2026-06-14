@@ -166,6 +166,36 @@ export async function getCardNeighbors(cardId: string): Promise<CardNeighbors> {
   return apiFetch<CardNeighbors>(`/cards/${cardId}/neighbors`);
 }
 
+export type CardHistoryPoint = {
+  date: string;
+  market: number | null;
+  low: number | null;
+  mid: number | null;
+  high: number | null;
+  sales: number | null;
+};
+
+export type CardHistory = {
+  card_id: string;
+  card_name: string;
+  days: number;
+  series_count: number;
+  /** Key format: `<source>:<variant>` — e.g. `"ebay:active"`, `"tcgplayer:holofoil"`. */
+  series: Record<string, CardHistoryPoint[]>;
+};
+
+export async function getCardHistory(
+  cardId: string,
+  opts: { source?: string; variant?: string; days?: number } = {},
+): Promise<CardHistory> {
+  const qs = new URLSearchParams();
+  if (opts.source) qs.set("source", opts.source);
+  if (opts.variant) qs.set("variant", opts.variant);
+  if (opts.days != null) qs.set("days", String(opts.days));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<CardHistory>(`/cards/${cardId}/history${suffix}`);
+}
+
 export type FilterOptions = {
   rarities: string[];
   supertypes: string[];

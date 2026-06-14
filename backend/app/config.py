@@ -21,9 +21,33 @@ class Settings(BaseSettings):
     env: str = "development"
     debug: bool = True
 
+    # eBay Browse API (client_credentials flow — no eBay user data stored)
+    ebay_env: str = "sandbox"  # "sandbox" or "production"
+    ebay_app_id: str = ""
+    ebay_cert_id: str = ""
+    ebay_sandbox_app_id: str = ""
+    ebay_sandbox_cert_id: str = ""
+    ebay_marketplace_id: str = "EBAY_US"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def ebay_active_app_id(self) -> str:
+        return self.ebay_sandbox_app_id if self.ebay_env == "sandbox" else self.ebay_app_id
+
+    @property
+    def ebay_active_cert_id(self) -> str:
+        return self.ebay_sandbox_cert_id if self.ebay_env == "sandbox" else self.ebay_cert_id
+
+    @property
+    def ebay_base_url(self) -> str:
+        return (
+            "https://api.sandbox.ebay.com"
+            if self.ebay_env == "sandbox"
+            else "https://api.ebay.com"
+        )
 
 
 settings = Settings()
