@@ -29,12 +29,24 @@ const SOURCES = [
   { key: "tcgplayer", label: "TCGplayer" },
 ] as const;
 
+// Price tier floors — filters out penny-stock noise. Default $5 hides
+// bulk-card chatter while keeping real chase-card movement visible.
+const PRICE_TIERS = [
+  { label: "$1+", value: 1 },
+  { label: "$5+", value: 5 },
+  { label: "$10+", value: 10 },
+  { label: "$50+", value: 50 },
+] as const;
+
 type Direction = "up" | "down";
 
 export default function TrendingPage() {
   const [periodDays, setPeriodDays] = useState(7);
   const [source, setSource] = useState<(typeof SOURCES)[number]["key"]>("ebay");
   const [direction, setDirection] = useState<Direction>("up");
+  // Default $5 floor — surfaces real chase-card movement, hides bulk noise.
+  // Users can drop to $1 if they actually want to scan everything.
+  const [minPrice, setMinPrice] = useState<number>(5);
   const [movers, setMovers] = useState<TrendingMover[]>([]);
   const [eligible, setEligible] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -44,7 +56,13 @@ export default function TrendingPage() {
     let cancelled = false;
     setLoading(true);
     setErr(null);
-    getTrending({ periodDays, source, direction, limit: 25 })
+    getTrending({
+      periodDays,
+      source,
+      direction,
+      limit: 25,
+      minPriceUsd: minPrice,
+    })
       .then((r) => {
         if (cancelled) return;
         setMovers(r.movers);
@@ -59,7 +77,7 @@ export default function TrendingPage() {
     return () => {
       cancelled = true;
     };
-  }, [periodDays, source, direction]);
+  }, [periodDays, source, direction, minPrice]);
 
   const top3 = movers.slice(0, 3);
   const rest = movers.slice(3);
@@ -155,6 +173,23 @@ export default function TrendingPage() {
               </button>
             ))}
           </div>
+
+          {/* Price floor pills — filters out penny-stock noise */}
+          <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
+            {PRICE_TIERS.map((tier) => (
+              <button
+                key={tier.value}
+                onClick={() => setMinPrice(tier.value)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  minPrice === tier.value
+                    ? "bg-accent-green/15 text-accent-green shadow-sm shadow-accent-green/20"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {tier.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Stats banner */}
@@ -165,7 +200,8 @@ export default function TrendingPage() {
               {movers.length}
             </span>{" "}
             shown · {eligible.toLocaleString()} eligible · {periodDays}d window ·{" "}
-            {source === "ebay" ? "eBay" : "TCGplayer"}
+            {source === "ebay" ? "eBay" : "TCGplayer"} ·{" "}
+            <span className="text-accent-green font-semibold">${minPrice}+</span>
           </span>
         </div>
       </div>

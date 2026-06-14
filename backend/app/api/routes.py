@@ -339,11 +339,28 @@ async def get_trending(
     source: str = Query("ebay", description="Snapshot source: ebay / tcgplayer / cardmarket"),
     direction: str = Query("up", description="up = top gainers, down = top losers"),
     limit: int = Query(20, ge=1, le=50),
+    min_price_usd: float = Query(
+        1.0,
+        ge=0,
+        description=(
+            "Price floor (both endpoints). Filters out penny-stock artifacts — "
+            "a $0.02 → $0.27 card is a +1250% mover by math, but useless signal."
+        ),
+    ),
+    min_abs_change_usd: float = Query(
+        0.5,
+        ge=0,
+        description="Minimum absolute $ change between oldest and latest snapshot.",
+    ),
 ) -> dict:
     """Top movers — cards with the biggest %change over the last `period_days`.
 
     Needs at least 2 snapshots per card in the window. With a fresh daily cron
     expect this to be sparse for the first few days, then fill in.
+
+    Cards under `min_price_usd` (default $1) or with absolute change below
+    `min_abs_change_usd` (default $0.50) are excluded so the list surfaces
+    movements that actually matter to collectors.
     """
     if direction not in ("up", "down"):
         raise HTTPException(status_code=400, detail="direction must be 'up' or 'down'")
@@ -370,6 +387,13 @@ async def get_trending(
         oldest = snaps[0].market_price_usd
         latest = snaps[-1].market_price_usd
         if oldest is None or latest is None or oldest <= 0:
+            continue
+        # Quality floors — both endpoints must be at a real price point AND the
+        # absolute change must be meaningful. Otherwise the list fills with
+        # bulk-card noise sorting by percentage.
+        if float(oldest) < min_price_usd or float(latest) < min_price_usd:
+            continue
+        if abs(float(latest) - float(oldest)) < min_abs_change_usd:
             continue
         delta_pct = ((latest - oldest) / oldest) * 100.0
         movers.append({

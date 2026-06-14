@@ -264,12 +264,17 @@ export async function getTrending(opts: {
   source?: string;
   direction?: "up" | "down";
   limit?: number;
+  minPriceUsd?: number;
+  minAbsChangeUsd?: number;
 } = {}): Promise<TrendingResponse> {
   const qs = new URLSearchParams();
   if (opts.periodDays != null) qs.set("period_days", String(opts.periodDays));
   if (opts.source) qs.set("source", opts.source);
   if (opts.direction) qs.set("direction", opts.direction);
   if (opts.limit != null) qs.set("limit", String(opts.limit));
+  if (opts.minPriceUsd != null) qs.set("min_price_usd", String(opts.minPriceUsd));
+  if (opts.minAbsChangeUsd != null)
+    qs.set("min_abs_change_usd", String(opts.minAbsChangeUsd));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<TrendingResponse>(`/cards/trending${suffix}`);
 }
