@@ -34,26 +34,33 @@ POKEMON_CATEGORIES = {
     "sealed_boxes": "183456",          # Pokémon Sealed Booster Boxes
 }
 
-# Conservative default exclude list — only the clearly misleading patterns.
-# Excluded EVERY broad term (etb, ultra-pro, pick, choose, lot, binder, etc.)
-# because they also kill legitimate listings.
-_DEFAULT_EXCLUDE_TERMS = (
-    "code", "codes",        # TCGO online code-only listings
-    "sleeves", "sleeve",    # empty sleeve packs
-    "playmat",              # accessory only
-    "empty",                # empty pack / box listings
-    "proxy",                # counterfeit reproductions
+# eBay Browse API doesn't reliably honor `-term` negative search syntax — for
+# some specific queries it returns 0 results because it tries to match the
+# literal "-term" string. We keep the q-string clean and post-filter results
+# on the Python side instead.
+_DEFAULT_EXCLUDE_TERMS = ()
+
+
+# Title substrings used by `price_summary` to drop junk listings AFTER fetching.
+# Reliable because we control the filter in code.
+_TITLE_NOISE_DEFAULT = (
+    "code card", "code cards", "online code", "tcgo code",
+    "sleeves", "sleeve",
+    "playmat",
+    "empty pack", "empty box",
+    "proxy",
     "fake", "replica",
-    "custom",               # custom-painted / non-original
+    "custom",
 )
 
-
-# Stricter list for single-card lookups (where bulk/lot/box listings would
-# inflate or muddy the per-card median). Use via `exclude_terms=EXCLUDE_FOR_SINGLES`.
-EXCLUDE_FOR_SINGLES = _DEFAULT_EXCLUDE_TERMS + (
-    "lot", "bulk", "binder",
-    "pickyourcard",         # multi-card "pick your card" listings
+_TITLE_NOISE_FOR_SINGLES = _TITLE_NOISE_DEFAULT + (
+    "lot of", "bulk lot",
+    "binder",
+    "pick your card", "you choose", "you pick",
 )
+
+# Kept for backwards-compat / callers that explicitly request stricter q-string excludes
+EXCLUDE_FOR_SINGLES = _DEFAULT_EXCLUDE_TERMS
 
 
 def build_query(positive_terms: str, *, exclude: list[str] | None = None) -> str:
@@ -211,7 +218,7 @@ class EbayClient:
         self,
         query: str,
         *,
-        category_id: str | None = POKEMON_CATEGORIES["tcg_root"],
+        category_id: str | None = None,
         max_results: int = 50,
         fixed_price_only: bool = True,
         new_only: bool = False,
@@ -244,27 +251,42 @@ class EbayClient:
             filters["priceCurrency"] = "USD"
 
         cleaned_query = build_query(query, exclude=exclude_terms)
+        total_listings_hint = 0
 
-        # No explicit sort = eBay's relevance/bestMatch which represents the
-        # typical market better than "price" (= cheapest first = junk-skewed).
-        result = await self.browse_search(
-            cleaned_query,
-            limit=max_results,
-            filters=filters or None,
-            category_id=category_id,
-        )
+        async def _fetch_prices(active_filters: dict[str, str]) -> list[float]:
+            nonlocal total_listings_hint
+            res = await self.browse_search(
+                cleaned_query,
+                limit=max_results,
+                filters=active_filters or None,
+                category_id=category_id,
+            )
+            total_listings_hint = int(res.get("total") or 0) or total_listings_hint
+            out: list[float] = []
+            for it in res.get("itemSummaries") or []:
+                # Python-side title filter — eBay's q-string `-term` syntax is unreliable
+                title = (it.get("title") or "").lower()
+                if any(n in title for n in _TITLE_NOISE_DEFAULT):
+                    continue
+                try:
+                    p = it.get("price") or {}
+                    v = float(p["value"])
+                    currency = p.get("currency", "USD")
+                    if currency == "USD" and v > 0:
+                        out.append(v)
+                except (KeyError, TypeError, ValueError):
+                    continue
+            return out
 
-        items = result.get("itemSummaries") or []
-        prices: list[float] = []
-        for it in items:
-            try:
-                p = it.get("price") or {}
-                v = float(p["value"])
-                currency = p.get("currency", "USD")
-                if currency == "USD" and v > 0:
-                    prices.append(v)
-            except (KeyError, TypeError, ValueError):
-                continue
+        # First pass — respect caller's settings (fixed-price by default).
+        prices = await _fetch_prices(filters)
+
+        # Fallback for hot/new cards that are mostly auctions (e.g. Cinccino ex SIR):
+        # if we got nothing under FIXED_PRICE, retry including auctions so the
+        # snapshot captures *some* signal instead of being NULL.
+        if not prices and fixed_price_only:
+            relaxed = {k: v for k, v in filters.items() if k != "buyingOptions"}
+            prices = await _fetch_prices(relaxed)
 
         if not prices:
             return None
@@ -281,6 +303,6 @@ class EbayClient:
             "median": median,
             "high": prices[-1],
             "count_sampled": n,
-            "total_listings": result.get("total", n),
+            "total_listings": total_listings_hint or n,
             "cleaned_query": cleaned_query,
         }
