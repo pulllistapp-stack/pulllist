@@ -9,7 +9,10 @@ on:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Bumped from 30m → 90m. With ~580+ eligible cards × 150ms throttle +
+    # eBay round-trip + DB write, the full catalog won't finish under 30m.
+    # GitHub Actions free tier allows up to 6h, so 90m is comfortably safe.
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: backend
