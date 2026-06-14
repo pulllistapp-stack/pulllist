@@ -10,7 +10,10 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 30 sets × ~250 cards × (pokemontcg.io fetch + UPDATE + snapshot INSERT)
+    # can run past 30m on Render's network. 90m matches the eBay workflow and
+    # leaves comfortable headroom.
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: backend
