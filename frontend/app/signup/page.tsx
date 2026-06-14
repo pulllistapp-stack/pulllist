@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import {
+  Check,
+  Circle,
   Eye,
   EyeOff,
   Lock,
@@ -29,6 +31,7 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Lightweight password strength indicator — purely visual, server still enforces minLength=8
+  const checks = passwordChecks(password);
   const strength = passwordStrength(password);
 
   const onSubmit = async (e: FormEvent) => {
@@ -234,22 +237,39 @@ export default function SignupPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              {/* Live strength bar — hidden until the user starts typing */}
+              {/* Live strength bar + criteria — hidden until the user starts typing */}
               {password.length > 0 && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 grid grid-cols-4 gap-1">
-                    {[0, 1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className={`h-1 rounded-full ${
-                          i < strength.score ? strength.barColor : "bg-border"
-                        }`}
-                      />
-                    ))}
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 grid grid-cols-4 gap-1">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className={`h-1 rounded-full transition-colors duration-200 ${
+                            i < strength.score ? strength.barColor : "bg-border"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className={`text-[11px] font-mono uppercase tracking-wider ${strength.textColor}`}>
+                      {strength.label}
+                    </span>
                   </div>
-                  <span className={`text-[11px] font-mono uppercase tracking-wider ${strength.textColor}`}>
-                    {strength.label}
-                  </span>
+
+                  {/* Live criteria checklist — each item lights up the moment its rule is satisfied,
+                      and the whole block collapses into a single "strong" confirmation when 4/4 met. */}
+                  {strength.score < 4 ? (
+                    <ul className="rounded-xl bg-bg-surface/70 dark:bg-black/20 backdrop-blur-sm border border-border/60 px-3 py-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                      <CheckItem met={checks.length8} label="8+ characters" />
+                      <CheckItem met={checks.mixedCase} label="Upper + lower" />
+                      <CheckItem met={checks.numberAndSymbol} label="Number + symbol" />
+                      <CheckItem met={checks.length12} label="12+ for strong" />
+                    </ul>
+                  ) : (
+                    <p className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-accent-green">
+                      <Check className="h-3 w-3" aria-hidden /> Locked in — you&apos;re good
+                    </p>
+                  )}
                 </div>
               )}
             </label>
@@ -309,6 +329,32 @@ function ValuePill({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
+function CheckItem({ met, label }: { met: boolean; label: string }) {
+  return (
+    <li
+      className={`flex items-center gap-1.5 transition-colors duration-200 ${
+        met ? "text-accent-green" : "text-text-tertiary"
+      }`}
+    >
+      {met ? (
+        <Check className="h-3 w-3 flex-shrink-0" aria-hidden />
+      ) : (
+        <Circle className="h-3 w-3 flex-shrink-0 opacity-60" aria-hidden />
+      )}
+      <span className={met ? "line-through opacity-70" : ""}>{label}</span>
+    </li>
+  );
+}
+
+function passwordChecks(pw: string) {
+  return {
+    length8: pw.length >= 8,
+    length12: pw.length >= 12,
+    mixedCase: /[A-Z]/.test(pw) && /[a-z]/.test(pw),
+    numberAndSymbol: /\d/.test(pw) && /[^A-Za-z0-9]/.test(pw),
+  };
+}
+
 function passwordStrength(pw: string): {
   score: number; // 0..4
   label: string;
@@ -318,11 +364,8 @@ function passwordStrength(pw: string): {
   if (pw.length === 0) {
     return { score: 0, label: "", barColor: "bg-border", textColor: "text-text-tertiary" };
   }
-  let score = 0;
-  if (pw.length >= 8) score += 1;
-  if (pw.length >= 12) score += 1;
-  if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score += 1;
-  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) score += 1;
+  const checks = passwordChecks(pw);
+  const score = Object.values(checks).filter(Boolean).length;
 
   if (score <= 1) {
     return { score: Math.max(score, 1), label: "Weak", barColor: "bg-accent-red", textColor: "text-accent-red" };
