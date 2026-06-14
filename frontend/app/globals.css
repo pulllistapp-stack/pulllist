@@ -2,22 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+/*
+  Theme tokens.
+  Tailwind classes like `bg-bg-surface` resolve to `rgb(var(--bg-surface))`,
+  so toggling the .dark class on <html> swaps every surface, text, and border
+  across the entire site at once.
 
-html,
-body {
-  background: #0b0e14;
-  color: #e6e9ef;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  :root values = light mode defaults
+  .dark values = dark mode overrides
+*/
+@layer base {
+  :root {
+    color-scheme: light;
+    --bg:               255 255 255;      /* white */
+    --bg-surface:       249 250 251;      /* gray-50 */
+    --bg-elevated:      255 255 255;
+    --border:           229 231 235;      /* gray-200 */
+    --text-primary:      17  24  39;      /* gray-900 */
+    --text-secondary:    75  85  99;      /* gray-600 */
+    --text-tertiary:    156 163 175;      /* gray-400 */
+  }
+
+  .dark {
+    color-scheme: dark;
+    --bg:                11  14  20;      /* #0B0E14 */
+    --bg-surface:        22  27  38;      /* #161B26 */
+    --bg-elevated:       30  37  51;      /* #1E2533 */
+    --border:            37  45  61;      /* #252D3D */
+    --text-primary:     230 233 239;
+    --text-secondary:   139 146 165;
+    --text-tertiary:     90  98 117;
+  }
+
+  html,
+  body {
+    background: rgb(var(--bg));
+    color: rgb(var(--text-primary));
+    font-family: var(--font-dm-sans), ui-sans-serif, system-ui, -apple-system,
+      "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
 /* Thin, subtle scrollbar for filter rails and other inline scroll regions. */
 .filter-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #252d3d transparent;
+  scrollbar-color: rgb(var(--border)) transparent;
 }
 .filter-scroll::-webkit-scrollbar {
   width: 6px;
@@ -26,11 +56,11 @@ body {
   background: transparent;
 }
 .filter-scroll::-webkit-scrollbar-thumb {
-  background: #252d3d;
+  background: rgb(var(--border));
   border-radius: 3px;
 }
 .filter-scroll::-webkit-scrollbar-thumb:hover {
-  background: #3a4458;
+  background: rgb(var(--text-tertiary));
 }
 
 @layer utilities {

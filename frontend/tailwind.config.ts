@@ -10,19 +10,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Theme-reactive tokens driven by CSS variables in globals.css.
+        // Same class works in both modes — the variable swap happens via .dark.
         bg: {
-          DEFAULT: "#0B0E14",
-          surface: "#161B26",
-          elevated: "#1E2533",
+          DEFAULT: "rgb(var(--bg) / <alpha-value>)",
+          surface: "rgb(var(--bg-surface) / <alpha-value>)",
+          elevated: "rgb(var(--bg-elevated) / <alpha-value>)",
         },
         border: {
-          DEFAULT: "#252D3D",
+          DEFAULT: "rgb(var(--border) / <alpha-value>)",
         },
         text: {
-          primary: "#E6E9EF",
-          secondary: "#8B92A5",
-          tertiary: "#5A6275",
+          primary: "rgb(var(--text-primary) / <alpha-value>)",
+          secondary: "rgb(var(--text-secondary) / <alpha-value>)",
+          tertiary: "rgb(var(--text-tertiary) / <alpha-value>)",
         },
+        // Brand accents — fixed (look intentional in both modes).
         accent: {
           yellow: "#FFCB05",
           blue: "#3D7DFF",
@@ -41,8 +44,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
+        sans: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains-mono)", "ui-monospace", "monospace"],
       },
       borderRadius: {
         card: "12px",
