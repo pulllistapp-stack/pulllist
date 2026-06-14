@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -184,6 +184,17 @@ async def run_snapshot(
                         f"low={row['low_price_usd']:.2f} median={row['market_price_usd']:.2f} "
                         f"high={row['high_price_usd']:.2f}"
                     )
+
+                    # Backfill the denormalized Card.market_price_usd when it's NULL
+                    # (so the catalog/grid UI shows a price for sets pokemontcg.io
+                    # hasn't synced yet). Never overwrite an existing tcgplayer-derived value.
+                    if card.market_price_usd is None and not dry_run:
+                        await db.execute(
+                            update(Card)
+                            .where(Card.id == card.id)
+                            .where(Card.market_price_usd.is_(None))
+                            .values(market_price_usd=row["market_price_usd"])
+                        )
 
                 if len(rows_batch) >= batch_size:
                     if not dry_run:
