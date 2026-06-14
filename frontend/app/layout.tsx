@@ -23,6 +23,11 @@ export const metadata: Metadata = {
   title: "PullList — Pokémon TCG catalog & collection tracker",
   description:
     "Find Pokémon TCG sealed product in stock near you, in real time. Catalog every card, every set, every restock.",
+  other: {
+    // impact.com (TCGplayer affiliate program) website ownership verification.
+    // Renders as <meta name="impact-site-verification" content="..."> in <head>.
+    "impact-site-verification": "f3270a02-b50f-4be8-9ed2-c533176807cf",
+  },
 };
 
 export default function RootLayout({
