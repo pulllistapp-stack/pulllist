@@ -375,12 +375,16 @@ async def get_trending(
     )
     snapshots = list((await db.execute(snap_stmt)).scalars())
 
-    by_card: dict[str, list[CardPriceSnapshot]] = {}
+    # Group by (card_id, variant) — comparing different variants of the same
+    # card is meaningless (a card's "normal" $0.02 vs "holofoil" $0.27 is not
+    # a price movement, it's two products). Per card we then pick the variant
+    # with the largest absolute %change to surface as that card's mover.
+    by_card_variant: dict[tuple[str, str], list[CardPriceSnapshot]] = {}
     for s in snapshots:
-        by_card.setdefault(s.card_id, []).append(s)
+        by_card_variant.setdefault((s.card_id, s.variant), []).append(s)
 
-    movers: list[dict] = []
-    for card_id, snaps in by_card.items():
+    best_per_card: dict[str, dict] = {}
+    for (card_id, variant), snaps in by_card_variant.items():
         if len(snaps) < 2:
             continue
         snaps.sort(key=lambda s: s.snapshot_date)
@@ -388,21 +392,27 @@ async def get_trending(
         latest = snaps[-1].market_price_usd
         if oldest is None or latest is None or oldest <= 0:
             continue
-        # Quality floors — both endpoints must be at a real price point AND the
-        # absolute change must be meaningful. Otherwise the list fills with
-        # bulk-card noise sorting by percentage.
+        # Quality floors — both endpoints must clear the price floor AND the
+        # absolute change must be meaningful.
         if float(oldest) < min_price_usd or float(latest) < min_price_usd:
             continue
         if abs(float(latest) - float(oldest)) < min_abs_change_usd:
             continue
         delta_pct = ((latest - oldest) / oldest) * 100.0
-        movers.append({
+        entry = {
             "card_id": card_id,
+            "variant": variant,
             "latest_price": float(latest),
             "oldest_price": float(oldest),
             "delta_pct": delta_pct,
             "snapshots_count": len(snaps),
-        })
+        }
+        # Keep the variant with the largest absolute %change per card.
+        prior = best_per_card.get(card_id)
+        if prior is None or abs(delta_pct) > abs(prior["delta_pct"]):
+            best_per_card[card_id] = entry
+
+    movers: list[dict] = list(best_per_card.values())
 
     movers.sort(key=lambda x: x["delta_pct"], reverse=(direction == "up"))
     top = movers[:limit]
