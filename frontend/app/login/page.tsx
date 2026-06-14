@@ -53,38 +53,47 @@ export default function LoginPage() {
         className="pointer-events-none absolute -bottom-32 -right-24 h-96 w-96 rounded-full bg-teal-400/10 blur-3xl"
       />
 
-      <div className="relative w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 rounded-3xl overflow-hidden border border-border bg-bg-surface shadow-2xl shadow-black/10">
+      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 rounded-3xl overflow-hidden border border-border bg-bg-surface shadow-2xl shadow-black/10">
         {/* LEFT — mascot hero */}
-        <aside className="relative flex flex-col items-center justify-center gap-6 p-10 bg-gradient-to-br from-accent-yellow/15 via-accent-yellow/5 to-teal-400/10 dark:from-accent-yellow/10 dark:via-amber-500/5 dark:to-teal-500/10 text-center">
-          <div className="relative">
-            {/* Dotted ring */}
-            <div className="absolute inset-0 rounded-full border-2 border-dashed border-accent-yellow/40 [animation:pl-slow-spin_24s_linear_infinite]" />
+        <aside className="relative flex flex-col items-center justify-center gap-8 p-12 bg-gradient-to-br from-accent-yellow/15 via-accent-yellow/5 to-teal-400/10 dark:from-accent-yellow/10 dark:via-amber-500/5 dark:to-teal-500/10 text-center">
+          <div className="relative h-72 w-72 sm:h-80 sm:w-80 flex items-center justify-center">
+            {/* Outer dashed ring — empty, the ONLY thing that rotates */}
+            <div
+              aria-hidden
+              className="absolute inset-0 rounded-full border-2 border-dashed border-teal-400/60 dark:border-teal-300/40 [animation:pl-slow-spin_28s_linear_infinite]"
+            />
 
-            {/* Mascot */}
-            <div className="relative h-44 w-44 rounded-full bg-white/60 dark:bg-white/10 backdrop-blur-sm flex items-center justify-center p-4 shadow-lg shadow-accent-yellow/20">
+            {/* Mascot — clean white circle, gently bobbing */}
+            <div
+              className="relative h-52 w-52 sm:h-56 sm:w-56 rounded-full bg-white flex items-center justify-center p-5 shadow-[0_18px_40px_-14px_rgba(0,0,0,0.3)] dark:shadow-[0_20px_45px_-10px_rgba(20,184,166,0.45)] [animation:pl-float_5s_ease-in-out_infinite]"
+            >
               <Image
                 src="/pullist-mascot.png"
                 alt="PullList mascot"
-                width={160}
-                height={160}
+                width={200}
+                height={200}
                 className="object-contain"
                 unoptimized
                 priority
               />
             </div>
 
-            {/* Floating mini cards */}
+            {/* Floating mini cards — each bobs on its own clock, sitting near the dashed ring */}
             <div
               aria-hidden
-              className="absolute -top-3 -right-6 h-12 w-9 rounded-md bg-gradient-to-br from-rose-300 to-amber-300 shadow-lg rotate-12"
-            />
+              className="absolute top-2 right-3 [animation:pl-float-a_5s_ease-in-out_infinite]"
+            >
+              <div className="h-14 w-10 rounded-md bg-gradient-to-br from-rose-300 to-amber-300 shadow-lg rotate-12" />
+            </div>
             <div
               aria-hidden
-              className="absolute -bottom-4 -left-8 h-12 w-9 rounded-md bg-gradient-to-br from-teal-300 to-blue-400 shadow-lg -rotate-12"
-            />
+              className="absolute bottom-4 left-3 [animation:pl-float-b_6s_ease-in-out_infinite]"
+            >
+              <div className="h-14 w-10 rounded-md bg-gradient-to-br from-teal-300 to-blue-400 shadow-lg -rotate-12" />
+            </div>
             <Sparkles
               aria-hidden
-              className="absolute -top-6 left-2 h-5 w-5 text-amber-400 fill-amber-400"
+              className="absolute top-8 left-14 h-5 w-5 text-amber-400 fill-amber-400 [animation:pl-float-c_4s_ease-in-out_infinite]"
             />
           </div>
 
@@ -116,7 +125,7 @@ export default function LoginPage() {
         </aside>
 
         {/* RIGHT — form */}
-        <section className="p-8 sm:p-10 bg-bg flex flex-col justify-center">
+        <section className="p-10 sm:p-12 bg-bg flex flex-col justify-center">
           <h1 className="text-3xl font-extrabold tracking-tight text-text-primary">
             Welcome back!
           </h1>
