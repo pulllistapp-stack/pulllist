@@ -196,6 +196,34 @@ export async function getCardHistory(
   return apiFetch<CardHistory>(`/cards/${cardId}/history${suffix}`);
 }
 
+export type LiveListing = {
+  title: string;
+  price_usd: number;
+  shipping_usd: number;
+  total_usd: number;
+  condition: string;
+  seller: string;
+  seller_feedback_pct: number | string | null;
+  url: string;
+  source: "eBay" | "TCGplayer";
+};
+
+export type LiveListingsResponse = {
+  listings: LiveListing[];
+  query: string;
+  count?: number;
+  error?: string;
+};
+
+export async function getLiveListings(
+  cardId: string,
+  limit = 10,
+): Promise<LiveListingsResponse> {
+  return apiFetch<LiveListingsResponse>(
+    `/cards/${cardId}/live-listings?limit=${limit}`,
+  );
+}
+
 export type FilterOptions = {
   rarities: string[];
   supertypes: string[];

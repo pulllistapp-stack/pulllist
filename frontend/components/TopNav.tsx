@@ -23,21 +23,19 @@ export function TopNav() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
         <Link
           href="/"
-          className="flex items-center gap-2 flex-shrink-0 hover:opacity-90"
+          className="flex items-center flex-shrink-0 hover:opacity-90"
+          aria-label="PullList home"
         >
-          <span className="relative h-9 w-9 overflow-hidden rounded-full ring-2 ring-amber-300/60 bg-amber-100">
+          <span className="relative block h-10 w-[140px] sm:h-12 sm:w-[170px]">
             <Image
               src="/pullist-mascot.png"
-              alt="PullList mascot"
+              alt="PullList"
               fill
-              className="object-cover"
-              sizes="36px"
+              className="object-contain object-left"
+              sizes="(max-width: 640px) 140px, 170px"
               priority
               unoptimized
             />
-          </span>
-          <span className="text-xl font-bold tracking-tight">
-            Pull<span className="text-accent-yellow">List</span>
           </span>
         </Link>
 

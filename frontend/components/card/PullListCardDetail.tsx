@@ -20,6 +20,7 @@ import {
   Tag,
 } from "lucide-react";
 
+import { LiveListings } from "@/components/card/LiveListings";
 import { OwnedToggle } from "@/components/OwnedToggle";
 import { getCardHistory, type Card, type CardHistory, type CardNeighbors } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -457,7 +458,38 @@ type SecondaryPrice = {
   value: number | null;
   currency: "USD" | "EUR";
   delta: number | null;
+  spark: number[];
+  sparkColor: string;
 };
+
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  if (points.length < 2) {
+    return (
+      <svg width={70} height={24} viewBox="0 0 70 24" className="opacity-30" aria-hidden>
+        {[0.25, 0.5, 0.75].map((t) => (
+          <line key={t} x1={0} x2={70} y1={24 * t} y2={24 * t} stroke={color} strokeOpacity="0.25" strokeWidth={1} />
+        ))}
+      </svg>
+    );
+  }
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const w = 70;
+  const h = 24;
+  const d = points
+    .map((v, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible" aria-hidden>
+      <path d={d} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function SecondaryPrices({ items }: { items: SecondaryPrice[] }) {
   return (
@@ -470,9 +502,12 @@ function SecondaryPrices({ items }: { items: SecondaryPrice[] }) {
             </p>
             <Delta value={p.delta} />
           </div>
-          <p className={cn("mt-2 font-mono text-xl font-bold", heading)}>
-            {p.value == null ? "—" : p.currency === "USD" ? fmtUSD(p.value) : fmtEUR(p.value)}
-          </p>
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <p className={cn("font-mono text-xl font-bold", heading)}>
+              {p.value == null ? "—" : p.currency === "USD" ? fmtUSD(p.value) : fmtEUR(p.value)}
+            </p>
+            <Sparkline points={p.spark} color={p.sparkColor} />
+          </div>
         </div>
       ))}
     </div>
@@ -490,6 +525,9 @@ type Props = {
   ebayDelta7d: number | null;
   tcgDelta7d: number | null;
   cardmarketDelta7d: number | null;
+  ebaySpark7d: number[];
+  tcgSpark7d: number[];
+  cardmarketSpark7d: number[];
 };
 
 export function PullListCardDetail({
@@ -500,6 +538,9 @@ export function PullListCardDetail({
   ebayDelta7d,
   tcgDelta7d,
   cardmarketDelta7d,
+  ebaySpark7d,
+  tcgSpark7d,
+  cardmarketSpark7d,
 }: Props) {
   // Derive cheapest from available price data
   const cheapest: CheapestData | null = useMemo(() => {
@@ -550,9 +591,33 @@ export function PullListCardDetail({
   const cardmarketTrend = card.cardmarket_prices?.trendPrice ?? null;
 
   const secondaryPrices: SecondaryPrice[] = [
-    { source: "TCGplayer", label: "Market", value: tcgMid, currency: "USD", delta: tcgDelta7d },
-    { source: "Cardmarket", label: "Trend", value: cardmarketTrend, currency: "EUR", delta: cardmarketDelta7d },
-    { source: "eBay", label: "Median", value: initialEbayMedian, currency: "USD", delta: ebayDelta7d },
+    {
+      source: "TCGplayer",
+      label: "Market",
+      value: tcgMid,
+      currency: "USD",
+      delta: tcgDelta7d,
+      spark: tcgSpark7d,
+      sparkColor: "#60a5fa",
+    },
+    {
+      source: "Cardmarket",
+      label: "Trend",
+      value: cardmarketTrend,
+      currency: "EUR",
+      delta: cardmarketDelta7d,
+      spark: cardmarketSpark7d,
+      sparkColor: "#FFCB05",
+    },
+    {
+      source: "eBay",
+      label: "Median",
+      value: initialEbayMedian,
+      currency: "USD",
+      delta: ebayDelta7d,
+      spark: ebaySpark7d,
+      sparkColor: "#5BC9C2",
+    },
   ];
 
   const types = card.types ?? [];
@@ -655,9 +720,6 @@ export function PullListCardDetail({
 
           <div className="flex flex-col gap-5">
             <div>
-              <p className="mb-2 text-sm font-semibold text-teal-600 dark:text-teal-400">
-                Nice pull! Here&apos;s what it&apos;s worth.
-              </p>
               <h1 className={cn("text-balance text-2xl font-extrabold tracking-tight lg:text-4xl", heading)}>
                 {card.name}
               </h1>
@@ -710,6 +772,9 @@ export function PullListCardDetail({
 
         {/* Secondary prices */}
         <SecondaryPrices items={secondaryPrices} />
+
+        {/* Live listings (real-time eBay) */}
+        <LiveListings cardId={card.id} />
 
         {/* Empty state mascot if we have very little data */}
         {!cheapest && (

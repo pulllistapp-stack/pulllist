@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import Card, CardPriceSnapshot, Set
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
+from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
 
 router = APIRouter()
 
@@ -306,6 +307,76 @@ async def get_card_history(
         "series_count": len(series),
         "series": series,
     }
+
+
+@router.get("/cards/{card_id}/live-listings")
+async def get_live_listings(
+    card_id: str,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(10, ge=1, le=20),
+) -> dict:
+    """Hit eBay Browse API in real-time and return the top live listings for this card.
+
+    Uses the same noise-filtered query as the snapshot script. One call per request.
+    Frontend should cache (the standard apiFetch helper caches for 5 min).
+    """
+    card = await db.get(Card, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    set_obj = await db.get(Set, card.set_id) if card.set_id else None
+    query = build_card_query(
+        card_name=card.name,
+        card_number=card.number,
+        printed_total=set_obj.printed_total if set_obj else None,
+        set_name=set_obj.name if set_obj else None,
+    )
+
+    try:
+        async with EbayClient() as ebay:
+            result = await ebay.browse_search(
+                query,
+                limit=limit,
+                category_id=POKEMON_CATEGORIES["tcg_root"],
+            )
+    except EbayClientError as e:
+        return {"listings": [], "query": query, "error": str(e)}
+    except Exception as e:
+        return {"listings": [], "query": query, "error": f"unexpected: {e}"}
+
+    listings = []
+    for it in result.get("itemSummaries") or []:
+        try:
+            price_obj = it.get("price") or {}
+            price_v = float(price_obj.get("value", 0))
+            currency = price_obj.get("currency", "USD")
+            if currency != "USD" or price_v <= 0:
+                continue
+            ship_cost = 0.0
+            ship_opts = it.get("shippingOptions") or []
+            if ship_opts:
+                ship_obj = ship_opts[0].get("shippingCost") or {}
+                try:
+                    ship_cost = float(ship_obj.get("value", 0))
+                except (TypeError, ValueError):
+                    ship_cost = 0.0
+            seller = it.get("seller") or {}
+            listings.append({
+                "title": (it.get("title") or "")[:180],
+                "price_usd": price_v,
+                "shipping_usd": ship_cost,
+                "total_usd": price_v + ship_cost,
+                "condition": it.get("condition") or "Ungraded",
+                "seller": seller.get("username") or "?",
+                "seller_feedback_pct": seller.get("feedbackPercentage"),
+                "url": it.get("itemWebUrl") or "",
+                "source": "eBay",
+            })
+        except Exception:
+            continue
+
+    listings.sort(key=lambda x: x["total_usd"])
+    return {"listings": listings, "query": query, "count": len(listings)}
 
 
 @router.get("/cards/{card_id}", response_model=CardRead)

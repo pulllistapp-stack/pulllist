@@ -34,6 +34,16 @@ function latestValue(history: CardHistory | null, source: string): number | null
   return points[points.length - 1]?.market ?? null;
 }
 
+function sparklineSeries(history: CardHistory | null, source: string): number[] {
+  if (!history) return [];
+  const series = Object.entries(history.series).find(([k]) => k.startsWith(source + ":"))?.[1];
+  if (!series) return [];
+  return series
+    .filter((p) => p.market != null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((p) => p.market as number);
+}
+
 export default async function CardDetailPage({ params }: Props) {
   const { id } = await params;
 
@@ -57,6 +67,9 @@ export default async function CardDetailPage({ params }: Props) {
   const ebayDelta7d = compute7dDelta(history7d, "ebay");
   const tcgDelta7d = compute7dDelta(history7d, "tcgplayer");
   const cardmarketDelta7d = compute7dDelta(history7d, "cardmarket");
+  const ebaySpark7d = sparklineSeries(history7d, "ebay");
+  const tcgSpark7d = sparklineSeries(history7d, "tcgplayer");
+  const cardmarketSpark7d = sparklineSeries(history7d, "cardmarket");
 
   return (
     <PullListCardDetail
@@ -67,6 +80,9 @@ export default async function CardDetailPage({ params }: Props) {
       ebayDelta7d={ebayDelta7d}
       tcgDelta7d={tcgDelta7d}
       cardmarketDelta7d={cardmarketDelta7d}
+      ebaySpark7d={ebaySpark7d}
+      tcgSpark7d={tcgSpark7d}
+      cardmarketSpark7d={cardmarketSpark7d}
     />
   );
 }

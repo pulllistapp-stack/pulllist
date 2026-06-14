@@ -3,6 +3,7 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import { CollectionProvider } from "@/components/CollectionProvider";
+import { Footer } from "@/components/Footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopNav } from "@/components/TopNav";
 
@@ -40,6 +41,7 @@ export default function RootLayout({
             <CollectionProvider>
               <TopNav />
               {children}
+              <Footer />
             </CollectionProvider>
           </AuthProvider>
         </ThemeProvider>
