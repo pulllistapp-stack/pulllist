@@ -81,7 +81,9 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const opts = await getFilterOptions();
+        // Set page → scope options to *that set's* card distribution so the
+        // sidebar doesn't list rarities/types/artists that don't exist here.
+        const opts = await getFilterOptions(lockedSetId);
         if (!cancelled) setOptions(opts);
       } catch {
         // non-fatal
@@ -90,7 +92,7 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [lockedSetId]);
 
   const selSets = readCsv(params, "set_id");
   const selRarity = readCsv(params, "rarity");

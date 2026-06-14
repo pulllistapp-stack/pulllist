@@ -287,8 +287,11 @@ export type FilterOptions = {
   sort_options: string[];
 };
 
-export async function getFilterOptions(): Promise<FilterOptions> {
-  return apiFetch<FilterOptions>("/cards/filters/options");
+export async function getFilterOptions(
+  setId?: string,
+): Promise<FilterOptions> {
+  const qs = setId ? `?set_id=${encodeURIComponent(setId)}` : "";
+  return apiFetch<FilterOptions>(`/cards/filters/options${qs}`);
 }
 
 export type BrowseParams = {

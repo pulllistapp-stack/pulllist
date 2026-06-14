@@ -61,24 +61,48 @@ SORT_OPTIONS = {
 
 
 @router.get("/filters/options")
-async def filter_options(db: AsyncSession = Depends(get_db)) -> dict:
+async def filter_options(
+    db: AsyncSession = Depends(get_db),
+    set_id: str | None = Query(
+        None,
+        description=(
+            "Scope card-derived options (rarities, types, subtypes, artists, "
+            "hp_max, price_max) to a specific set. `sets`, `conditions`, and "
+            "`sort_options` stay global."
+        ),
+    ),
+) -> dict:
     """Return the distinct values populated for each filterable column.
 
     Cached client-side for the session; cheap query (<50ms).
+
+    When `set_id` is supplied, the sidebar on a set detail page only shows
+    rarities/types/etc. that *actually exist in that set* — no empty filters
+    for rarities that don't apply, no Common/Uncommon for an SIR-only chase
+    set.
     """
+    # Scope clause re-used across every per-card query below.
+    set_scope = [Card.set_id == set_id] if set_id else []
+
     rarities = (
         await db.execute(
-            select(Card.rarity).where(Card.rarity.is_not(None)).distinct()
+            select(Card.rarity)
+            .where(Card.rarity.is_not(None), *set_scope)
+            .distinct()
         )
     ).scalars().all()
     supertypes = (
         await db.execute(
-            select(Card.supertype).where(Card.supertype.is_not(None)).distinct()
+            select(Card.supertype)
+            .where(Card.supertype.is_not(None), *set_scope)
+            .distinct()
         )
     ).scalars().all()
 
     types_rows = (
-        await db.execute(select(Card.types).where(Card.types.is_not(None)))
+        await db.execute(
+            select(Card.types).where(Card.types.is_not(None), *set_scope)
+        )
     ).scalars().all()
     types_flat: set[str] = set()
     for arr in types_rows:
@@ -86,16 +110,22 @@ async def filter_options(db: AsyncSession = Depends(get_db)) -> dict:
             types_flat.update(arr)
 
     subtypes_rows = (
-        await db.execute(select(Card.subtypes).where(Card.subtypes.is_not(None)))
+        await db.execute(
+            select(Card.subtypes).where(Card.subtypes.is_not(None), *set_scope)
+        )
     ).scalars().all()
     subtypes_flat: set[str] = set()
     for arr in subtypes_rows:
         if isinstance(arr, list):
             subtypes_flat.update(arr)
 
-    hp_max = (await db.execute(select(func.max(Card.hp_int)))).scalar_one() or 0
+    hp_max = (
+        await db.execute(select(func.max(Card.hp_int)).where(*set_scope))
+    ).scalar_one() or 0
     price_max = (
-        await db.execute(select(func.max(Card.market_price_usd)))
+        await db.execute(
+            select(func.max(Card.market_price_usd)).where(*set_scope)
+        )
     ).scalar_one() or 0
 
     sets = (
@@ -109,7 +139,7 @@ async def filter_options(db: AsyncSession = Depends(get_db)) -> dict:
     artist_rows = (
         await db.execute(
             select(Card.artist, func.count(Card.id).label("count"))
-            .where(Card.artist.is_not(None))
+            .where(Card.artist.is_not(None), *set_scope)
             .group_by(Card.artist)
         )
     ).all()
