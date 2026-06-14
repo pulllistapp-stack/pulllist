@@ -499,6 +499,14 @@ async def get_live_listings(
                 except (TypeError, ValueError):
                     ship_cost = 0.0
             seller = it.get("seller") or {}
+            # eBay returns `image.imageUrl` for full image + `thumbnailImages[]`
+            # for smaller renderable URLs. Prefer thumbnail (CDN-optimized).
+            img = it.get("image") or {}
+            thumbs = it.get("thumbnailImages") or []
+            image_url = (
+                (thumbs[0].get("imageUrl") if thumbs else None)
+                or img.get("imageUrl")
+            )
             listings.append({
                 "title": (it.get("title") or "")[:180],
                 "price_usd": price_v,
@@ -508,6 +516,7 @@ async def get_live_listings(
                 "seller": seller.get("username") or "?",
                 "seller_feedback_pct": seller.get("feedbackPercentage"),
                 "url": it.get("itemWebUrl") or "",
+                "image_url": image_url,
                 "source": "eBay",
             })
         except Exception:

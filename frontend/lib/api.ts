@@ -218,6 +218,7 @@ export type LiveListing = {
   seller: string;
   seller_feedback_pct: number | string | null;
   url: string;
+  image_url?: string | null;
   source: "eBay" | "TCGplayer";
 };
 
