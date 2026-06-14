@@ -309,6 +309,87 @@ async def get_card_history(
     }
 
 
+@router.get("/cards/trending")
+async def get_trending(
+    db: AsyncSession = Depends(get_db),
+    period_days: int = Query(7, ge=1, le=90),
+    source: str = Query("ebay", description="Snapshot source: ebay / tcgplayer / cardmarket"),
+    direction: str = Query("up", description="up = top gainers, down = top losers"),
+    limit: int = Query(20, ge=1, le=50),
+) -> dict:
+    """Top movers — cards with the biggest %change over the last `period_days`.
+
+    Needs at least 2 snapshots per card in the window. With a fresh daily cron
+    expect this to be sparse for the first few days, then fill in.
+    """
+    if direction not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="direction must be 'up' or 'down'")
+
+    cutoff = (date.today() - timedelta(days=period_days)).isoformat()
+
+    snap_stmt = (
+        select(CardPriceSnapshot)
+        .where(CardPriceSnapshot.source == source)
+        .where(CardPriceSnapshot.snapshot_date >= cutoff)
+        .order_by(CardPriceSnapshot.card_id, CardPriceSnapshot.snapshot_date)
+    )
+    snapshots = list((await db.execute(snap_stmt)).scalars())
+
+    by_card: dict[str, list[CardPriceSnapshot]] = {}
+    for s in snapshots:
+        by_card.setdefault(s.card_id, []).append(s)
+
+    movers: list[dict] = []
+    for card_id, snaps in by_card.items():
+        if len(snaps) < 2:
+            continue
+        snaps.sort(key=lambda s: s.snapshot_date)
+        oldest = snaps[0].market_price_usd
+        latest = snaps[-1].market_price_usd
+        if oldest is None or latest is None or oldest <= 0:
+            continue
+        delta_pct = ((latest - oldest) / oldest) * 100.0
+        movers.append({
+            "card_id": card_id,
+            "latest_price": float(latest),
+            "oldest_price": float(oldest),
+            "delta_pct": delta_pct,
+            "snapshots_count": len(snaps),
+        })
+
+    movers.sort(key=lambda x: x["delta_pct"], reverse=(direction == "up"))
+    top = movers[:limit]
+
+    if top:
+        card_ids = [m["card_id"] for m in top]
+        cards_stmt = (
+            select(Card, Set.name)
+            .join(Set, Card.set_id == Set.id)
+            .where(Card.id.in_(card_ids))
+        )
+        cards_map = {}
+        for c, set_name in (await db.execute(cards_stmt)).all():
+            cards_map[c.id] = (c, set_name)
+        for m in top:
+            entry = cards_map.get(m["card_id"])
+            if entry:
+                c, set_name = entry
+                m["name"] = c.name
+                m["number"] = c.number
+                m["set_id"] = c.set_id
+                m["set_name"] = set_name
+                m["image_small"] = c.image_small
+                m["rarity"] = c.rarity
+
+    return {
+        "period_days": period_days,
+        "source": source,
+        "direction": direction,
+        "movers": top,
+        "total_eligible": len(movers),
+    }
+
+
 @router.get("/cards/{card_id}/live-listings")
 async def get_live_listings(
     card_id: str,

@@ -224,6 +224,43 @@ export async function getLiveListings(
   );
 }
 
+export type TrendingMover = {
+  card_id: string;
+  latest_price: number;
+  oldest_price: number;
+  delta_pct: number;
+  snapshots_count: number;
+  name?: string;
+  number?: string | null;
+  set_id?: string;
+  set_name?: string;
+  image_small?: string | null;
+  rarity?: string | null;
+};
+
+export type TrendingResponse = {
+  period_days: number;
+  source: string;
+  direction: "up" | "down";
+  movers: TrendingMover[];
+  total_eligible: number;
+};
+
+export async function getTrending(opts: {
+  periodDays?: number;
+  source?: string;
+  direction?: "up" | "down";
+  limit?: number;
+} = {}): Promise<TrendingResponse> {
+  const qs = new URLSearchParams();
+  if (opts.periodDays != null) qs.set("period_days", String(opts.periodDays));
+  if (opts.source) qs.set("source", opts.source);
+  if (opts.direction) qs.set("direction", opts.direction);
+  if (opts.limit != null) qs.set("limit", String(opts.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<TrendingResponse>(`/cards/trending${suffix}`);
+}
+
 export type FilterOptions = {
   rarities: string[];
   supertypes: string[];

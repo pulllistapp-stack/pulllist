@@ -79,6 +79,9 @@ export function TopNav() {
           <Link href="/cards" className="hover:text-text-primary">
             Cards
           </Link>
+          <Link href="/trending" className="hover:text-text-primary">
+            Trending
+          </Link>
           <Link href="/drops" className="hover:text-text-primary">
             Drops
           </Link>
@@ -128,7 +131,7 @@ export function TopNav() {
               </Link>
               <Link
                 href="/signup"
-                className="rounded-btn bg-accent-yellow px-3 py-1.5 text-bg font-medium hover:brightness-110"
+                className="rounded-btn bg-accent-yellow px-3 py-1.5 text-gray-900 font-semibold hover:brightness-110"
               >
                 Sign up
               </Link>
@@ -153,6 +156,7 @@ export function TopNav() {
           <nav className="mx-auto max-w-7xl px-4 sm:px-6 py-4 flex flex-col gap-1 text-sm">
             <MobileLink href="/sets">Browse sets</MobileLink>
             <MobileLink href="/cards">Browse cards</MobileLink>
+            <MobileLink href="/trending">Trending</MobileLink>
             <MobileLink href="/drops">Drops</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
 
@@ -186,7 +190,7 @@ export function TopNav() {
                 </Link>
                 <Link
                   href="/signup"
-                  className="flex-1 rounded-btn bg-accent-yellow px-3 py-2 text-center text-bg font-medium hover:brightness-110"
+                  className="flex-1 rounded-btn bg-accent-yellow px-3 py-2 text-center text-gray-900 font-semibold hover:brightness-110"
                 >
                   Sign up
                 </Link>
