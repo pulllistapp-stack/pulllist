@@ -23,6 +23,7 @@ import {
 import { LiveListings } from "@/components/card/LiveListings";
 import { OwnedToggle } from "@/components/OwnedToggle";
 import { RarityChip } from "@/components/RarityChip";
+import { WishlistHeart } from "@/components/WishlistHeart";
 import { getCardHistory, type Card, type CardHistory, type CardNeighbors } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -807,7 +808,12 @@ export function PullListCardDetail({
 
             <CheapestHero
               data={cheapest}
-              ownedToggle={<OwnedToggle cardId={card.id} variant="hero" />}
+              ownedToggle={
+                <div className="flex flex-wrap items-center gap-2 w-full">
+                  <OwnedToggle cardId={card.id} variant="hero" />
+                  <WishlistHeart cardId={card.id} variant="inline" />
+                </div>
+              }
             />
           </div>
         </div>

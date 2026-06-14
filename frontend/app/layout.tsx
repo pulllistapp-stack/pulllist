@@ -6,6 +6,7 @@ import { CollectionProvider } from "@/components/CollectionProvider";
 import { Footer } from "@/components/Footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopNav } from "@/components/TopNav";
+import { WishlistProvider } from "@/components/WishlistProvider";
 
 import "./globals.css";
 
@@ -39,9 +40,11 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <CollectionProvider>
-              <TopNav />
-              {children}
-              <Footer />
+              <WishlistProvider>
+                <TopNav />
+                {children}
+                <Footer />
+              </WishlistProvider>
             </CollectionProvider>
           </AuthProvider>
         </ThemeProvider>

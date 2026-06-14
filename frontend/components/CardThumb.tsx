@@ -7,6 +7,7 @@ import type { Card } from "@/lib/api";
 
 import { useCollection } from "./CollectionProvider";
 import { RarityChip } from "./RarityChip";
+import { WishlistHeart } from "./WishlistHeart";
 
 type Props = {
   card: Card;
@@ -61,6 +62,11 @@ export function CardThumb({ card, priority = false }: Props) {
             ✓
           </span>
         )}
+
+        {/* Wishlist heart — opposite corner from the owned badge */}
+        <div className="absolute top-1.5 right-1.5">
+          <WishlistHeart cardId={card.id} variant="corner" />
+        </div>
       </div>
 
       <div className="mt-2 px-1 flex flex-col gap-1">

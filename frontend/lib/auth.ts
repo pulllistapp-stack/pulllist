@@ -151,3 +151,71 @@ export async function listMyItems(
   const qs = setId ? `?set_id=${encodeURIComponent(setId)}` : "";
   return authFetch<CollectionItemDetail[]>(`/collection/items${qs}`);
 }
+
+// ────────── Wishlist ──────────
+
+export type WishlistSummary = {
+  total: number;
+  estimated_value_usd: number;
+  at_target_count: number;
+};
+
+export type WishlistItemDetail = {
+  id: number;
+  card_id: string;
+  priority: number;
+  max_price_usd: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  card_name: string;
+  card_number: string | null;
+  image_small: string | null;
+  rarity: string | null;
+  market_price_usd: number | null;
+  set_id: string;
+  set_name: string;
+  target_met: boolean;
+};
+
+export async function toggleWishlist(
+  cardId: string,
+): Promise<{ wishlisted: boolean }> {
+  return authFetch<{ wishlisted: boolean }>(
+    `/wishlist/cards/${cardId}/toggle`,
+    { method: "POST" },
+  );
+}
+
+export async function wishlistIds(): Promise<string[]> {
+  return authFetch<string[]>("/wishlist/ids");
+}
+
+export async function wishlistSummary(): Promise<WishlistSummary> {
+  return authFetch<WishlistSummary>("/wishlist/summary");
+}
+
+export async function listMyWishlist(opts: {
+  setId?: string;
+  onlyTargetMet?: boolean;
+} = {}): Promise<WishlistItemDetail[]> {
+  const qs = new URLSearchParams();
+  if (opts.setId) qs.set("set_id", opts.setId);
+  if (opts.onlyTargetMet) qs.set("only_target_met", "true");
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return authFetch<WishlistItemDetail[]>(`/wishlist/items${suffix}`);
+}
+
+export async function updateWishlistItem(
+  itemId: number,
+  payload: { priority?: number; max_price_usd?: number | null; notes?: string | null },
+): Promise<void> {
+  return authFetch(`/wishlist/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteWishlistItem(itemId: number): Promise<void> {
+  return authFetch(`/wishlist/items/${itemId}`, { method: "DELETE" });
+}
