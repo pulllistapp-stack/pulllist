@@ -74,6 +74,26 @@
     }
   }
 
+  /* Gentle bob for the mascot circle on the login page */
+  @keyframes pl-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
+  }
+
+  /* Floating cards/sparkles — different amplitudes + phases so it feels organic */
+  @keyframes pl-float-a {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-14px); }
+  }
+  @keyframes pl-float-b {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(12px); }
+  }
+  @keyframes pl-float-c {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-7px); }
+  }
+
   /* Card hover shimmer/sparkle keyframe — used on card detail hero image */
   @keyframes pl-sparkle {
     0%,
