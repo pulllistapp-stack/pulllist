@@ -97,8 +97,19 @@ export type CardList = {
   page_size: number;
 };
 
-export async function listSets(): Promise<SetWithCardCount[]> {
-  return apiFetch<SetWithCardCount[]>("/sets");
+export async function listSets(token?: string): Promise<SetWithCardCount[]> {
+  if (!token) {
+    return apiFetch<SetWithCardCount[]>("/sets");
+  }
+  // When we have a token, include it so the backend can fill in `owned_unique`
+  // per set for the requesting user. We bypass the in-memory cache because the
+  // response is user-specific.
+  const res = await fetch(`${API_BASE}/sets`, {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: /sets`);
+  return res.json() as Promise<SetWithCardCount[]>;
 }
 
 export async function getSet(id: string) {

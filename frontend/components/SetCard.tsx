@@ -34,7 +34,7 @@ export function SetCard({ set }: Props) {
   return (
     <Link
       href={`/sets/${set.id}`}
-      className="group relative flex flex-col rounded-card bg-bg-surface border border-border p-4 transition-all duration-200 hover:border-accent-yellow/40 hover:shadow-md hover:shadow-accent-yellow/10 hover:-translate-y-0.5"
+      className="group relative flex flex-col rounded-card bg-bg-surface border border-border p-4 transition-all duration-200 hover:border-accent-yellow/60 hover:shadow-lg hover:shadow-accent-yellow/20 hover:-translate-y-1 active:translate-y-0"
     >
       {set.symbol_url && (
         <div className="absolute right-3 top-3 h-5 w-5 opacity-60 group-hover:opacity-100 transition-opacity">

@@ -50,33 +50,7 @@ export default async function SetsPage() {
         </div>
       )}
 
-      {!error && sets.length > 0 && <SetsBrowser sets={sets} />}
-
-      {/* Complete your Pokedex CTA */}
-      <section className="mt-16 rounded-card border-2 border-dashed border-accent-yellow/30 bg-accent-yellow/5 p-8 text-center">
-        <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent-yellow/15">
-          <span className="text-2xl">📖</span>
-        </div>
-        <h2 className="text-lg font-bold mb-1">Complete your Pokédex!</h2>
-        <p className="mx-auto max-w-md text-sm text-text-secondary">
-          Connect your collection to see automatic completion tracking for every set. Our scout
-          even suggests the cheapest way to finish your binder.
-        </p>
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <Link
-            href="/signup"
-            className="rounded-full bg-accent-yellow px-5 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
-          >
-            Start tracking — free
-          </Link>
-          <Link
-            href="/cards"
-            className="rounded-full border border-border bg-bg-surface px-5 py-2 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
-          >
-            Browse master sets
-          </Link>
-        </div>
-      </section>
+      {!error && sets.length > 0 && <SetsBrowser initialSets={sets} />}
     </main>
   );
 }

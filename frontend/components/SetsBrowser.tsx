@@ -1,19 +1,43 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 import type { SetWithCardCount } from "@/lib/api";
+import { listSets } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 
+import { useAuth } from "./AuthProvider";
 import { SetCard } from "./SetCard";
 
 type Props = {
-  sets: SetWithCardCount[];
+  initialSets: SetWithCardCount[];
 };
 
-export function SetsBrowser({ sets }: Props) {
+export function SetsBrowser({ initialSets }: Props) {
+  const { user, loading } = useAuth();
+  const [sets, setSets] = useState<SetWithCardCount[]>(initialSets);
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
 
-  // Build series list ordered by the most recent set in each series
+  // Once we know the user is logged in, refetch with their token so the
+  // backend can fill in per-set `owned_unique` and the progress bars render.
+  useEffect(() => {
+    if (loading || !user) return;
+    const token = getToken();
+    if (!token) return;
+    let cancelled = false;
+    listSets(token)
+      .then((fresh) => {
+        if (!cancelled) setSets(fresh);
+      })
+      .catch(() => {
+        // Silent — keep the initialSets we already rendered
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loading]);
+
   const seriesList = useMemo(() => {
     const groups: Record<string, number> = {};
     for (const s of sets) {
@@ -53,6 +77,13 @@ export function SetsBrowser({ sets }: Props) {
       return bMax - aMax;
     });
   }, [grouped]);
+
+  // Has the user started a collection? If owned_unique > 0 anywhere, hide the
+  // "Start tracking" CTA. Otherwise show it with auth-aware copy.
+  const hasAnyOwned = useMemo(
+    () => sets.some((s) => (s.owned_unique ?? 0) > 0),
+    [sets],
+  );
 
   return (
     <>
@@ -101,6 +132,44 @@ export function SetsBrowser({ sets }: Props) {
           </div>
         </section>
       ))}
+
+      {/* Pokédex CTA — auth-aware */}
+      {!hasAnyOwned && (
+        <section className="mt-16 rounded-card border-2 border-dashed border-accent-yellow/30 bg-accent-yellow/5 p-8 text-center">
+          <div className="mx-auto mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-accent-yellow/15">
+            <span className="text-2xl">📖</span>
+          </div>
+          <h2 className="text-lg font-bold mb-1">Complete your Pokédex!</h2>
+          <p className="mx-auto max-w-md text-sm text-text-secondary">
+            {user
+              ? "Mark cards you own from any set page and watch your completion bars fill in."
+              : "Connect your collection to see automatic completion tracking for every set. Our scout even suggests the cheapest way to finish your binder."}
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {user ? (
+              <Link
+                href="/cards"
+                className="rounded-full bg-accent-yellow px-5 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
+              >
+                Browse cards to add
+              </Link>
+            ) : (
+              <Link
+                href="/signup"
+                className="rounded-full bg-accent-yellow px-5 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
+              >
+                Start tracking — free
+              </Link>
+            )}
+            <Link
+              href="/cards"
+              className="rounded-full border border-border bg-bg-surface px-5 py-2 text-sm font-semibold text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
+            >
+              Browse master sets
+            </Link>
+          </div>
+        </section>
+      )}
     </>
   );
 }
