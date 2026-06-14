@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import Card, CollectionItem, Set, User
+from app.models import Card, CollectionItem, PortfolioSnapshot, Set, User
 from app.schemas.collection import (
     CollectionItemCreate,
     CollectionItemDetail,
@@ -257,6 +257,63 @@ async def set_completion(
         completion_pct=round((row.unique or 0) / total * 100, 1) if total else 0.0,
         estimated_value_usd=round(float(row.value or 0), 2),
     )
+
+
+@router.get("/portfolio/history", response_model=dict)
+async def portfolio_history(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    period_days: int = Query(
+        30,
+        ge=1,
+        le=365,
+        description="How many days of history to return.",
+    ),
+) -> dict:
+    """Time-series of the user's portfolio valuation.
+
+    Returns one row per day snapshot the cron has captured. Frontend uses
+    this to render the Growth chart on /portfolio.
+    """
+    from datetime import date as date_cls, timedelta
+
+    cutoff = (date_cls.today() - timedelta(days=period_days)).isoformat()
+    rows = (
+        await db.execute(
+            select(PortfolioSnapshot)
+            .where(
+                PortfolioSnapshot.user_id == user.id,
+                PortfolioSnapshot.snapshot_date >= cutoff,
+            )
+            .order_by(PortfolioSnapshot.snapshot_date.asc())
+        )
+    ).scalars().all()
+
+    points = [
+        {
+            "date": r.snapshot_date,
+            "value": round(float(r.estimated_value_usd), 2),
+            "unique_cards": r.unique_cards,
+            "total_qty": r.total_qty,
+            "sets_touched": r.sets_touched,
+        }
+        for r in rows
+    ]
+
+    first = points[0]["value"] if points else 0
+    latest = points[-1]["value"] if points else 0
+    delta_usd = round(latest - first, 2)
+    delta_pct = round(((latest - first) / first) * 100, 2) if first > 0 else 0.0
+
+    return {
+        "period_days": period_days,
+        "points": points,
+        "first_value": first,
+        "latest_value": latest,
+        "delta_usd": delta_usd,
+        "delta_pct": delta_pct,
+        "count": len(points),
+    }
 
 
 @router.get("/summary", response_model=dict)

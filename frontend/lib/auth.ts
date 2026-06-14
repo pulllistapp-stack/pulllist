@@ -219,3 +219,31 @@ export async function updateWishlistItem(
 export async function deleteWishlistItem(itemId: number): Promise<void> {
   return authFetch(`/wishlist/items/${itemId}`, { method: "DELETE" });
 }
+
+// ────────── Portfolio history (Growth chart) ──────────
+
+export type PortfolioPoint = {
+  date: string;
+  value: number;
+  unique_cards: number;
+  total_qty: number;
+  sets_touched: number;
+};
+
+export type PortfolioHistory = {
+  period_days: number;
+  points: PortfolioPoint[];
+  first_value: number;
+  latest_value: number;
+  delta_usd: number;
+  delta_pct: number;
+  count: number;
+};
+
+export async function getPortfolioHistory(
+  periodDays = 30,
+): Promise<PortfolioHistory> {
+  return authFetch<PortfolioHistory>(
+    `/collection/portfolio/history?period_days=${periodDays}`,
+  );
+}

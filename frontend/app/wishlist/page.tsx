@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Bell,
   Heart,
+  Settings2,
   Sparkles,
   Target,
   Trash2,
@@ -17,6 +18,7 @@ import {
 import { RarityChip } from "@/components/RarityChip";
 import { useAuth } from "@/components/AuthProvider";
 import { useWishlist } from "@/components/WishlistProvider";
+import { WishlistTargetModal } from "@/components/WishlistTargetModal";
 import {
   deleteWishlistItem,
   listMyWishlist,
@@ -37,6 +39,7 @@ export default function WishlistPage() {
   const [filter, setFilter] = useState<FilterMode>("all");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<WishlistItemDetail | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -186,9 +189,32 @@ export default function WishlistPage() {
       {filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filtered.map((item) => (
-            <WishlistRow key={item.id} item={item} onRemove={onRemove} />
+            <WishlistRow
+              key={item.id}
+              item={item}
+              onRemove={onRemove}
+              onEdit={() => setEditing(item)}
+            />
           ))}
         </div>
+      )}
+
+      {editing && (
+        <WishlistTargetModal
+          item={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            setItems((prev) =>
+              prev
+                ? prev.map((i) =>
+                    i.id === editing.id ? { ...i, ...updated } : i,
+                  )
+                : prev,
+            );
+            // Summary may shift (at_target count) — refetch in background.
+            void wishlistSummary().then(setSummary).catch(() => {});
+          }}
+        />
       )}
     </main>
   );
@@ -259,9 +285,11 @@ function FilterPill({
 function WishlistRow({
   item,
   onRemove,
+  onEdit,
 }: {
   item: WishlistItemDetail;
   onRemove: (id: number) => void;
+  onEdit: () => void;
 }) {
   const market = item.market_price_usd;
   const target = item.max_price_usd;
@@ -309,14 +337,24 @@ function WishlistRow({
               {item.set_name} · #{item.card_number ?? "—"}
             </p>
           </div>
-          <button
-            onClick={() => onRemove(item.id)}
-            className="shrink-0 text-text-tertiary hover:text-accent-red transition-colors p-1"
-            title="Remove from wishlist"
-            aria-label="Remove from wishlist"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={onEdit}
+              className="text-text-tertiary hover:text-rose-500 transition-colors p-1"
+              title="Edit target & priority"
+              aria-label="Edit wishlist item"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => onRemove(item.id)}
+              className="text-text-tertiary hover:text-accent-red transition-colors p-1"
+              title="Remove from wishlist"
+              aria-label="Remove from wishlist"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         {item.rarity && (

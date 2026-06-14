@@ -1,0 +1,32 @@
+name: Daily portfolio snapshot
+
+on:
+  schedule:
+    # 05:00 UTC every day — runs AFTER eBay (03:00) + TCGplayer (04:00) so
+    # Card.market_price_usd is freshened before we roll up user portfolios.
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    # User count is small (friends-beta), so this finishes in seconds today;
+    # 30m is plenty of headroom for the first 1k users worth of growth.
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run portfolio snapshot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: python -m scripts.snapshot_portfolios

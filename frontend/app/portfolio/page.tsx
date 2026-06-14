@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
+import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
 import { PriceBadge } from "@/components/PriceBadge";
 import { listSets, type SetWithCardCount } from "@/lib/api";
 import {
@@ -226,21 +227,9 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      {/* Second row: Growth chart placeholder (left), Asset Mix donut (right) */}
+      {/* Second row: Growth chart (left, real data), Asset Mix donut (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-        <div className="rounded-card bg-bg-surface border border-border p-5">
-          <h2 className="mb-2 text-sm font-mono uppercase tracking-wider text-text-tertiary">
-            Portfolio growth
-          </h2>
-          <div className="h-44 rounded-md border-2 border-dashed border-border bg-bg/40 flex flex-col items-center justify-center text-center px-4">
-            <p className="text-sm font-medium text-text-secondary">
-              Tracking starts as snapshots accumulate
-            </p>
-            <p className="mt-1 text-xs text-text-tertiary">
-              Daily cron runs at 03:00 UTC — chart fills in over the next week 🐲
-            </p>
-          </div>
-        </div>
+        <PortfolioGrowthChart />
 
         <div className="rounded-card bg-bg-surface border border-border p-5">
           <h2 className="mb-4 text-sm font-mono uppercase tracking-wider text-text-tertiary">

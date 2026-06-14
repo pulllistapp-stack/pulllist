@@ -33,6 +33,7 @@ async def init_db() -> None:
     from app.models import (  # noqa: F401
         card,
         collection,
+        portfolio,
         set as set_model,
         snapshot,
         user,
