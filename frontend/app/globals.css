@@ -64,6 +64,16 @@
 }
 
 @layer utilities {
+  /* Slow rotation used on login mascot dotted ring */
+  @keyframes pl-slow-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Card hover shimmer/sparkle keyframe — used on card detail hero image */
   @keyframes pl-sparkle {
     0%,
