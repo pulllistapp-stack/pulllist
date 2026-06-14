@@ -15,7 +15,7 @@ import {
   Plus,
   Search,
   ShoppingCart,
-  Sparkles,
+  Star,
   Sun,
   Tag,
 } from "lucide-react";
@@ -149,7 +149,12 @@ function CheapestHero({ data, ownedToggle }: { data: CheapestData | null; ownedT
   }
   return (
     <div className="relative overflow-hidden rounded-xl border border-amber-300 bg-gradient-to-b from-amber-50 to-white p-5 dark:border-amber-400/30 dark:from-amber-400/10 dark:to-[#1A1F29]">
-      <Sparkles className="absolute right-3 top-3 h-4 w-4 text-amber-400/70" aria-hidden />
+      <Star
+        aria-hidden
+        fill="currentColor"
+        strokeWidth={0}
+        className="absolute right-3 top-3 h-4 w-4 text-amber-400 drop-shadow-[0_0_6px_rgba(255,203,5,0.6)]"
+      />
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
           <Tag className="h-3.5 w-3.5" />
@@ -695,13 +700,16 @@ export function PullListCardDetail({
                 "relative aspect-[5/7] overflow-hidden rounded-xl border transition-all duration-500 ease-out",
                 // light mode: noticeable layered shadow that anchors the card on white bg
                 "border-gray-200 bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25),0_8px_20px_-6px_rgba(0,0,0,0.12)]",
-                // dark mode: glow ring for rares
-                "dark:border-[#2D3543] dark:bg-[#1A1F29] dark:shadow-none",
+                // dark mode: dedicated teal-tinted glow so the card visibly floats on the dark bg
+                "dark:border-[#2D3543] dark:bg-[#1A1F29] dark:shadow-[0_20px_50px_-12px_rgba(91,201,194,0.18),0_8px_20px_-6px_rgba(0,0,0,0.6)]",
+                // extra glow for rare cards
                 card.rarity?.toLowerCase().includes("rare") &&
-                  "dark:ring-2 dark:ring-teal-400/40 dark:shadow-[0_0_40px_-8px_rgba(91,201,194,0.5)]",
+                  "dark:ring-2 dark:ring-teal-400/40 dark:shadow-[0_20px_50px_-12px_rgba(91,201,194,0.4),0_0_40px_-6px_rgba(91,201,194,0.5)]",
                 // tilt-on-hover (3D-ish using rotateY + slight rotateX + scale)
                 "group-hover:[transform:perspective(1000px)_rotateY(8deg)_rotateX(-3deg)_scale(1.03)]",
+                // hover shadows tuned per theme
                 "group-hover:shadow-[0_30px_60px_-12px_rgba(0,0,0,0.35),0_15px_30px_-8px_rgba(255,203,5,0.25)]",
+                "dark:group-hover:shadow-[0_30px_60px_-12px_rgba(255,203,5,0.25),0_15px_30px_-8px_rgba(91,201,194,0.35)]",
                 "dark:group-hover:ring-amber-400/60",
               )}
             >
@@ -732,14 +740,36 @@ export function PullListCardDetail({
                 }}
               />
 
-              {/* Sparkles — appear on hover, drift and twinkle */}
-              <Sparkles
+              {/* Twinkling stars — 5 different anchors, alternating amber/mint, staggered delays */}
+              <Star
                 aria-hidden
-                className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-amber-300 opacity-0 transition-opacity duration-300 drop-shadow-[0_0_6px_rgba(255,203,5,0.8)] group-hover:opacity-100 group-hover:[animation:pl-sparkle_1.8s_ease-in-out_infinite]"
+                fill="currentColor"
+                strokeWidth={0}
+                className="pointer-events-none absolute right-[8%] top-[10%] h-5 w-5 text-amber-400 opacity-0 drop-shadow-[0_0_8px_rgba(255,203,5,0.9)] group-hover:[animation:pl-sparkle_2s_ease-in-out_infinite]"
               />
-              <Sparkles
+              <Star
                 aria-hidden
-                className="pointer-events-none absolute bottom-4 left-3 h-4 w-4 text-amber-200 opacity-0 transition-opacity duration-500 drop-shadow-[0_0_6px_rgba(255,203,5,0.6)] group-hover:opacity-100 group-hover:[animation:pl-sparkle_1.8s_ease-in-out_infinite_0.4s]"
+                fill="currentColor"
+                strokeWidth={0}
+                className="pointer-events-none absolute left-[12%] top-[28%] h-4 w-4 text-teal-400 opacity-0 drop-shadow-[0_0_8px_rgba(91,201,194,0.9)] group-hover:[animation:pl-sparkle_2s_ease-in-out_infinite_0.35s]"
+              />
+              <Star
+                aria-hidden
+                fill="currentColor"
+                strokeWidth={0}
+                className="pointer-events-none absolute right-[14%] top-[55%] h-3.5 w-3.5 text-amber-300 opacity-0 drop-shadow-[0_0_6px_rgba(255,203,5,0.8)] group-hover:[animation:pl-sparkle_2s_ease-in-out_infinite_0.7s]"
+              />
+              <Star
+                aria-hidden
+                fill="currentColor"
+                strokeWidth={0}
+                className="pointer-events-none absolute left-[18%] bottom-[18%] h-5 w-5 text-teal-300 opacity-0 drop-shadow-[0_0_8px_rgba(91,201,194,0.85)] group-hover:[animation:pl-sparkle_2s_ease-in-out_infinite_1.05s]"
+              />
+              <Star
+                aria-hidden
+                fill="currentColor"
+                strokeWidth={0}
+                className="pointer-events-none absolute right-[22%] bottom-[8%] h-4 w-4 text-amber-200 opacity-0 drop-shadow-[0_0_6px_rgba(255,203,5,0.7)] group-hover:[animation:pl-sparkle_2s_ease-in-out_infinite_1.4s]"
               />
             </div>
           </div>
