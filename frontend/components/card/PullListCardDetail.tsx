@@ -625,31 +625,28 @@ export function PullListCardDetail({
   return (
     <main className="min-h-screen bg-white text-gray-900 dark:bg-[#0F1419] dark:text-zinc-100">
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-8 pb-28 lg:pb-8">
-        {/* Top toolbar: breadcrumb + theme toggle */}
-        <div className="flex items-center justify-between gap-2">
-          <nav
-            aria-label="Breadcrumb"
-            className={cn("flex flex-wrap items-center gap-1 text-xs", faint)}
+        {/* Breadcrumb (theme toggle lives in TopNav site-wide — no duplicate here) */}
+        <nav
+          aria-label="Breadcrumb"
+          className={cn("flex flex-wrap items-center gap-1 text-xs", faint)}
+        >
+          <Link href="/" className="hover:text-teal-600 dark:hover:text-teal-400">
+            Home
+          </Link>
+          <ChevronRight className="h-3 w-3 opacity-60" />
+          <Link href="/sets" className="hover:text-teal-600 dark:hover:text-teal-400">
+            Sets
+          </Link>
+          <ChevronRight className="h-3 w-3 opacity-60" />
+          <Link
+            href={`/sets/${card.set_id}`}
+            className="hover:text-teal-600 dark:hover:text-teal-400"
           >
-            <Link href="/" className="hover:text-teal-600 dark:hover:text-teal-400">
-              Home
-            </Link>
-            <ChevronRight className="h-3 w-3 opacity-60" />
-            <Link href="/sets" className="hover:text-teal-600 dark:hover:text-teal-400">
-              Sets
-            </Link>
-            <ChevronRight className="h-3 w-3 opacity-60" />
-            <Link
-              href={`/sets/${card.set_id}`}
-              className="hover:text-teal-600 dark:hover:text-teal-400"
-            >
-              {card.set_name ?? card.set_id}
-            </Link>
-            <ChevronRight className="h-3 w-3 opacity-60" />
-            <span className="font-medium text-gray-700 dark:text-zinc-300">{card.name}</span>
-          </nav>
-          <ThemeToggle />
-        </div>
+            {card.set_name ?? card.set_id}
+          </Link>
+          <ChevronRight className="h-3 w-3 opacity-60" />
+          <span className="font-medium text-gray-700 dark:text-zinc-300">{card.name}</span>
+        </nav>
 
         {/* Prev/Next nav */}
         <div className="flex items-center justify-between gap-2">
@@ -689,15 +686,23 @@ export function PullListCardDetail({
 
         {/* Hero */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[320px_1fr]">
-          <div className="group mx-auto w-full" style={{ maxWidth: 320 }}>
+          <div
+            className="group mx-auto w-full [perspective:1000px]"
+            style={{ maxWidth: 320 }}
+          >
             <div
               className={cn(
-                "relative aspect-[5/7] overflow-hidden rounded-xl border transition-all duration-300",
-                "border-gray-200 bg-white shadow-xl shadow-gray-200/60",
+                "relative aspect-[5/7] overflow-hidden rounded-xl border transition-all duration-500 ease-out",
+                // light mode: noticeable layered shadow that anchors the card on white bg
+                "border-gray-200 bg-white shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25),0_8px_20px_-6px_rgba(0,0,0,0.12)]",
+                // dark mode: glow ring for rares
                 "dark:border-[#2D3543] dark:bg-[#1A1F29] dark:shadow-none",
                 card.rarity?.toLowerCase().includes("rare") &&
                   "dark:ring-2 dark:ring-teal-400/40 dark:shadow-[0_0_40px_-8px_rgba(91,201,194,0.5)]",
-                "group-hover:scale-[1.02] dark:group-hover:ring-amber-400/60",
+                // tilt-on-hover (3D-ish using rotateY + slight rotateX + scale)
+                "group-hover:[transform:perspective(1000px)_rotateY(8deg)_rotateX(-3deg)_scale(1.03)]",
+                "group-hover:shadow-[0_30px_60px_-12px_rgba(0,0,0,0.35),0_15px_30px_-8px_rgba(255,203,5,0.25)]",
+                "dark:group-hover:ring-amber-400/60",
               )}
             >
               {card.image_large ? (
@@ -715,6 +720,27 @@ export function PullListCardDetail({
                   no image
                 </div>
               )}
+
+              {/* Shimmer sweep — diagonal highlight that travels across the card on hover */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -translate-x-full opacity-0 transition-all duration-700 ease-out group-hover:translate-x-full group-hover:opacity-100"
+                style={{
+                  background:
+                    "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.6) 50%, transparent 70%)",
+                  mixBlendMode: "overlay",
+                }}
+              />
+
+              {/* Sparkles — appear on hover, drift and twinkle */}
+              <Sparkles
+                aria-hidden
+                className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-amber-300 opacity-0 transition-opacity duration-300 drop-shadow-[0_0_6px_rgba(255,203,5,0.8)] group-hover:opacity-100 group-hover:[animation:pl-sparkle_1.8s_ease-in-out_infinite]"
+              />
+              <Sparkles
+                aria-hidden
+                className="pointer-events-none absolute bottom-4 left-3 h-4 w-4 text-amber-200 opacity-0 transition-opacity duration-500 drop-shadow-[0_0_6px_rgba(255,203,5,0.6)] group-hover:opacity-100 group-hover:[animation:pl-sparkle_1.8s_ease-in-out_infinite_0.4s]"
+              />
             </div>
           </div>
 
@@ -754,11 +780,7 @@ export function PullListCardDetail({
 
             <CheapestHero
               data={cheapest}
-              ownedToggle={
-                <div className="inline-flex items-center justify-center rounded-full border border-teal-400 px-4 py-3 text-sm font-semibold text-teal-700 transition-colors hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-400/10">
-                  <OwnedToggle cardId={card.id} />
-                </div>
-              }
+              ownedToggle={<OwnedToggle cardId={card.id} variant="hero" />}
             />
           </div>
         </div>

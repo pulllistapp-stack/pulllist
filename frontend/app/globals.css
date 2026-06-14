@@ -64,6 +64,19 @@
 }
 
 @layer utilities {
+  /* Card hover shimmer/sparkle keyframe — used on card detail hero image */
+  @keyframes pl-sparkle {
+    0%,
+    100% {
+      transform: scale(0.85) rotate(0deg);
+      opacity: 0.55;
+    }
+    50% {
+      transform: scale(1.2) rotate(90deg);
+      opacity: 1;
+    }
+  }
+
   .pulse-dot {
     position: relative;
   }
