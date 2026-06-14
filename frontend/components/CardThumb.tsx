@@ -52,16 +52,7 @@ export function CardThumb({ card, priority = false }: Props) {
           </div>
         )}
 
-        {/* Corner price tag — Variant-style amber pill overlaying the art */}
-        {priceLabel && (
-          <span className="absolute top-1.5 right-1.5 rounded-full bg-accent-yellow px-2 py-0.5 shadow-md ring-1 ring-amber-700/20">
-            <span className="font-mono text-[11px] font-bold text-amber-950 leading-none">
-              {priceLabel}
-            </span>
-          </span>
-        )}
-
-        {/* Owned indicator — moved to top-left to clear room for price tag */}
+        {/* Owned indicator stays as a tiny corner badge — doesn't cover artwork */}
         {owned && (
           <span
             className="absolute top-1.5 left-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent-green text-bg text-xs font-bold shadow-md ring-1 ring-emerald-700/20"
@@ -73,8 +64,15 @@ export function CardThumb({ card, priority = false }: Props) {
       </div>
 
       <div className="mt-2 px-1 flex flex-col gap-1">
-        <div className="text-xs font-mono text-text-tertiary">
-          #{card.number ?? "—"}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-mono text-text-tertiary">
+            #{card.number ?? "—"}
+          </span>
+          {priceLabel && (
+            <span className="font-mono text-xs font-bold text-accent-yellow">
+              {priceLabel}
+            </span>
+          )}
         </div>
         <div className="text-sm font-medium truncate" title={card.name}>
           {card.name}

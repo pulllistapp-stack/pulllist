@@ -102,10 +102,10 @@ export function TopNav() {
           ) : user ? (
             <>
               <Link
-                href="/me/collection"
+                href="/portfolio"
                 className="text-text-secondary hover:text-text-primary"
               >
-                My Collection
+                Portfolio
               </Link>
               <span className="text-text-tertiary">·</span>
               <span
@@ -166,7 +166,7 @@ export function TopNav() {
               <span className="px-3 py-2 text-text-tertiary">…</span>
             ) : user ? (
               <>
-                <MobileLink href="/me/collection">My Collection</MobileLink>
+                <MobileLink href="/portfolio">Portfolio</MobileLink>
                 <div className="px-3 py-2 text-xs text-text-tertiary font-mono truncate">
                   Logged in as {user.name ?? user.email}
                 </div>
