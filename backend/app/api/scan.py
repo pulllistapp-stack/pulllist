@@ -79,26 +79,24 @@ class ScanResponse(BaseModel):
 
 SCAN_PROMPT = """You are identifying a Pokémon Trading Card Game card from an image.
 
-Examine the card carefully and return:
+Examine the card carefully and return ONLY a valid JSON object (no markdown, no
+prose, no code fences) with exactly these keys:
 
-1. card_name: The exact English card name with modifiers — "Charizard ex",
-   "Mega Charizard X ex", "Cinccino ex", "Pikachu VMAX", etc.
+{
+  "card_name": "exact English card name with modifiers, e.g. 'Mega Charizard X ex', 'Cinccino ex', 'Pikachu VMAX'",
+  "card_number": "card number from the bottom, e.g. '125' or '125/094' or '4/102'",
+  "set_name": "set name if visible from logo/symbol/text, else null",
+  "confidence": "high | medium | low",
+  "notes": "brief disambiguating details: rarity (Common/Rare/Ultra/Special Illustration Rare/Hyper/Mega Hyper), variant (full art / alt art / illustration rare), artist signature, anything unique"
+}
 
-2. card_number: The card number from the bottom — "125" or "125/094" or "4/102".
-   Return what you can read.
+confidence levels:
+- "high" — you can clearly read the name AND the number
+- "medium" — name clear but number partially obscured, or vice versa
+- "low" — significant guesswork
 
-3. set_name: The set name if visible from the logo/symbol or set text.
-
-4. confidence:
-   - "high" — you can clearly read the name AND the number
-   - "medium" — name clear but number partially obscured, or vice versa
-   - "low" — significant guesswork
-
-5. notes: Brief details that help match — rarity (Common/Rare/Ultra/Special
-   Illustration Rare/Hyper/Mega Hyper), variant (full art, alt art,
-   illustration rare), artist signature, anything unique about this print.
-
-If unclear, give your best guess with low confidence rather than refusing.
+If a field is unreadable, return null for it (NOT an empty string).
+Return ONLY the JSON object, nothing else.
 """
 
 
@@ -149,32 +147,6 @@ async def scan_card(
                     ],
                 }
             ],
-            output_config={
-                "format": {
-                    "type": "json_schema",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "card_name": {"type": ["string", "null"]},
-                            "card_number": {"type": ["string", "null"]},
-                            "set_name": {"type": ["string", "null"]},
-                            "confidence": {
-                                "type": "string",
-                                "enum": ["high", "medium", "low"],
-                            },
-                            "notes": {"type": ["string", "null"]},
-                        },
-                        "required": [
-                            "card_name",
-                            "card_number",
-                            "set_name",
-                            "confidence",
-                            "notes",
-                        ],
-                        "additionalProperties": False,
-                    },
-                }
-            },
         )
     except anthropic.APIError as e:
         log.error("Claude vision call failed: %s", e)
@@ -183,19 +155,34 @@ async def scan_card(
         log.error("Unexpected scan error: %s", e)
         raise HTTPException(status_code=500, detail=f"Unexpected: {e}")
 
-    # Extract structured output from the first text block
+    # Extract JSON from the first text block. Claude sometimes wraps JSON in
+    # markdown fences despite our instructions — strip them defensively.
     import json as _json
+    import re as _re
 
     text_block = next(
         (b for b in response.content if getattr(b, "type", None) == "text"), None
     )
     if not text_block:
         raise HTTPException(status_code=502, detail="Vision API returned no text")
+
+    raw = text_block.text.strip()
+    # Strip ```json ... ``` or ``` ... ``` fences if present.
+    fence = _re.match(r"^```(?:json)?\s*(.*?)\s*```$", raw, _re.DOTALL)
+    if fence:
+        raw = fence.group(1).strip()
+    # Sometimes the model precedes JSON with a sentence; grab the first {...} block.
+    brace = _re.search(r"\{.*\}", raw, _re.DOTALL)
+    if brace:
+        raw = brace.group(0)
+
     try:
-        parsed = _json.loads(text_block.text)
+        parsed = _json.loads(raw)
         identification = ScanIdentification(**parsed)
     except Exception as e:
-        log.error("Failed to parse Claude response: %s | raw: %s", e, text_block.text)
+        log.error(
+            "Failed to parse Claude response: %s | raw: %s", e, text_block.text[:500]
+        )
         raise HTTPException(
             status_code=502, detail="Vision API returned unparseable JSON"
         )
