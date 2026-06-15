@@ -127,12 +127,23 @@ export default function PortfolioPage() {
         <span className="text-text-primary">Portfolio</span>
       </nav>
 
-      <h1 className="text-3xl font-bold mb-1 tracking-tight">
-        {user.name ?? user.email.split("@")[0]}&apos;s Portfolio
-      </h1>
-      <p className="text-text-secondary text-sm mb-8">
-        Live valuation across {setsTouched} sets · {totalQty} cards
-      </p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold mb-1 tracking-tight">
+            {user.name ?? user.email.split("@")[0]}&apos;s Portfolio
+          </h1>
+          <p className="text-text-secondary text-sm">
+            Live valuation across {setsTouched} sets · {totalQty} cards
+          </p>
+        </div>
+        <Link
+          href="/scan"
+          className="shrink-0 inline-flex items-center gap-2 rounded-full bg-accent-yellow text-gray-900 font-bold px-5 py-2.5 text-sm hover:brightness-105 shadow-md shadow-accent-yellow/30 transition-all"
+        >
+          <span aria-hidden>📸</span>
+          Scan a card
+        </Link>
+      </div>
 
       {/* Top row: Stats LEFT (compact), Vault grid teaser RIGHT (big — per LO preference) */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 mb-8">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ScanLine } from "lucide-react";
 
 import { useAuth } from "./AuthProvider";
 
@@ -27,6 +27,15 @@ export function HeroCTA() {
         {signedIn ? "Open portfolio" : "Start collecting — free"}
         <ArrowRight className="h-4 w-4" aria-hidden />
       </Link>
+      {signedIn && (
+        <Link
+          href="/scan"
+          className="inline-flex items-center gap-2 rounded-full border border-accent-yellow/40 bg-accent-yellow/10 text-accent-yellow font-semibold px-6 py-3 text-sm hover:bg-accent-yellow/20 transition-colors"
+        >
+          <ScanLine className="h-4 w-4" />
+          Scan a card
+        </Link>
+      )}
       <Link
         href="/sets"
         className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-6 py-3 text-sm hover:border-teal-400/40 hover:text-teal-500 dark:hover:text-teal-300 transition-colors"

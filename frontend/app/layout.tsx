@@ -5,6 +5,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { CollectionProvider } from "@/components/CollectionProvider";
 import { Footer } from "@/components/Footer";
 import { PWARegister } from "@/components/PWARegister";
+import { ScanFAB } from "@/components/ScanFAB";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopNav } from "@/components/TopNav";
 import { WishlistProvider } from "@/components/WishlistProvider";
@@ -80,6 +81,7 @@ export default function RootLayout({
                 <TopNav />
                 {children}
                 <Footer />
+                <ScanFAB />
               </WishlistProvider>
             </CollectionProvider>
           </AuthProvider>
