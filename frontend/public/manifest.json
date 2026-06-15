@@ -1,0 +1,51 @@
+{
+  "name": "PullList — Pokémon TCG Tracker",
+  "short_name": "PullList",
+  "description": "Track your Pokémon TCG vault. Watch prices. Chase the set.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0E14",
+  "theme_color": "#fcc419",
+  "categories": ["productivity", "lifestyle", "entertainment"],
+  "icons": [
+    {
+      "src": "/pullist-mascot.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pullist-mascot.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pullist-mascot.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan a card",
+      "short_name": "Scan",
+      "description": "Open the card scanner",
+      "url": "/scan",
+      "icons": [{ "src": "/pullist-mascot.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My portfolio",
+      "short_name": "Portfolio",
+      "url": "/portfolio"
+    },
+    {
+      "name": "Wishlist",
+      "short_name": "Wishlist",
+      "url": "/wishlist"
+    }
+  ]
+}
