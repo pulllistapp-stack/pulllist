@@ -102,6 +102,14 @@ export function TopNav() {
           ) : user ? (
             <>
               <Link
+                href="/scan"
+                className="inline-flex items-center gap-1 rounded-full border border-accent-yellow/40 bg-accent-yellow/10 px-2.5 py-1 text-xs font-bold text-accent-yellow hover:bg-accent-yellow/20 transition-colors"
+                title="Scan a card"
+              >
+                <span aria-hidden>📸</span>
+                Scan
+              </Link>
+              <Link
                 href="/wishlist"
                 className="text-text-secondary hover:text-text-primary"
               >
@@ -172,6 +180,7 @@ export function TopNav() {
               <span className="px-3 py-2 text-text-tertiary">…</span>
             ) : user ? (
               <>
+                <MobileLink href="/scan">📸 Scan a card</MobileLink>
                 <MobileLink href="/wishlist">Wishlist</MobileLink>
                 <MobileLink href="/portfolio">Portfolio</MobileLink>
                 <div className="px-3 py-2 text-xs text-text-tertiary font-mono truncate">

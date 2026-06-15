@@ -247,3 +247,40 @@ export async function getPortfolioHistory(
     `/collection/portfolio/history?period_days=${periodDays}`,
   );
 }
+
+// ────────── Card scanning (Claude Vision) ──────────
+
+export type ScanIdentification = {
+  card_name: string | null;
+  card_number: string | null;
+  set_name: string | null;
+  confidence: "high" | "medium" | "low";
+  notes: string | null;
+};
+
+export type ScanCandidate = {
+  id: string;
+  name: string;
+  number: string | null;
+  set_id: string;
+  set_name: string;
+  rarity: string | null;
+  image_small: string | null;
+  market_price_usd: number | null;
+};
+
+export type ScanResponse = {
+  identification: ScanIdentification;
+  candidates: ScanCandidate[];
+  matched_card_id: string | null;
+};
+
+export async function scanCard(
+  imageData: string,
+  mediaType = "image/jpeg",
+): Promise<ScanResponse> {
+  return authFetch<ScanResponse>("/cards/scan", {
+    method: "POST",
+    body: JSON.stringify({ image_data: imageData, media_type: mediaType }),
+  });
+}
