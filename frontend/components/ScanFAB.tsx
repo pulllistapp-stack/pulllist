@@ -19,6 +19,9 @@ export function ScanFAB() {
   if (!pathname) return null;
   if (pathname.startsWith("/scan")) return null;
   if (pathname.startsWith("/login") || pathname.startsWith("/signup")) return null;
+  // Card detail page has its own bottom CTAs (Buy on TCGplayer, sticky
+  // owned button) — the FAB overlaps them awkwardly on mobile.
+  if (pathname.startsWith("/cards/")) return null;
 
   return (
     <Link

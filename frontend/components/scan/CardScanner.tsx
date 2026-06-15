@@ -7,6 +7,8 @@ import {
   AlertCircle,
   Camera,
   CheckCircle2,
+  Flashlight,
+  FlashlightOff,
   Loader2,
   RotateCcw,
   ScanLine,
@@ -39,6 +41,11 @@ export function CardScanner() {
   const [result, setResult] = useState<ScanResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  // Torch (flashlight) — only available on supporting devices/browsers
+  // (Chrome Android typically yes, Safari iOS no).
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+
   const { toggle: toggleCollection, has: ownsCard } = useCollection();
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -65,6 +72,16 @@ export function CardScanner() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+
+      // Probe torch capability after the track is live.
+      const track = stream.getVideoTracks()[0];
+      const caps =
+        (track.getCapabilities?.() as MediaTrackCapabilities & {
+          torch?: boolean;
+        }) ?? {};
+      setTorchSupported(!!caps.torch);
+      setTorchOn(false);
+
       setPhase("ready");
     } catch (e) {
       setErr(
@@ -79,6 +96,24 @@ export function CardScanner() {
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    setTorchSupported(false);
+    setTorchOn(false);
+  };
+
+  const toggleTorch = async () => {
+    const stream = streamRef.current;
+    if (!stream || !torchSupported) return;
+    const track = stream.getVideoTracks()[0];
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      // @ts-expect-error — `torch` is a real constraint on devices that
+      // support it, but it's not in the standard MediaTrackConstraintSet type.
+      await track.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch (e) {
+      console.warn("[scan] Torch toggle failed:", e);
+    }
   };
 
   const capture = () => {
@@ -161,6 +196,27 @@ export function CardScanner() {
                   </span>
                 </div>
               </div>
+            )}
+
+            {/* Torch toggle — appears top-right when supported */}
+            {phase === "ready" && torchSupported && (
+              <button
+                onClick={toggleTorch}
+                aria-label={torchOn ? "Turn flashlight off" : "Turn flashlight on"}
+                title={torchOn ? "Flashlight on" : "Flashlight off"}
+                className={cn(
+                  "absolute top-4 right-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full transition-all",
+                  torchOn
+                    ? "bg-accent-yellow text-gray-900 shadow-lg shadow-accent-yellow/40"
+                    : "bg-black/50 text-white/90 backdrop-blur-sm hover:bg-black/70",
+                )}
+              >
+                {torchOn ? (
+                  <Flashlight className="h-5 w-5" />
+                ) : (
+                  <FlashlightOff className="h-5 w-5" />
+                )}
+              </button>
             )}
           </>
         )}
@@ -270,28 +326,26 @@ export function CardScanner() {
       {/* Result panel */}
       {phase === "result" && result && (
         <div className="mt-6 rounded-3xl border border-border bg-bg-surface p-5">
-          {/* Identification summary */}
+          {/* Identification summary — only show set/number if we actually read them */}
           <div className="mb-4 flex items-center gap-3">
             <ConfidenceBadge confidence={result.identification.confidence} />
             <div className="min-w-0">
               <p className="font-bold text-text-primary truncate">
                 {result.identification.card_name ?? "Couldn't read card name"}
               </p>
-              <p className="text-xs text-text-tertiary font-mono">
-                {result.identification.set_name ?? "?"} ·{" "}
-                {result.identification.card_number ?? "#?"}
-              </p>
+              {(result.identification.set_name ||
+                result.identification.card_number) && (
+                <p className="text-xs text-text-tertiary font-mono">
+                  {[
+                    result.identification.set_name,
+                    result.identification.card_number,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
             </div>
           </div>
-
-          {result.identification.notes && (
-            <p className="mb-4 rounded-xl bg-bg/60 border border-border/60 p-3 text-xs text-text-secondary leading-relaxed">
-              <span className="font-mono uppercase tracking-wider text-text-tertiary">
-                Notes:
-              </span>{" "}
-              {result.identification.notes}
-            </p>
-          )}
 
           {/* Candidates */}
           {result.candidates.length === 0 ? (

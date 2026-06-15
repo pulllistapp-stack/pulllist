@@ -1,7 +1,19 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const HIDE_FOOTER_ON = ["/scan"];
 
 export function Footer() {
+  const pathname = usePathname();
+  // Scan page is a focused, immersive surface — site-wide footer (marketplace
+  // links, mascot, etc.) clutters the result panel below the camera frame.
+  if (pathname && HIDE_FOOTER_ON.some((p) => pathname.startsWith(p))) {
+    return null;
+  }
+
   return (
     <footer className="mt-20 border-t border-border bg-bg-surface/40">
       <div className="mx-auto max-w-6xl px-4 py-10">
