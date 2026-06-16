@@ -43,134 +43,11 @@ function fmtUSD(v: number | null | undefined) {
   if (v == null) return "—";
   return `$${Number(v).toFixed(2)}`;
 }
-function fmtEUR(v: number | null | undefined) {
-  if (v == null) return "—";
-  return `€${Number(v).toFixed(2)}`;
-}
-
 /* ============================================================
-   Theme toggle
-   ============================================================ */
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isDark = resolvedTheme === "dark";
-  return (
-    <button
-      aria-label="Toggle theme"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 dark:border-[#2D3543] dark:bg-[#1A1F29] dark:text-zinc-300 dark:hover:bg-[#222834]"
-    >
-      {mounted && isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-    </button>
-  );
-}
-
-/* ============================================================
-   Source badge
-   ============================================================ */
-function SourceBadge({ source }: { source: string }) {
-  const styles: Record<string, string> = {
-    TCGplayer:
-      "bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30",
-    eBay: "bg-teal-100 text-teal-800 ring-teal-300 dark:bg-teal-400/15 dark:text-teal-300 dark:ring-teal-400/30",
-  };
-  const neutral =
-    "bg-gray-100 text-gray-700 ring-gray-300 dark:bg-zinc-700/30 dark:text-zinc-300 dark:ring-zinc-600";
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ring-1",
-        styles[source] ?? neutral,
-      )}
-    >
-      {source}
-    </span>
-  );
-}
-
-/* ============================================================
-   Delta pill
-   ============================================================ */
-function Delta({ value }: { value: number | null }) {
-  if (value == null) return <span className={cn("text-xs", faint)}>—</span>;
-  const up = value >= 0;
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 text-xs font-semibold",
-        up
-          ? "text-emerald-600 dark:text-emerald-400"
-          : "text-rose-500 dark:text-rose-400",
-      )}
-    >
-      {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-      {Math.abs(value).toFixed(1)}%
-    </span>
-  );
-}
-
-/* ============================================================
-   Cheapest hero
-   ============================================================ */
-type CheapestData = {
-  price: number;
-  source: "TCGplayer" | "eBay";
-  url: string;
-};
-
-function CheapestHero({ data, ownedToggle }: { data: CheapestData | null; ownedToggle: React.ReactNode }) {
-  if (!data) {
-    return (
-      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 dark:border-[#2D3543] dark:bg-[#1A1F29]">
-        <p className={cn("text-sm", muted)}>No price data yet for this card.</p>
-        {ownedToggle}
-      </div>
-    );
-  }
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-amber-300 bg-gradient-to-b from-amber-50 to-white p-5 dark:border-amber-400/30 dark:from-amber-400/10 dark:to-[#1A1F29]">
-      <Star
-        aria-hidden
-        fill="currentColor"
-        strokeWidth={0}
-        className="absolute right-3 top-3 h-4 w-4 text-amber-400 drop-shadow-[0_0_6px_rgba(255,203,5,0.6)]"
-      />
-      <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-          <Tag className="h-3.5 w-3.5" />
-          Cheapest listing
-        </span>
-        <SourceBadge source={data.source} />
-      </div>
-      <div className="mt-3 flex items-end gap-2">
-        <span className="font-mono text-5xl font-extrabold text-amber-500 dark:text-amber-400">
-          {fmtUSD(data.price)}
-        </span>
-      </div>
-      <p className={cn("mt-1 text-sm", muted)}>
-        From <span className="font-medium text-gray-800 dark:text-zinc-200">{data.source}</span>
-      </p>
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-        <a
-          href={data.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-gray-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-gray-800 dark:bg-zinc-100 dark:text-gray-900 dark:hover:bg-white"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Buy on {data.source}
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-        {ownedToggle}
-      </div>
-    </div>
-  );
-}
-
-/* ============================================================
-   Price chart (real data)
+   Inline chart was extracted to ./CardPriceChart (with band, hover
+   tooltip, and range bucketing). Cheapest-listing hero, source badge,
+   delta pill, sparkline + secondary-prices grid were superseded by
+   ./CardPriceHero. Theme toggle now lives only in the global TopNav.
    ============================================================ */
 const RANGES = [
   { label: "7d", days: 7 },
@@ -506,71 +383,6 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
 }
 
 /* ============================================================
-   Secondary prices
-   ============================================================ */
-type SecondaryPrice = {
-  source: string;
-  label: string;
-  value: number | null;
-  currency: "USD" | "EUR";
-  delta: number | null;
-  spark: number[];
-  sparkColor: string;
-};
-
-function Sparkline({ points, color }: { points: number[]; color: string }) {
-  if (points.length < 2) {
-    return (
-      <svg width={70} height={24} viewBox="0 0 70 24" className="opacity-30" aria-hidden>
-        {[0.25, 0.5, 0.75].map((t) => (
-          <line key={t} x1={0} x2={70} y1={24 * t} y2={24 * t} stroke={color} strokeOpacity="0.25" strokeWidth={1} />
-        ))}
-      </svg>
-    );
-  }
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const w = 70;
-  const h = 24;
-  const d = points
-    .map((v, i) => {
-      const x = (i / (points.length - 1)) * w;
-      const y = h - ((v - min) / range) * h;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible" aria-hidden>
-      <path d={d} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SecondaryPrices({ items }: { items: SecondaryPrice[] }) {
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      {items.map((p) => (
-        <div key={p.source + p.label} className={cn(surface, "p-4")}>
-          <div className="flex items-center justify-between">
-            <p className={cn("text-xs font-medium", muted)}>
-              {p.source} <span className={faint}>· {p.label}</span>
-            </p>
-            <Delta value={p.delta} />
-          </div>
-          <div className="mt-2 flex items-end justify-between gap-2">
-            <p className={cn("font-mono text-xl font-bold", heading)}>
-              {p.value == null ? "—" : p.currency === "USD" ? fmtUSD(p.value) : fmtEUR(p.value)}
-            </p>
-            <Sparkline points={p.spark} color={p.sparkColor} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ============================================================
    Main component
    ============================================================ */
 type Props = {
@@ -594,8 +406,8 @@ export function PullListCardDetail({
   ebaySpark7d,
   tcgSpark7d,
 }: Props) {
-  // Derive cheapest from available price data
-  const cheapest: CheapestData | null = useMemo(() => {
+  // Derive cheapest from available price data (used by the sticky mobile CTA).
+  const cheapest: { price: number; source: "TCGplayer" | "eBay"; url: string } | null = useMemo(() => {
     const candidates: { price: number; source: "TCGplayer" | "eBay"; url: string }[] = [];
     if (card.tcgplayer_prices) {
       for (const variant of Object.values(card.tcgplayer_prices)) {
@@ -639,27 +451,6 @@ export function PullListCardDetail({
     }
     return null;
   }, [card]);
-
-  const secondaryPrices: SecondaryPrice[] = [
-    {
-      source: "TCGplayer",
-      label: "Market",
-      value: tcgMid,
-      currency: "USD",
-      delta: tcgDelta7d,
-      spark: tcgSpark7d,
-      sparkColor: "#60a5fa",
-    },
-    {
-      source: "eBay",
-      label: "Median",
-      value: initialEbayMedian,
-      currency: "USD",
-      delta: ebayDelta7d,
-      spark: ebaySpark7d,
-      sparkColor: "#5BC9C2",
-    },
-  ];
 
   const types = card.types ?? [];
 
