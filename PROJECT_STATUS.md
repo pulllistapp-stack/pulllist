@@ -182,14 +182,29 @@ Affiliate income: TCGplayer 3.5-4.5% commission on referred sales (passive).
 - [ ] Trade calculator
 - [ ] Wishlist sharing (separate token, different from portfolio token)
 - [ ] Friend connections / collection comparison
+- [ ] **Multi-language Pokémon coverage (JP / KR)** — gated on EN catalog being
+      considered "done". The competitive moat: Pokefy is English-first, and
+      PriceCharting has multi-language but a clunky UX. Phased plan:
+  1. Add `Card.language` field (en/ja/ko) + migration
+  2. JP catalog ingest — pokemontcg.io for 2023+ sets, then Pokellector
+     scrape to backfill vintage. Catalog only, no JP pricing yet.
+  3. Frontend language tabs (EN / JP / KR) on Sets and Cards browse
+  4. KR catalog = JP-derive (same physical card, KR text overlay). Add
+     `Card.kr_name`, `Card.kr_set_name` via pokemonkorea.co.kr scrape.
+  5. KREAM pricing integration for KR cards — internal API scrape with
+      retries/alerts on shape change. KR-only secondary chart tab.
+  6. User-submitted KR name corrections (small community wiki layer to
+     fill anything KREAM/pokemonkorea miss).
+  Expected lift: ~1.5–2 weeks for steps 1–4 (catalog), KREAM pricing is
+  ongoing-maintenance work.
 
 ### Future / not committed
 - [ ] Apple App Store ($99/yr) — gate behind ~$500/mo MRR
 - [ ] Auto-buy integration with linked retailer accounts (legally gray)
-- [ ] Multi-region (CA / UK / EU / JP)
-- [ ] Other TCGs (Magic, One Piece, Lorcana)
+- [ ] Other TCGs — Magic (Scryfall API), One Piece, Lorcana, Yu-Gi-Oh
 - [ ] PSA / BGS graded-slab specific tracking
-- [ ] User-submitted price corrections (crowdsourcing)
+- [ ] eBay sold-listings (Finding API) — PriceCharting-style accuracy upgrade
+- [ ] User-submitted price corrections (crowdsourcing, beyond names)
 - [ ] Tournament event tracking / deck builder integration
 
 ---
