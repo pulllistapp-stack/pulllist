@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
 from typing import Any
 
@@ -75,18 +76,23 @@ _MIN_LISTINGS_FOR_PRICE = 3
 
 _TITLE_NOISE_FOR_SINGLES = _TITLE_NOISE_DEFAULT + ("binder",)
 
-# For chase rarities, sellers commonly include a disambiguator in titles.
-# Appending these to the q-string sharply tightens results — a "Mega
-# Charizard X ex" search returns 4+ different cards in the same set, but
-# adding "SIR" narrows to the Special Illustration Rare specifically.
-# Only used for high-variance rarities where mismatches actually happen.
-_RARITY_QUERY_HINTS = {
-    "Special Illustration Rare": "SIR",
-    "Illustration Rare": "IR",
-    "Hyper Rare": "Hyper Rare",
-    "Rare Rainbow": "Rainbow Rare",
-    "Mega Hyper Rare": "Mega Hyper Rare",
-}
+# Set of rarities we treat as "chase" — high-variance, high-value variants
+# that share a name with cheaper variants in the same set (e.g. Meowth ex
+# SIR #121 shares name with Meowth ex DR #60). For chase rarities we:
+#   1. Require the card number in the listing title (regex word-boundary)
+#   2. Apply a rarity-absolute price floor
+#   3. Lower the min-listings threshold to 2 (chase supply is thin)
+# We do NOT append the rarity word to the q-string anymore — eBay sellers
+# inconsistently use abbreviations ("SIR" vs "Special Illustration Rare" vs
+# nothing), and forcing it filtered out valid listings, leaving us with 0
+# results for new cards like Meowth ex SIR in Perfect Order.
+_CHASE_RARITIES = frozenset({
+    "Special Illustration Rare",
+    "Illustration Rare",
+    "Hyper Rare",
+    "Rare Rainbow",
+    "Mega Hyper Rare",
+})
 
 # Price-sanity bounds for listings vs the card's TCGplayer reference price.
 # eBay raw cards can run 30-90% of TCGplayer, sometimes 100-200%. Anything
@@ -133,12 +139,14 @@ def build_card_query(
     """Compose the positive-term query for a single Pokémon card.
 
     Example: pokemon Charizard 4/102 Base Set
-             pokemon Mega Charizard X ex 125/94 Phantasmal Flames SIR
+             pokemon Mega Charizard X ex 125/094 Phantasmal Flames
     Falls back gracefully when total/set is unknown.
 
-    Adds a rarity disambiguator for chase rarities (SIR, IR, Hyper, etc.) so
-    a search like "Mega Charizard X ex" doesn't also match the cheap Double
-    Rare variant in the same set.
+    Note: `rarity` is accepted for API compatibility but no longer appended
+    to the query string. eBay sellers don't consistently write rarity
+    abbreviations, so forcing "SIR" into the query filtered out valid
+    listings. Chase disambiguation happens post-fetch via card-number-in-
+    title + rarity price floor instead.
     """
     parts: list[str] = ["pokemon", card_name.strip()]
     if card_number:
@@ -148,9 +156,7 @@ def build_card_query(
         parts.append(num)
     if set_name:
         parts.append(set_name.strip())
-    if rarity and rarity in _RARITY_QUERY_HINTS:
-        parts.append(_RARITY_QUERY_HINTS[rarity])
-    # collapse multiple spaces
+    _ = rarity  # accepted but unused; see docstring
     return " ".join(p for p in parts if p)
 
 
@@ -346,10 +352,18 @@ class EbayClient:
         # in the listing title. A Meowth ex SIR (#121) listing without "121"
         # in the title is almost certainly the Double Rare (#60) variant
         # being matched by name alone. Strict but reliable.
-        require_number_in_title = bool(
-            rarity and rarity in _RARITY_QUERY_HINTS and card_number
-        )
+        is_chase = bool(rarity and rarity in _CHASE_RARITIES)
+        require_number_in_title = bool(is_chase and card_number)
         number_token = (card_number or "").split("/")[0].strip()
+        # Word-boundary match so "121" doesn't match "121g" (grams in a
+        # sealed-box listing) or stray digit sequences. eBay titles
+        # commonly write "121", "#121", "121/068" — all of which contain
+        # \b121\b. Junk like "set121" or "121g" doesn't.
+        number_pattern = (
+            re.compile(rf"\b{re.escape(number_token)}\b")
+            if require_number_in_title and number_token
+            else None
+        )
 
         async def _fetch_prices(active_filters: dict[str, str]) -> list[float]:
             nonlocal total_listings_hint
@@ -367,9 +381,8 @@ class EbayClient:
                 if any(n in title for n in _TITLE_NOISE_DEFAULT):
                     continue
                 # Chase-rarity guard — drop listings missing the card number.
-                if require_number_in_title and number_token:
-                    if number_token not in title:
-                        continue
+                if number_pattern and not number_pattern.search(title):
+                    continue
                 try:
                     p = it.get("price") or {}
                     v = float(p["value"])
@@ -397,23 +410,33 @@ class EbayClient:
             prices = await _fetch_prices(relaxed)
 
         # Require a minimum sample size — a single listing isn't a median.
-        # Better to record nothing than to capture a PSA-slab outlier as the
-        # market price for a raw card.
-        if not prices or len(prices) < _MIN_LISTINGS_FOR_PRICE:
+        # Chase rarities (SIR/Hyper/etc.) get a lower threshold (2) because
+        # their active supply is genuinely thin; common rarities keep 3 to
+        # avoid a single PSA-slab outlier dominating.
+        min_required = 2 if is_chase else _MIN_LISTINGS_FOR_PRICE
+        if not prices or len(prices) < min_required:
             return None
 
         prices.sort()
         n = len(prices)
+        # IQR-light trim — drop n//8 from each end when n >= 8. With 8+
+        # samples this strips the worst fishing prices on top and the most
+        # likely wrong-variant leaks on the bottom without affecting median
+        # for thinner samples. Median is robust either way; the trim mostly
+        # tightens the reported low/high band.
+        trim = n // 8 if n >= 8 else 0
+        core = prices[trim : n - trim] if trim else prices
+        m = len(core)
         median = (
-            prices[n // 2]
-            if n % 2
-            else (prices[n // 2 - 1] + prices[n // 2]) / 2
+            core[m // 2]
+            if m % 2
+            else (core[m // 2 - 1] + core[m // 2]) / 2
         )
         return {
-            "low": prices[0],
+            "low": core[0],
             "median": median,
-            "high": prices[-1],
-            "count_sampled": n,
+            "high": core[-1],
+            "count_sampled": m,
             "total_listings": total_listings_hint or n,
             "cleaned_query": cleaned_query,
         }

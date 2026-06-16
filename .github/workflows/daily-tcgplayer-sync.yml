@@ -2,9 +2,10 @@ name: Daily TCGplayer price sync
 
 on:
   schedule:
-    # 04:00 UTC every day — 1h after the eBay snapshot, so they don't clash
-    # on the Render free tier and the dashboard sees both done by morning.
-    - cron: "0 4 * * *"
+    # 08:00 UTC every day = 04:00 EDT / 03:00 EST. 1h after the eBay
+    # snapshot so they don't clash on the Render free tier. Both finish
+    # before morning in both DST modes.
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 jobs:
@@ -18,9 +19,9 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip

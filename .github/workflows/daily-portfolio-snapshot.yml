@@ -2,9 +2,10 @@ name: Daily portfolio snapshot
 
 on:
   schedule:
-    # 05:00 UTC every day — runs AFTER eBay (03:00) + TCGplayer (04:00) so
-    # Card.market_price_usd is freshened before we roll up user portfolios.
-    - cron: "0 5 * * *"
+    # 09:00 UTC every day = 05:00 EDT / 04:00 EST. Runs AFTER eBay
+    # (07:00 UTC) + TCGplayer (08:00 UTC) so Card.market_price_usd is
+    # freshened before we roll up user portfolios.
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 jobs:
@@ -17,8 +18,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
