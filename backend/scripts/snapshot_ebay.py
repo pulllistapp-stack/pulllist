@@ -72,7 +72,9 @@ async def collect_from_ebay(
 ) -> dict | None:
     """Fetch eBay price summary for one card and return a snapshot row dict.
 
-    Returns None if no listings found (no row written).
+    Returns None if no listings found (no row written). On a miss we log a
+    compact drop-reason summary so workflow logs are debuggable without
+    re-running the inspect script.
     """
     query = build_card_query(
         card_name=card.name,
@@ -82,21 +84,32 @@ async def collect_from_ebay(
         rarity=card.rarity,
     )
 
-    # Pass the TCGplayer reference + rarity + number so price_summary can
-    # apply all three sanity layers (relative band, rarity floor, title
-    # number-match for chase variants).
     reference_price = (
         float(card.market_price_usd) if card.market_price_usd is not None else None
     )
-    summary = await ebay.price_summary(
+    detail = await ebay.price_summary_with_trace(
         query,
         max_results=50,
         reference_price_usd=reference_price,
         card_number=card.number,
         rarity=card.rarity,
     )
+    summary = detail["summary"]
     if summary is None:
-        log.debug(f"{card.id} ({card.name[:30]}) — no listings for {query!r}")
+        # Tally drop reasons across every pass so the workflow log explains
+        # the miss in one line: "fetched=N kept=K drops={...}".
+        cls = [c for p in detail["passes"] for c in p["classifications"]]
+        kept = sum(1 for c in cls if c.kept)
+        drops: dict[str, int] = {}
+        for c in cls:
+            if not c.kept and c.drop_reason:
+                key = c.drop_reason.split(":", 1)[0]
+                drops[key] = drops.get(key, 0) + 1
+        log.info(
+            f"{card.id} ({card.name[:30]}) — no usable listings  "
+            f"fetched={len(cls)} kept={kept} min_required={detail['min_required']} "
+            f"drops={drops}"
+        )
         return None
 
     return {

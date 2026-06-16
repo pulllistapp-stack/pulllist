@@ -13,6 +13,7 @@ import base64
 import logging
 import re
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -160,6 +161,110 @@ def build_card_query(
     return " ".join(p for p in parts if p)
 
 
+@dataclass(frozen=True)
+class FilterConfig:
+    """Knobs that decide whether a single eBay listing passes the noise filter
+    stack for `price_summary`. Pulled out so the same logic can be reused by
+    the diagnostic inspect script and the test suite."""
+
+    title_noise: tuple[str, ...] = field(default_factory=lambda: _TITLE_NOISE_DEFAULT)
+    number_pattern: re.Pattern[str] | None = None
+    sanity_floor: float | None = None
+    sanity_ceiling: float | None = None
+
+
+@dataclass(frozen=True)
+class ListingClassification:
+    """Verdict on one eBay item after the filter stack. `kept=True` items
+    feed the aggregate; `kept=False` items carry the reason so the inspect
+    script and snapshot logs can explain misses."""
+
+    title: str
+    price_usd: float | None
+    currency: str
+    url: str | None
+    kept: bool
+    drop_reason: str | None
+
+
+def _classify_listing(item: dict, cfg: FilterConfig) -> ListingClassification:
+    """Pure function. Same logic the snapshot uses internally — no I/O."""
+    title_raw = item.get("title") or ""
+    title_lc = title_raw.lower()
+    url = item.get("itemWebUrl") or item.get("itemHref")
+
+    for noise in cfg.title_noise:
+        if noise in title_lc:
+            return ListingClassification(
+                title=title_raw, price_usd=None, currency="", url=url,
+                kept=False, drop_reason=f"title_noise:{noise.strip()}",
+            )
+
+    if cfg.number_pattern and not cfg.number_pattern.search(title_lc):
+        return ListingClassification(
+            title=title_raw, price_usd=None, currency="", url=url,
+            kept=False, drop_reason=f"missing_number:{cfg.number_pattern.pattern}",
+        )
+
+    p = item.get("price") or {}
+    raw_currency = p.get("currency", "")
+    try:
+        v = float(p["value"])
+    except (KeyError, TypeError, ValueError):
+        return ListingClassification(
+            title=title_raw, price_usd=None, currency=raw_currency, url=url,
+            kept=False, drop_reason="no_price",
+        )
+
+    currency = raw_currency or "USD"
+    if currency != "USD":
+        return ListingClassification(
+            title=title_raw, price_usd=v, currency=currency, url=url,
+            kept=False, drop_reason=f"wrong_currency:{currency}",
+        )
+    if v <= 0:
+        return ListingClassification(
+            title=title_raw, price_usd=v, currency=currency, url=url,
+            kept=False, drop_reason="price_zero",
+        )
+    if cfg.sanity_floor is not None and v < cfg.sanity_floor:
+        return ListingClassification(
+            title=title_raw, price_usd=v, currency=currency, url=url,
+            kept=False, drop_reason=f"below_floor:{cfg.sanity_floor:.2f}",
+        )
+    if cfg.sanity_ceiling is not None and v > cfg.sanity_ceiling:
+        return ListingClassification(
+            title=title_raw, price_usd=v, currency=currency, url=url,
+            kept=False, drop_reason=f"above_ceiling:{cfg.sanity_ceiling:.2f}",
+        )
+
+    return ListingClassification(
+        title=title_raw, price_usd=v, currency=currency, url=url,
+        kept=True, drop_reason=None,
+    )
+
+
+def _compute_aggregate(prices: list[float]) -> dict[str, Any]:
+    """Pure aggregation: sort, IQR-light trim, return low/median/high.
+
+    Caller must guarantee len(prices) >= 1.
+    """
+    prices = sorted(prices)
+    n = len(prices)
+    trim = n // 8 if n >= 8 else 0
+    core = prices[trim : n - trim] if trim else prices
+    m = len(core)
+    median = (
+        core[m // 2] if m % 2 else (core[m // 2 - 1] + core[m // 2]) / 2
+    )
+    return {
+        "low": core[0],
+        "median": median,
+        "high": core[-1],
+        "count_sampled": m,
+    }
+
+
 class EbayClientError(RuntimeError):
     pass
 
@@ -297,22 +402,59 @@ class EbayClient:
     ) -> dict[str, Any] | None:
         """Fetch fixed-price listings and compute low / median / high USD.
 
-        Defaults are tuned for Pokémon card lookups:
-          - Restricts to Pokémon TCG category (`183454`)
-          - Strips out code-card / sleeve / "pick your card" junk via negative terms
-          - Fixed-price only (auctions skew the signal)
+        Thin wrapper around `price_summary_with_trace` that returns only the
+        aggregate summary (or None). For diagnostics use the traced version.
+        """
+        detail = await self.price_summary_with_trace(
+            query,
+            category_id=category_id,
+            max_results=max_results,
+            fixed_price_only=fixed_price_only,
+            new_only=new_only,
+            exclude_terms=exclude_terms,
+            min_price_usd=min_price_usd,
+            max_price_usd=max_price_usd,
+            reference_price_usd=reference_price_usd,
+            card_number=card_number,
+            rarity=rarity,
+        )
+        return detail["summary"]
 
-        Set `category_id=None` to search everywhere; pass `exclude_terms=[]`
-        to disable the noise filter.
+    async def price_summary_with_trace(
+        self,
+        query: str,
+        *,
+        category_id: str | None = None,
+        max_results: int = 50,
+        fixed_price_only: bool = True,
+        new_only: bool = False,
+        exclude_terms: list[str] | None = None,
+        min_price_usd: float | None = None,
+        max_price_usd: float | None = None,
+        reference_price_usd: float | None = None,
+        card_number: str | None = None,
+        rarity: str | None = None,
+    ) -> dict[str, Any]:
+        """Same as `price_summary` but also returns per-listing classification.
 
-        `reference_price_usd` (typically Card.market_price_usd from TCGplayer)
-        enables price-sanity filtering — listings outside (0.30, 5.0) × ref
-        are dropped as obvious wrong-card noise. me2-125 SIR ($808 TCG ref)
-        was previously matching $75 listings (DR variants) and recording a
-        useless median; with this filter on, only listings in the $242–$4040
-        band count.
+        Returns:
+            {
+              "summary": dict | None,                # same shape as price_summary
+              "cleaned_query": str,                  # the actual query string sent to eBay
+              "config": FilterConfig,                # the filter knobs that were applied
+              "is_chase": bool,
+              "min_required": int,                   # min listings needed to compute aggregate
+              "passes": [                            # one entry per eBay call (1 or 2)
+                {
+                  "label": "fixed_price" | "auction_fallback",
+                  "total_listings_hint": int,       # eBay's reported total
+                  "classifications": [ListingClassification, ...],
+                }
+              ],
+            }
 
-        Returns None if no usable price data.
+        Used by both the snapshot (which discards the trace) and the inspect
+        script (which renders it).
         """
         filters: dict[str, str] = {}
         if fixed_price_only:
@@ -322,12 +464,10 @@ class EbayClient:
         if min_price_usd is not None or max_price_usd is not None:
             lo = "" if min_price_usd is None else f"{min_price_usd:.2f}"
             hi = "" if max_price_usd is None else f"{max_price_usd:.2f}"
-            # eBay price filter form: price:[lo..hi],priceCurrency:USD
             filters["price"] = f"[{lo}..{hi}]"
             filters["priceCurrency"] = "USD"
 
         cleaned_query = build_query(query, exclude=exclude_terms)
-        total_listings_hint = 0
 
         # Price-sanity bounds. Three layers compose:
         #   1. TCGplayer reference (relative band) — when we have it
@@ -342,101 +482,74 @@ class EbayClient:
             sanity_ceiling = max(
                 reference_price_usd * _PRICE_CEILING_RATIO, _PRICE_CEILING_ABS
             )
-        # Chase rarity floor — catches the "Meowth ex SIR returns $25 because
-        # DR variant of same name leaks through" case when TCG ref is missing.
         if rarity and rarity in _RARITY_ABS_FLOOR:
-            rarity_floor = _RARITY_ABS_FLOOR[rarity]
-            sanity_floor = max(sanity_floor or 0, rarity_floor)
+            sanity_floor = max(sanity_floor or 0, _RARITY_ABS_FLOOR[rarity])
 
-        # For chase rarities specifically, require the card number to appear
-        # in the listing title. A Meowth ex SIR (#121) listing without "121"
-        # in the title is almost certainly the Double Rare (#60) variant
-        # being matched by name alone. Strict but reliable.
         is_chase = bool(rarity and rarity in _CHASE_RARITIES)
         require_number_in_title = bool(is_chase and card_number)
         number_token = (card_number or "").split("/")[0].strip()
-        # Word-boundary match so "121" doesn't match "121g" (grams in a
-        # sealed-box listing) or stray digit sequences. eBay titles
-        # commonly write "121", "#121", "121/068" — all of which contain
-        # \b121\b. Junk like "set121" or "121g" doesn't.
         number_pattern = (
             re.compile(rf"\b{re.escape(number_token)}\b")
             if require_number_in_title and number_token
             else None
         )
 
-        async def _fetch_prices(active_filters: dict[str, str]) -> list[float]:
-            nonlocal total_listings_hint
+        config = FilterConfig(
+            title_noise=_TITLE_NOISE_DEFAULT,
+            number_pattern=number_pattern,
+            sanity_floor=sanity_floor,
+            sanity_ceiling=sanity_ceiling,
+        )
+
+        async def _fetch_pass(
+            active_filters: dict[str, str], label: str
+        ) -> dict[str, Any]:
             res = await self.browse_search(
                 cleaned_query,
                 limit=max_results,
                 filters=active_filters or None,
                 category_id=category_id,
             )
-            total_listings_hint = int(res.get("total") or 0) or total_listings_hint
-            out: list[float] = []
-            for it in res.get("itemSummaries") or []:
-                # Python-side title filter — eBay's q-string `-term` syntax is unreliable
-                title = (it.get("title") or "").lower()
-                if any(n in title for n in _TITLE_NOISE_DEFAULT):
-                    continue
-                # Chase-rarity guard — drop listings missing the card number.
-                if number_pattern and not number_pattern.search(title):
-                    continue
-                try:
-                    p = it.get("price") or {}
-                    v = float(p["value"])
-                    currency = p.get("currency", "USD")
-                    if currency != "USD" or v <= 0:
-                        continue
-                    # Price-sanity (TCG-relative OR rarity-absolute floor).
-                    if sanity_floor is not None and v < sanity_floor:
-                        continue
-                    if sanity_ceiling is not None and v > sanity_ceiling:
-                        continue
-                    out.append(v)
-                except (KeyError, TypeError, ValueError):
-                    continue
-            return out
+            items = res.get("itemSummaries") or []
+            classifications = [_classify_listing(it, config) for it in items]
+            return {
+                "label": label,
+                "total_listings_hint": int(res.get("total") or 0),
+                "classifications": classifications,
+            }
 
-        # First pass — respect caller's settings (fixed-price by default).
-        prices = await _fetch_prices(filters)
+        passes: list[dict[str, Any]] = []
+        passes.append(await _fetch_pass(filters, "fixed_price"))
+        kept_prices = [c.price_usd for c in passes[0]["classifications"] if c.kept and c.price_usd is not None]
 
         # Fallback for hot/new cards that are mostly auctions (e.g. Cinccino ex SIR):
-        # if we got nothing under FIXED_PRICE, retry including auctions so the
-        # snapshot captures *some* signal instead of being NULL.
-        if not prices and fixed_price_only:
+        # if we got nothing under FIXED_PRICE, retry including auctions.
+        if not kept_prices and fixed_price_only:
             relaxed = {k: v for k, v in filters.items() if k != "buyingOptions"}
-            prices = await _fetch_prices(relaxed)
+            passes.append(await _fetch_pass(relaxed, "auction_fallback"))
+            kept_prices = [c.price_usd for c in passes[-1]["classifications"] if c.kept and c.price_usd is not None]
 
-        # Require a minimum sample size — a single listing isn't a median.
-        # Chase rarities (SIR/Hyper/etc.) get a lower threshold (2) because
-        # their active supply is genuinely thin; common rarities keep 3 to
-        # avoid a single PSA-slab outlier dominating.
+        # Chase rarities get min 2 (thin supply); commons keep min 3 (single
+        # PSA outlier protection).
         min_required = 2 if is_chase else _MIN_LISTINGS_FOR_PRICE
-        if not prices or len(prices) < min_required:
-            return None
 
-        prices.sort()
-        n = len(prices)
-        # IQR-light trim — drop n//8 from each end when n >= 8. With 8+
-        # samples this strips the worst fishing prices on top and the most
-        # likely wrong-variant leaks on the bottom without affecting median
-        # for thinner samples. Median is robust either way; the trim mostly
-        # tightens the reported low/high band.
-        trim = n // 8 if n >= 8 else 0
-        core = prices[trim : n - trim] if trim else prices
-        m = len(core)
-        median = (
-            core[m // 2]
-            if m % 2
-            else (core[m // 2 - 1] + core[m // 2]) / 2
-        )
+        summary: dict[str, Any] | None
+        if len(kept_prices) < min_required:
+            summary = None
+        else:
+            agg = _compute_aggregate(kept_prices)
+            total_hint = max((p["total_listings_hint"] for p in passes), default=0)
+            summary = {
+                **agg,
+                "total_listings": total_hint or len(kept_prices),
+                "cleaned_query": cleaned_query,
+            }
+
         return {
-            "low": core[0],
-            "median": median,
-            "high": core[-1],
-            "count_sampled": m,
-            "total_listings": total_listings_hint or n,
+            "summary": summary,
             "cleaned_query": cleaned_query,
+            "config": config,
+            "is_chase": is_chase,
+            "min_required": min_required,
+            "passes": passes,
         }
