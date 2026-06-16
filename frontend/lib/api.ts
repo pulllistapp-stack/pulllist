@@ -238,6 +238,64 @@ export async function getLiveListings(
   );
 }
 
+// ────────── Public portfolio (sharing) ──────────
+
+export type PublicCardEntry = {
+  card_id: string;
+  name: string;
+  number: string | null;
+  set_id: string;
+  set_name: string;
+  rarity: string | null;
+  image_small: string | null;
+  market_price_usd: number | null;
+  qty: number;
+};
+
+export type PublicSetCompletion = {
+  set_id: string;
+  set_name: string;
+  owned_unique: number;
+  total_cards: number;
+  completion_pct: number;
+};
+
+export type PublicGrowthPoint = {
+  date: string;
+  value: number;
+};
+
+export type PublicWishlistEntry = {
+  card_id: string;
+  name: string;
+  set_name: string;
+  image_small: string | null;
+  market_price_usd: number | null;
+  max_price_usd: number | null;
+  priority: number;
+};
+
+export type PublicPortfolio = {
+  display_name: string;
+  bio: string | null;
+  unique_cards: number;
+  total_qty: number;
+  sets_touched: number;
+  estimated_value_usd: number | null;
+  asset_mix: { label: string; value: number }[];
+  top_cards: PublicCardEntry[];
+  set_completion: PublicSetCompletion[];
+  growth: PublicGrowthPoint[] | null;
+  wishlist: PublicWishlistEntry[] | null;
+  all_cards: PublicCardEntry[] | null;
+};
+
+export async function getPublicPortfolio(
+  token: string,
+): Promise<PublicPortfolio> {
+  return apiFetch<PublicPortfolio>(`/p/${encodeURIComponent(token)}`);
+}
+
 export type TrendingMover = {
   card_id: string;
   latest_price: number;

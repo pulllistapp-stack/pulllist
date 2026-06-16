@@ -284,3 +284,44 @@ export async function scanCard(
     body: JSON.stringify({ image_data: imageData, media_type: mediaType }),
   });
 }
+
+// ────────── Portfolio sharing ──────────
+
+export type SharingSettings = {
+  is_public: boolean;
+  share_token: string | null;
+  share_url: string | null;
+  bio: string | null;
+  show_value: boolean;
+  show_growth: boolean;
+  show_wishlist: boolean;
+  show_all_cards: boolean;
+};
+
+export type SharingUpdate = Partial<{
+  is_public: boolean;
+  bio: string | null;
+  show_value: boolean;
+  show_growth: boolean;
+  show_wishlist: boolean;
+  show_all_cards: boolean;
+}>;
+
+export async function getMySharing(): Promise<SharingSettings> {
+  return authFetch<SharingSettings>("/me/sharing");
+}
+
+export async function updateMySharing(
+  payload: SharingUpdate,
+): Promise<SharingSettings> {
+  return authFetch<SharingSettings>("/me/sharing", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function rotateShareToken(): Promise<SharingSettings> {
+  return authFetch<SharingSettings>("/me/sharing/rotate", {
+    method: "POST",
+  });
+}

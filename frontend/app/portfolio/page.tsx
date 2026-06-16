@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { Share2 } from "lucide-react";
+
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
+import { ShareModal } from "@/components/portfolio/ShareModal";
 import { PriceBadge } from "@/components/PriceBadge";
 import { listSets, type SetWithCardCount } from "@/lib/api";
 import {
@@ -25,6 +28,7 @@ export default function PortfolioPage() {
   const [items, setItems] = useState<CollectionItemDetail[]>([]);
   const [sets, setSets] = useState<SetWithCardCount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -136,14 +140,25 @@ export default function PortfolioPage() {
             Live valuation across {setsTouched} sets · {totalQty} cards
           </p>
         </div>
-        <Link
-          href="/scan"
-          className="shrink-0 inline-flex items-center gap-2 rounded-full bg-accent-yellow text-gray-900 font-bold px-5 py-2.5 text-sm hover:brightness-105 shadow-md shadow-accent-yellow/30 transition-all"
-        >
-          <span aria-hidden>📸</span>
-          Scan a card
-        </Link>
+        <div className="shrink-0 flex flex-wrap gap-2">
+          <button
+            onClick={() => setShareOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-4 py-2.5 text-sm hover:border-accent-yellow/40 hover:text-accent-yellow transition-colors"
+          >
+            <Share2 className="h-4 w-4" />
+            Share
+          </button>
+          <Link
+            href="/scan"
+            className="inline-flex items-center gap-2 rounded-full bg-accent-yellow text-gray-900 font-bold px-5 py-2.5 text-sm hover:brightness-105 shadow-md shadow-accent-yellow/30 transition-all"
+          >
+            <span aria-hidden>📸</span>
+            Scan a card
+          </Link>
+        </div>
       </div>
+
+      {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
 
       {/* Top row: Stats LEFT (compact), Vault grid teaser RIGHT (big — per LO preference) */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 mb-8">
