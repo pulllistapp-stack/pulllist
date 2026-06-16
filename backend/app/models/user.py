@@ -26,8 +26,8 @@ class User(Base):
         Boolean, default=False, nullable=False
     )
     portfolio_bio: Mapped[str | None] = mapped_column(String(160), nullable=True)
-    # Granular publish toggles. Defaults match LO's call:
-    #   value YES, growth NO, wishlist NO, entire grid NO (sample only).
+    # Granular publish toggles. Defaults: value YES, growth NO,
+    # wishlist NO, entire grid NO (sample only).
     portfolio_show_value: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
     )

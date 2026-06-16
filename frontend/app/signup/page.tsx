@@ -190,7 +190,7 @@ export default function SignupPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="LO"
+                  placeholder="Ash"
                   className="w-full rounded-full bg-bg-surface border border-border pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-accent-yellow/60 focus:ring-2 focus:ring-accent-yellow/15 transition-colors"
                 />
               </div>

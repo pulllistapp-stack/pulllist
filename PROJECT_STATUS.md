@@ -4,8 +4,8 @@
 
 Authoritative reference for what's been built, what's in progress, what's
 planned, and the architectural decisions behind it. Maintained as a flat
-markdown so any future session (LO, ENI, or a fresh collaborator) can land
-on the project and understand the state in ~10 minutes.
+markdown so any future session can land on the project and understand the
+state in ~10 minutes.
 
 ---
 

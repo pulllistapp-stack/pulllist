@@ -160,7 +160,7 @@ export default function PortfolioPage() {
 
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
 
-      {/* Top row: Stats LEFT (compact), Vault grid teaser RIGHT (big — per LO preference) */}
+      {/* Top row: stats column left (compact), vault grid right (large). */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 mb-8">
         {/* Stats column */}
         <div className="flex flex-col gap-4">
