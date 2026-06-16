@@ -20,7 +20,10 @@ import {
   Tag,
 } from "lucide-react";
 
+import { CardPriceChart } from "@/components/card/CardPriceChart";
+import { CardPriceHero } from "@/components/card/CardPriceHero";
 import { LiveListings } from "@/components/card/LiveListings";
+import { MascotMark } from "@/components/card/Mascot";
 import { OwnedToggle } from "@/components/OwnedToggle";
 import { RarityChip } from "@/components/RarityChip";
 import { WishlistHeart } from "@/components/WishlistHeart";
@@ -43,29 +46,6 @@ function fmtUSD(v: number | null | undefined) {
 function fmtEUR(v: number | null | undefined) {
   if (v == null) return "—";
   return `€${Number(v).toFixed(2)}`;
-}
-
-/* ============================================================
-   Mascot mark
-   ============================================================ */
-function MascotMark({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        "relative inline-block overflow-hidden rounded-full ring-2 ring-amber-300/60",
-        className,
-      )}
-    >
-      <Image
-        src="/pullist-mascot.png"
-        alt="PullList mascot"
-        fill
-        className="object-cover"
-        sizes="80px"
-        unoptimized
-      />
-    </span>
-  );
 }
 
 /* ============================================================
@@ -831,18 +811,13 @@ export function PullListCardDetail({
           </div>
 
           <div className="flex flex-col gap-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h1 className={cn("text-balance text-2xl font-extrabold tracking-tight lg:text-4xl", heading)}>
-                  {card.name}
-                </h1>
-                <p className={cn("mt-1 text-sm", muted)}>
-                  {card.number ?? "—"} · {card.set_name ?? card.set_id}
-                </p>
-              </div>
-              <div className="shrink-0 pt-1">
-                <WishlistHeart cardId={card.id} variant="inline" />
-              </div>
+            <div className="min-w-0">
+              <h1 className={cn("text-balance text-2xl font-extrabold tracking-tight lg:text-4xl", heading)}>
+                {card.name}
+              </h1>
+              <p className={cn("mt-1 text-sm", muted)}>
+                {card.number ?? "—"} · {card.set_name ?? card.set_id}
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -865,22 +840,21 @@ export function PullListCardDetail({
               ))}
             </div>
 
-            <CheapestHero
-              data={cheapest}
+            <CardPriceHero
+              card={card}
+              tcgMarket={tcgMid}
+              ebayMedian={initialEbayMedian}
               ownedToggle={<OwnedToggle cardId={card.id} variant="hero" />}
+              wishlistButton={<WishlistHeart cardId={card.id} variant="inline" />}
             />
           </div>
         </div>
 
         {/* Price chart */}
-        <PriceChart
+        <CardPriceChart
           cardId={card.id}
-          height={300}
           isOnFire={Math.max(ebayDelta7d ?? 0, tcgDelta7d ?? 0) >= 10}
         />
-
-        {/* Secondary prices */}
-        <SecondaryPrices items={secondaryPrices} />
 
         {/* Live listings (real-time eBay) */}
         <LiveListings cardId={card.id} />
