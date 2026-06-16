@@ -75,6 +75,29 @@ _MIN_LISTINGS_FOR_PRICE = 3
 
 _TITLE_NOISE_FOR_SINGLES = _TITLE_NOISE_DEFAULT + ("binder",)
 
+# For chase rarities, sellers commonly include a disambiguator in titles.
+# Appending these to the q-string sharply tightens results — a "Mega
+# Charizard X ex" search returns 4+ different cards in the same set, but
+# adding "SIR" narrows to the Special Illustration Rare specifically.
+# Only used for high-variance rarities where mismatches actually happen.
+_RARITY_QUERY_HINTS = {
+    "Special Illustration Rare": "SIR",
+    "Illustration Rare": "IR",
+    "Hyper Rare": "Hyper Rare",
+    "Rare Rainbow": "Rainbow Rare",
+    "Mega Hyper Rare": "Mega Hyper Rare",
+}
+
+# Price-sanity bounds for listings vs the card's TCGplayer reference price.
+# eBay raw cards can run 30-90% of TCGplayer, sometimes 100-200%. Anything
+# outside (0.30, 5.0) × TCG market is almost certainly a different card,
+# a sealed product, or a typo. me2-125 SIR was returning $75 listings at a
+# $808 reference — that's 9%, clearly wrong-card noise.
+_PRICE_FLOOR_RATIO = 0.30
+_PRICE_CEILING_RATIO = 5.0
+_PRICE_FLOOR_ABS = 0.50  # never reject prices above 50¢ as "too low"
+_PRICE_CEILING_ABS = 20.0  # never reject prices below $20 as "too high"
+
 # Kept for backwards-compat / callers that explicitly request stricter q-string excludes
 EXCLUDE_FOR_SINGLES = _DEFAULT_EXCLUDE_TERMS
 
@@ -92,11 +115,17 @@ def build_card_query(
     card_number: str | None = None,
     printed_total: int | None = None,
     set_name: str | None = None,
+    rarity: str | None = None,
 ) -> str:
     """Compose the positive-term query for a single Pokémon card.
 
     Example: pokemon Charizard 4/102 Base Set
+             pokemon Mega Charizard X ex 125/94 Phantasmal Flames SIR
     Falls back gracefully when total/set is unknown.
+
+    Adds a rarity disambiguator for chase rarities (SIR, IR, Hyper, etc.) so
+    a search like "Mega Charizard X ex" doesn't also match the cheap Double
+    Rare variant in the same set.
     """
     parts: list[str] = ["pokemon", card_name.strip()]
     if card_number:
@@ -106,6 +135,8 @@ def build_card_query(
         parts.append(num)
     if set_name:
         parts.append(set_name.strip())
+    if rarity and rarity in _RARITY_QUERY_HINTS:
+        parts.append(_RARITY_QUERY_HINTS[rarity])
     # collapse multiple spaces
     return " ".join(p for p in parts if p)
 
@@ -241,6 +272,7 @@ class EbayClient:
         exclude_terms: list[str] | None = None,
         min_price_usd: float | None = None,
         max_price_usd: float | None = None,
+        reference_price_usd: float | None = None,
     ) -> dict[str, Any] | None:
         """Fetch fixed-price listings and compute low / median / high USD.
 
@@ -251,6 +283,13 @@ class EbayClient:
 
         Set `category_id=None` to search everywhere; pass `exclude_terms=[]`
         to disable the noise filter.
+
+        `reference_price_usd` (typically Card.market_price_usd from TCGplayer)
+        enables price-sanity filtering — listings outside (0.30, 5.0) × ref
+        are dropped as obvious wrong-card noise. me2-125 SIR ($808 TCG ref)
+        was previously matching $75 listings (DR variants) and recording a
+        useless median; with this filter on, only listings in the $242–$4040
+        band count.
 
         Returns None if no usable price data.
         """
@@ -268,6 +307,15 @@ class EbayClient:
 
         cleaned_query = build_query(query, exclude=exclude_terms)
         total_listings_hint = 0
+
+        # Price-sanity bounds computed once from the reference.
+        sanity_floor: float | None = None
+        sanity_ceiling: float | None = None
+        if reference_price_usd is not None and reference_price_usd > 0:
+            sanity_floor = max(reference_price_usd * _PRICE_FLOOR_RATIO, _PRICE_FLOOR_ABS)
+            sanity_ceiling = max(
+                reference_price_usd * _PRICE_CEILING_RATIO, _PRICE_CEILING_ABS
+            )
 
         async def _fetch_prices(active_filters: dict[str, str]) -> list[float]:
             nonlocal total_listings_hint
@@ -288,8 +336,14 @@ class EbayClient:
                     p = it.get("price") or {}
                     v = float(p["value"])
                     currency = p.get("currency", "USD")
-                    if currency == "USD" and v > 0:
-                        out.append(v)
+                    if currency != "USD" or v <= 0:
+                        continue
+                    # Price-sanity vs TCGplayer reference, when available.
+                    if sanity_floor is not None and v < sanity_floor:
+                        continue
+                    if sanity_ceiling is not None and v > sanity_ceiling:
+                        continue
+                    out.append(v)
                 except (KeyError, TypeError, ValueError):
                     continue
             return out

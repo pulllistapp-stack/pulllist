@@ -79,9 +79,19 @@ async def collect_from_ebay(
         card_number=card.number,
         printed_total=set_.printed_total if set_ else None,
         set_name=set_.name if set_ else None,
+        rarity=card.rarity,
     )
 
-    summary = await ebay.price_summary(query, max_results=50)
+    # Pass the TCGplayer reference so the sanity filter can reject obvious
+    # wrong-card listings (e.g. SIR query returning DR variant prices).
+    reference_price = (
+        float(card.market_price_usd) if card.market_price_usd is not None else None
+    )
+    summary = await ebay.price_summary(
+        query,
+        max_results=50,
+        reference_price_usd=reference_price,
+    )
     if summary is None:
         log.debug(f"{card.id} ({card.name[:30]}) — no listings for {query!r}")
         return None

@@ -94,21 +94,17 @@ export function TopNav() {
           <SearchBar compact />
         </div>
 
+        {/* Theme toggle — always visible (desktop + mobile) */}
+        <div className="flex-shrink-0">
+          <ThemeToggle />
+        </div>
+
         {/* Desktop auth area */}
         <div className="hidden md:flex items-center gap-3 text-sm flex-shrink-0">
-          <ThemeToggle />
           {loading ? (
             <span className="text-text-tertiary">…</span>
           ) : user ? (
             <>
-              <Link
-                href="/scan"
-                className="inline-flex items-center gap-1 rounded-full border border-accent-yellow/40 bg-accent-yellow/10 px-2.5 py-1 text-xs font-bold text-accent-yellow hover:bg-accent-yellow/20 transition-colors"
-                title="Scan a card"
-              >
-                <span aria-hidden>📸</span>
-                Scan
-              </Link>
               <Link
                 href="/wishlist"
                 className="text-text-secondary hover:text-text-primary"
