@@ -95,14 +95,14 @@ function SourceBadge({ source }: { source: string }) {
     TCGplayer:
       "bg-amber-100 text-amber-800 ring-amber-300 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30",
     eBay: "bg-teal-100 text-teal-800 ring-teal-300 dark:bg-teal-400/15 dark:text-teal-300 dark:ring-teal-400/30",
-    Cardmarket:
-      "bg-gray-100 text-gray-700 ring-gray-300 dark:bg-zinc-700/30 dark:text-zinc-300 dark:ring-zinc-600",
   };
+  const neutral =
+    "bg-gray-100 text-gray-700 ring-gray-300 dark:bg-zinc-700/30 dark:text-zinc-300 dark:ring-zinc-600";
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ring-1",
-        styles[source] ?? styles.Cardmarket,
+        styles[source] ?? neutral,
       )}
     >
       {source}
@@ -202,8 +202,13 @@ const RANGES = [
 const SOURCE_COLORS = {
   tcgplayer: "#60a5fa",
   ebay: "#5BC9C2",
-  cardmarket: "#FFCB05",
 } as const;
+
+type PriceAtDate = {
+  market: number;
+  low: number | null;
+  high: number | null;
+};
 
 function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string; height?: number; isOnFire?: boolean }) {
   const [days, setDays] = useState(30);
@@ -231,29 +236,40 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
 
   const { points, sources, latest, delta, pct } = useMemo(() => {
     if (!history) return { points: [], sources: [] as string[], latest: null, delta: null, pct: null };
-    const byDate: Record<string, Record<string, number>> = {};
+    // Keep market/low/high per source/date so single-source view can render
+    // the low-to-high band underneath the median line.
+    const byDate: Record<string, Record<string, PriceAtDate>> = {};
     const srcSet = new Set<string>();
     for (const [key, series] of Object.entries(history.series)) {
       const source = key.split(":")[0];
+      if (source === "cardmarket") continue; // Cardmarket retired from the UI.
       srcSet.add(source);
       for (const p of series) {
         if (p.market == null) continue;
         if (!byDate[p.date]) byDate[p.date] = {};
         const prev = byDate[p.date][source];
-        if (prev == null || p.market > prev) byDate[p.date][source] = p.market;
+        // If multiple variants exist for the same source/date, keep the
+        // entry with the highest market price.
+        if (prev == null || p.market > prev.market) {
+          byDate[p.date][source] = {
+            market: p.market,
+            low: typeof p.low === "number" ? p.low : null,
+            high: typeof p.high === "number" ? p.high : null,
+          };
+        }
       }
     }
     const dates = Object.keys(byDate).sort();
     const points = dates.map((d) => ({ date: d, ...byDate[d] }));
     const sources = Array.from(srcSet);
 
-    // Headline based on active source tab
+    // Headline based on active source tab — read from the structured entry.
     const primary =
       sourceTab === "TCGplayer" ? "tcgplayer" : sourceTab === "eBay" ? "ebay" : sources[0] ?? "tcgplayer";
-    const firstVal = points[0]?.[primary as keyof (typeof points)[number]];
-    const latestVal = points[points.length - 1]?.[primary as keyof (typeof points)[number]];
-    const latest = typeof latestVal === "number" ? latestVal : null;
-    const first = typeof firstVal === "number" ? firstVal : null;
+    const firstEntry = (points[0] as any)?.[primary] as PriceAtDate | undefined;
+    const latestEntry = (points[points.length - 1] as any)?.[primary] as PriceAtDate | undefined;
+    const latest = typeof latestEntry?.market === "number" ? latestEntry.market : null;
+    const first = typeof firstEntry?.market === "number" ? firstEntry.market : null;
     const delta = latest != null && first != null ? latest - first : null;
     const pct = delta != null && first != null && first > 0 ? (delta / first) * 100 : null;
     return { points, sources, latest, delta, pct };
@@ -269,42 +285,66 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
     const showEbay = sourceTab !== "TCGplayer" && sources.includes("ebay");
     const visibleKeys = [showTcg && "tcgplayer", showEbay && "ebay"].filter(Boolean) as string[];
     if (!visibleKeys.length) return null;
+    // Y range considers market plus any low/high we have so the band fits.
     const allVals: number[] = [];
     for (const p of points) {
       for (const k of visibleKeys) {
-        const v = (p as any)[k];
-        if (typeof v === "number") allVals.push(v);
+        const entry = (p as any)[k] as PriceAtDate | undefined;
+        if (!entry) continue;
+        if (typeof entry.market === "number") allVals.push(entry.market);
+        if (typeof entry.low === "number") allVals.push(entry.low);
+        if (typeof entry.high === "number") allVals.push(entry.high);
       }
     }
     if (!allVals.length) return null;
     const min = Math.min(...allVals) * 0.985;
     const max = Math.max(...allVals) * 1.015;
     const range = max - min || 1;
+    const yOf = (v: number) => PAD + (1 - (v - min) / range) * (height - PAD * 2);
 
-    const path = (key: string) => {
+    // Median line for one source.
+    const linePath = (key: string) => {
       const valid = points
-        .map((p) => ({ d: p.date, v: (p as any)[key] }))
-        .filter((p) => typeof p.v === "number");
+        .map((p) => ({ entry: (p as any)[key] as PriceAtDate | undefined }))
+        .filter((p) => typeof p.entry?.market === "number") as { entry: PriceAtDate }[];
       if (!valid.length) return "";
       return valid
         .map((p, i) => {
           const x = PAD + (i / Math.max(valid.length - 1, 1)) * (W - PAD * 2);
-          const y = PAD + (1 - (p.v - min) / range) * (height - PAD * 2);
-          return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
+          return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${yOf(p.entry.market).toFixed(2)}`;
         })
         .join(" ");
     };
 
-    const area = (key: string) => {
-      const line = path(key);
-      if (!line) return "";
-      return `${line} L${(W - PAD).toFixed(2)},${height} L${PAD},${height} Z`;
+    // Low-to-high band for one source (polygon: high forward, low backward).
+    // Only renders when at least 2 points have BOTH low and high.
+    const bandPath = (key: string) => {
+      const valid = points
+        .map((p) => ({ entry: (p as any)[key] as PriceAtDate | undefined }))
+        .filter(
+          (p) =>
+            typeof p.entry?.low === "number" && typeof p.entry?.high === "number",
+        ) as { entry: PriceAtDate & { low: number; high: number } }[];
+      if (valid.length < 2) return "";
+      const xs = valid.map(
+        (_, i) => PAD + (i / Math.max(valid.length - 1, 1)) * (W - PAD * 2),
+      );
+      let d = `M${xs[0].toFixed(2)},${yOf(valid[0].entry.high).toFixed(2)}`;
+      for (let i = 1; i < valid.length; i++) {
+        d += ` L${xs[i].toFixed(2)},${yOf(valid[i].entry.high).toFixed(2)}`;
+      }
+      for (let i = valid.length - 1; i >= 0; i--) {
+        d += ` L${xs[i].toFixed(2)},${yOf(valid[i].entry.low).toFixed(2)}`;
+      }
+      d += " Z";
+      return d;
     };
 
     const primaryKey = sourceTab === "eBay" ? "ebay" : "tcgplayer";
     const primaryColor = sourceTab === "eBay" ? SOURCE_COLORS.ebay : SOURCE_COLORS.tcgplayer;
+    const singleSource = sourceTab !== "Combined";
 
-    return { showTcg, showEbay, path, area, primaryKey, primaryColor };
+    return { showTcg, showEbay, linePath, bandPath, primaryKey, primaryColor, singleSource };
   }, [points, sources, sourceTab, height]);
 
   const up = (delta ?? 0) >= 0;
@@ -397,9 +437,10 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
             aria-label="Price history line chart"
           >
             <defs>
-              <linearGradient id="pl-area" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chartLines.primaryColor} stopOpacity="0.22" />
-                <stop offset="100%" stopColor={chartLines.primaryColor} stopOpacity="0" />
+              {/* Used for the low-to-high band fill in single-source view. */}
+              <linearGradient id="pl-band" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={chartLines.primaryColor} stopOpacity="0.28" />
+                <stop offset="100%" stopColor={chartLines.primaryColor} stopOpacity="0.08" />
               </linearGradient>
             </defs>
             {[0.25, 0.5, 0.75].map((g) => (
@@ -413,10 +454,29 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
                 strokeWidth={1}
               />
             ))}
-            <path d={chartLines.area(chartLines.primaryKey)} fill="url(#pl-area)" stroke="none" />
+            {/* Low-to-high band — single-source view only. The shaded
+                region makes the daily range obvious; the median line
+                rides through the middle. */}
+            {chartLines.singleSource && (
+              <>
+                <path
+                  d={chartLines.bandPath(chartLines.primaryKey)}
+                  fill="url(#pl-band)"
+                  stroke="none"
+                />
+                <path
+                  d={chartLines.bandPath(chartLines.primaryKey)}
+                  fill="none"
+                  stroke={chartLines.primaryColor}
+                  strokeOpacity={0.25}
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+              </>
+            )}
             {chartLines.showTcg && (
               <path
-                d={chartLines.path("tcgplayer")}
+                d={chartLines.linePath("tcgplayer")}
                 fill="none"
                 stroke={SOURCE_COLORS.tcgplayer}
                 strokeWidth={2.5}
@@ -426,7 +486,7 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
             )}
             {chartLines.showEbay && (
               <path
-                d={chartLines.path("ebay")}
+                d={chartLines.linePath("ebay")}
                 fill="none"
                 stroke={SOURCE_COLORS.ebay}
                 strokeWidth={2.5}
@@ -442,13 +502,22 @@ function PriceChart({ cardId, height = 300, isOnFire = false }: { cardId: string
         {chartLines?.showTcg && (
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.tcgplayer }} />
-            TCGplayer
+            {chartLines.singleSource ? "TCGplayer median" : "TCGplayer"}
           </span>
         )}
         {chartLines?.showEbay && (
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full" style={{ background: SOURCE_COLORS.ebay }} />
-            eBay
+            {chartLines.singleSource ? "eBay median" : "eBay"}
+          </span>
+        )}
+        {chartLines?.singleSource && chartLines.bandPath(chartLines.primaryKey) && (
+          <span className="flex items-center gap-1.5">
+            <span
+              className="h-2 w-3 rounded-sm"
+              style={{ background: chartLines.primaryColor, opacity: 0.25 }}
+            />
+            Low–High range
           </span>
         )}
       </div>
@@ -531,10 +600,8 @@ type Props = {
   initialEbayMedian: number | null;
   ebayDelta7d: number | null;
   tcgDelta7d: number | null;
-  cardmarketDelta7d: number | null;
   ebaySpark7d: number[];
   tcgSpark7d: number[];
-  cardmarketSpark7d: number[];
 };
 
 export function PullListCardDetail({
@@ -544,10 +611,8 @@ export function PullListCardDetail({
   initialEbayMedian,
   ebayDelta7d,
   tcgDelta7d,
-  cardmarketDelta7d,
   ebaySpark7d,
   tcgSpark7d,
-  cardmarketSpark7d,
 }: Props) {
   // Derive cheapest from available price data
   const cheapest: CheapestData | null = useMemo(() => {
@@ -595,8 +660,6 @@ export function PullListCardDetail({
     return null;
   }, [card]);
 
-  const cardmarketTrend = card.cardmarket_prices?.trendPrice ?? null;
-
   const secondaryPrices: SecondaryPrice[] = [
     {
       source: "TCGplayer",
@@ -606,15 +669,6 @@ export function PullListCardDetail({
       delta: tcgDelta7d,
       spark: tcgSpark7d,
       sparkColor: "#60a5fa",
-    },
-    {
-      source: "Cardmarket",
-      label: "Trend",
-      value: cardmarketTrend,
-      currency: "EUR",
-      delta: cardmarketDelta7d,
-      spark: cardmarketSpark7d,
-      sparkColor: "#FFCB05",
     },
     {
       source: "eBay",
@@ -822,7 +876,7 @@ export function PullListCardDetail({
         <PriceChart
           cardId={card.id}
           height={300}
-          isOnFire={Math.max(ebayDelta7d ?? 0, tcgDelta7d ?? 0, cardmarketDelta7d ?? 0) >= 10}
+          isOnFire={Math.max(ebayDelta7d ?? 0, tcgDelta7d ?? 0) >= 10}
         />
 
         {/* Secondary prices */}

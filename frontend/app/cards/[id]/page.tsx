@@ -66,10 +66,8 @@ export default async function CardDetailPage({ params }: Props) {
   const initialEbayMedian = latestValue(history7d, "ebay");
   const ebayDelta7d = compute7dDelta(history7d, "ebay");
   const tcgDelta7d = compute7dDelta(history7d, "tcgplayer");
-  const cardmarketDelta7d = compute7dDelta(history7d, "cardmarket");
   const ebaySpark7d = sparklineSeries(history7d, "ebay");
   const tcgSpark7d = sparklineSeries(history7d, "tcgplayer");
-  const cardmarketSpark7d = sparklineSeries(history7d, "cardmarket");
 
   return (
     <PullListCardDetail
@@ -79,10 +77,8 @@ export default async function CardDetailPage({ params }: Props) {
       initialEbayMedian={initialEbayMedian}
       ebayDelta7d={ebayDelta7d}
       tcgDelta7d={tcgDelta7d}
-      cardmarketDelta7d={cardmarketDelta7d}
       ebaySpark7d={ebaySpark7d}
       tcgSpark7d={tcgSpark7d}
-      cardmarketSpark7d={cardmarketSpark7d}
     />
   );
 }

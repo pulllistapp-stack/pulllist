@@ -35,8 +35,6 @@ export type Card = {
     market?: number | null;
     directLow?: number | null;
   }> | null;
-  cardmarket_url: string | null;
-  cardmarket_prices: Record<string, number | null> | null;
   market_price_usd: number | null;
   set_id: string;
   set_name: string | null;

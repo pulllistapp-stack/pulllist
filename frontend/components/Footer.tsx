@@ -33,7 +33,7 @@ export function Footer() {
             </Link>
             <p className="mt-3 max-w-sm text-sm text-text-secondary">
               The Pokémon TCG catalog &amp; collection tracker. Real-time market data
-              from TCGplayer, Cardmarket, and eBay — all in one place.
+              from TCGplayer and eBay — all in one place.
             </p>
           </div>
 
