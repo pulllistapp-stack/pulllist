@@ -98,6 +98,19 @@ _PRICE_CEILING_RATIO = 5.0
 _PRICE_FLOOR_ABS = 0.50  # never reject prices above 50¢ as "too low"
 _PRICE_CEILING_ABS = 20.0  # never reject prices below $20 as "too high"
 
+# Rarity-based price floors. Used when no TCGplayer reference is available
+# (typical for brand-new Mega Evolution sets). SIRs/Hyper Rares essentially
+# never sell below these floors — anything cheaper is the lower-rarity
+# variant being misidentified. Tuned conservatively so genuine cheap chase
+# cards (obscure Pokémon) still pass.
+_RARITY_ABS_FLOOR = {
+    "Special Illustration Rare": 5.0,
+    "Illustration Rare": 2.0,
+    "Hyper Rare": 5.0,
+    "Rare Rainbow": 5.0,
+    "Mega Hyper Rare": 10.0,
+}
+
 # Kept for backwards-compat / callers that explicitly request stricter q-string excludes
 EXCLUDE_FOR_SINGLES = _DEFAULT_EXCLUDE_TERMS
 
@@ -273,6 +286,8 @@ class EbayClient:
         min_price_usd: float | None = None,
         max_price_usd: float | None = None,
         reference_price_usd: float | None = None,
+        card_number: str | None = None,
+        rarity: str | None = None,
     ) -> dict[str, Any] | None:
         """Fetch fixed-price listings and compute low / median / high USD.
 
@@ -308,14 +323,33 @@ class EbayClient:
         cleaned_query = build_query(query, exclude=exclude_terms)
         total_listings_hint = 0
 
-        # Price-sanity bounds computed once from the reference.
+        # Price-sanity bounds. Three layers compose:
+        #   1. TCGplayer reference (relative band) — when we have it
+        #   2. Rarity-based absolute floor — for chase rarities w/o TCG ref
+        #   3. Conservative absolute floors/ceilings as last resort
         sanity_floor: float | None = None
         sanity_ceiling: float | None = None
         if reference_price_usd is not None and reference_price_usd > 0:
-            sanity_floor = max(reference_price_usd * _PRICE_FLOOR_RATIO, _PRICE_FLOOR_ABS)
+            sanity_floor = max(
+                reference_price_usd * _PRICE_FLOOR_RATIO, _PRICE_FLOOR_ABS
+            )
             sanity_ceiling = max(
                 reference_price_usd * _PRICE_CEILING_RATIO, _PRICE_CEILING_ABS
             )
+        # Chase rarity floor — catches the "Meowth ex SIR returns $25 because
+        # DR variant of same name leaks through" case when TCG ref is missing.
+        if rarity and rarity in _RARITY_ABS_FLOOR:
+            rarity_floor = _RARITY_ABS_FLOOR[rarity]
+            sanity_floor = max(sanity_floor or 0, rarity_floor)
+
+        # For chase rarities specifically, require the card number to appear
+        # in the listing title. A Meowth ex SIR (#121) listing without "121"
+        # in the title is almost certainly the Double Rare (#60) variant
+        # being matched by name alone. Strict but reliable.
+        require_number_in_title = bool(
+            rarity and rarity in _RARITY_QUERY_HINTS and card_number
+        )
+        number_token = (card_number or "").split("/")[0].strip()
 
         async def _fetch_prices(active_filters: dict[str, str]) -> list[float]:
             nonlocal total_listings_hint
@@ -332,13 +366,17 @@ class EbayClient:
                 title = (it.get("title") or "").lower()
                 if any(n in title for n in _TITLE_NOISE_DEFAULT):
                     continue
+                # Chase-rarity guard — drop listings missing the card number.
+                if require_number_in_title and number_token:
+                    if number_token not in title:
+                        continue
                 try:
                     p = it.get("price") or {}
                     v = float(p["value"])
                     currency = p.get("currency", "USD")
                     if currency != "USD" or v <= 0:
                         continue
-                    # Price-sanity vs TCGplayer reference, when available.
+                    # Price-sanity (TCG-relative OR rarity-absolute floor).
                     if sanity_floor is not None and v < sanity_floor:
                         continue
                     if sanity_ceiling is not None and v > sanity_ceiling:

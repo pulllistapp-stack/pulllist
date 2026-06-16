@@ -82,8 +82,9 @@ async def collect_from_ebay(
         rarity=card.rarity,
     )
 
-    # Pass the TCGplayer reference so the sanity filter can reject obvious
-    # wrong-card listings (e.g. SIR query returning DR variant prices).
+    # Pass the TCGplayer reference + rarity + number so price_summary can
+    # apply all three sanity layers (relative band, rarity floor, title
+    # number-match for chase variants).
     reference_price = (
         float(card.market_price_usd) if card.market_price_usd is not None else None
     )
@@ -91,6 +92,8 @@ async def collect_from_ebay(
         query,
         max_results=50,
         reference_price_usd=reference_price,
+        card_number=card.number,
+        rarity=card.rarity,
     )
     if summary is None:
         log.debug(f"{card.id} ({card.name[:30]}) — no listings for {query!r}")
