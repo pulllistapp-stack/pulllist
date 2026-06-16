@@ -66,6 +66,17 @@ _TITLE_NOISE_DEFAULT = (
     # Multi-card listings
     "lot of", "bulk lot",
     "pick your card", "you choose", "you pick",
+    # Parallel-variant traps. Sets like Legendary Collection ship every card
+    # with a reverse-holo parallel that sells for 100-300x the base card. The
+    # parallel shares name/number/set with the base, so our query catches both.
+    # We track the base price (Card.market_price_usd from TCGplayer), so drop
+    # listings whose title brands them as the parallel.
+    "reverse holo", "reverse-holo", "reverse foil",
+    " rev holo", "(rev holo)", "rh holo",
+    # First-edition and shadowless vintage variants similarly outprice the
+    # unlimited base print by 10-100x in sets like Base Set / Jungle / Fossil.
+    "1st edition", "first edition",
+    "shadowless",
 )
 
 # Minimum eBay listings required before we trust the median. With fewer than

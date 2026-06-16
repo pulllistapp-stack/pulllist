@@ -93,6 +93,36 @@ def test_classify_title_noise_sealed_booster():
     assert r.drop_reason is not None and "booster box" in r.drop_reason
 
 
+def test_classify_title_noise_reverse_holo_parallel():
+    """Legendary Collection has a reverse-holo parallel per card that sells
+    for 100-300x the base print. We track the base — drop the parallel."""
+    cfg = FilterConfig()
+    for variant_title in (
+        "Pikachu 86/110 Legendary Collection Reverse Holo",
+        "Pikachu 86/110 Legendary Collection Reverse-Holo",
+        "Pikachu 86/110 LC Reverse Foil",
+    ):
+        r = _classify_listing(_make_item(variant_title, value=400.0), cfg)
+        assert r.kept is False, f"should drop: {variant_title!r}"
+        assert r.drop_reason is not None
+        assert r.drop_reason.startswith("title_noise:")
+
+
+def test_classify_title_noise_first_edition_vintage():
+    """1st-edition Base Set prints outprice unlimited by 10-100x."""
+    cfg = FilterConfig()
+    r = _classify_listing(_make_item("Charizard 4/102 Base Set 1st Edition", value=5000.0), cfg)
+    assert r.kept is False
+    assert r.drop_reason is not None and "1st edition" in r.drop_reason
+
+
+def test_classify_title_noise_shadowless():
+    cfg = FilterConfig()
+    r = _classify_listing(_make_item("Charizard 4/102 Base Set Shadowless", value=2000.0), cfg)
+    assert r.kept is False
+    assert r.drop_reason is not None and "shadowless" in r.drop_reason
+
+
 def test_classify_wrong_currency():
     cfg = FilterConfig()
     r = _classify_listing(_make_item("Charizard 4/102", value=10.0, currency="GBP"), cfg)
