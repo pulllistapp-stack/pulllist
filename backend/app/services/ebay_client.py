@@ -56,10 +56,25 @@ _TITLE_NOISE_DEFAULT = (
     "custom",
     # Graded slabs trade for 3-10x the raw card price — drop them so a single
     # PSA 10 listing doesn't dominate when there are no raw listings.
+    # Sellers write grades in many shapes; cover the common variants. The
+    # leading space on " psa" / " bgs" / etc. is intentional to avoid
+    # matching "psalm" or substrings buried in seller usernames.
     "psa 10", "psa 9", "psa 8", "psa 7",
+    "psa10", "psa9", "psa8", "psa7",
+    "psa grade", "psa-graded",
     "bgs 10", "bgs 9.5", "bgs 9", "bgs 8",
+    "bgs10", "bgs9.5", "bgs9", "bgs8",
+    "beckett 10", "beckett 9", "beckett graded", "bgs black label",
     "cgc 10", "cgc 9.5", "cgc 9", "cgc 8",
-    "graded",
+    "cgc10", "cgc9.5", "cgc9", "cgc8",
+    "cgc pristine", "cgc perfect", "cgc graded",
+    "tag 10", "tag 9", "tag graded",
+    "ace 10", "ace 9", "ace graded",
+    "graded", "slabbed", "slab",
+    "gem mint", "gem-mint", "gem mt",
+    "pristine 10", "pristine 9",
+    "black label", "pop 1", "pop1", "population 1",
+    "perfect 10",
     # Sealed product — not a single-card price signal.
     "booster box", "booster pack", "elite trainer box", "etb",
     " sealed",  # leading space avoids matching "Resealed" / "concealed"
@@ -127,6 +142,19 @@ _RARITY_ABS_FLOOR = {
     "Hyper Rare": 5.0,
     "Rare Rainbow": 5.0,
     "Mega Hyper Rare": 10.0,
+}
+
+# Rarity-based absolute ceilings — caps the high outlier even when the
+# TCG-relative ceiling is generous. Raw chase cards essentially never trade
+# above these levels; anything higher is a graded slab (PSA 10 / BGS 10 /
+# CGC Pristine etc.) that slipped past the title-noise filter. Applied as
+# a MIN against the TCG-relative ceiling so the tighter of the two wins.
+_RARITY_ABS_CEILING = {
+    "Special Illustration Rare": 5000.0,
+    "Illustration Rare": 2000.0,
+    "Hyper Rare": 5000.0,
+    "Rare Rainbow": 5000.0,
+    "Mega Hyper Rare": 8000.0,
 }
 
 # Kept for backwards-compat / callers that explicitly request stricter q-string excludes
@@ -495,6 +523,17 @@ class EbayClient:
             )
         if rarity and rarity in _RARITY_ABS_FLOOR:
             sanity_floor = max(sanity_floor or 0, _RARITY_ABS_FLOOR[rarity])
+        # Chase rarity absolute ceiling — caps the high outlier even when
+        # the TCG-relative ceiling is generous. PSA-10 slabs that slip past
+        # the title-noise filter (e.g. "PSA10" with no space) get clipped
+        # here. Min of the two ceilings wins (tighter).
+        if rarity and rarity in _RARITY_ABS_CEILING:
+            rarity_ceiling = _RARITY_ABS_CEILING[rarity]
+            sanity_ceiling = (
+                min(sanity_ceiling, rarity_ceiling)
+                if sanity_ceiling is not None
+                else rarity_ceiling
+            )
 
         is_chase = bool(rarity and rarity in _CHASE_RARITIES)
         require_number_in_title = bool(is_chase and card_number)

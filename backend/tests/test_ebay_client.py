@@ -21,6 +21,7 @@ from app.services.ebay_client import (
     EbayClient,
     FilterConfig,
     _CHASE_RARITIES,
+    _RARITY_ABS_CEILING,
     _RARITY_ABS_FLOOR,
     _classify_listing,
     _compute_aggregate,
@@ -121,6 +122,32 @@ def test_classify_title_noise_shadowless():
     r = _classify_listing(_make_item("Charizard 4/102 Base Set Shadowless", value=2000.0), cfg)
     assert r.kept is False
     assert r.drop_reason is not None and "shadowless" in r.drop_reason
+
+
+def test_classify_title_noise_psa_without_space():
+    """Sellers write 'PSA10' as one token — the original noise list only had
+    'psa 10' with a space, so this slipped through and inflated the high."""
+    cfg = FilterConfig()
+    for title in (
+        "Mega Charizard X ex 125/094 PSA10 Gem Mint",
+        "Pikachu 4/102 Base Set PSA9",
+        "Charizard 4/102 BGS9.5",
+    ):
+        r = _classify_listing(_make_item(title, value=8000.0), cfg)
+        assert r.kept is False, f"should drop: {title!r}"
+        assert r.drop_reason is not None
+        assert r.drop_reason.startswith("title_noise:")
+
+
+def test_classify_title_noise_gem_mint_and_pristine():
+    cfg = FilterConfig()
+    for title in (
+        "Charizard 4/102 Gem Mint Slabbed",
+        "Charizard 4/102 CGC Pristine 10",
+        "Charizard 4/102 Black Label Pop 1",
+    ):
+        r = _classify_listing(_make_item(title, value=5000.0), cfg)
+        assert r.kept is False, f"should drop: {title!r}"
 
 
 def test_classify_wrong_currency():
@@ -429,3 +456,59 @@ def test_price_summary_chase_rarities_constant_matches_rarity_floor_keys():
     otherwise a non-TCG-ref chase card with no floor would fall through."""
     for rarity in _CHASE_RARITIES:
         assert rarity in _RARITY_ABS_FLOOR, f"{rarity!r} has no rarity floor"
+
+
+def test_price_summary_chase_rarities_have_ceiling():
+    """And a ceiling — backstop against graded slabs that slip past
+    the title-noise filter."""
+    for rarity in _CHASE_RARITIES:
+        assert rarity in _RARITY_ABS_CEILING, f"{rarity!r} has no rarity ceiling"
+
+
+def test_price_summary_chase_ceiling_clips_psa_outlier():
+    """SIR with TCG ref $800 — the TCG-relative ceiling is $4000, but the
+    SIR absolute ceiling of $5000 is looser, so TCG-relative wins. A $10k
+    listing should be dropped via above_ceiling."""
+    items = _items(
+        ("Mega Charizard X ex 125/094 SIR", 800.0),
+        ("Mega Charizard X ex 125/094 SIR mint", 850.0),
+        ("Mega Charizard X ex 125/094 NM", 900.0),
+        ("Mega Charizard X ex 125 PSA10 Gem Mint", 10_000.0),  # dropped (title noise + ceiling)
+    )
+    ebay = _StubEbay([{"itemSummaries": items, "total": 4}])
+
+    detail = asyncio.run(
+        ebay.price_summary_with_trace(
+            "pokemon Mega Charizard X ex 125/094 Phantasmal Flames",
+            reference_price_usd=800.0,
+            card_number="125",
+            rarity="Special Illustration Rare",
+        )
+    )
+    assert detail["summary"] is not None
+    # Highest kept price should be the legit $900, not the $10k slab.
+    assert detail["summary"]["high"] <= 900.0
+
+
+def test_price_summary_chase_ceiling_clips_without_tcg_ref():
+    """Same SIR but no TCG reference — the rarity absolute ceiling ($5000)
+    is the only thing standing between us and a $10k slab leak."""
+    items = _items(
+        ("Mega Charizard X ex 125/094 SIR", 800.0),
+        ("Mega Charizard X ex 125/094 SIR mint", 850.0),
+        ("Mega Charizard X ex 125/094 NM", 900.0),
+        # Title noise alone catches "Gem Mint" but not always — test the
+        # ceiling backstop with a clean-looking high outlier:
+        ("Mega Charizard X ex 125", 7_500.0),  # no graded keywords, must be killed by ceiling
+    )
+    ebay = _StubEbay([{"itemSummaries": items, "total": 4}])
+
+    detail = asyncio.run(
+        ebay.price_summary_with_trace(
+            "pokemon Mega Charizard X ex 125/094 Phantasmal Flames",
+            card_number="125",
+            rarity="Special Illustration Rare",
+        )
+    )
+    assert detail["summary"] is not None
+    assert detail["summary"]["high"] <= 900.0

@@ -49,6 +49,7 @@ async def run(max_ratio: float, apply: bool) -> None:
                 CardPriceSnapshot.id,
                 CardPriceSnapshot.card_id,
                 CardPriceSnapshot.market_price_usd,
+                CardPriceSnapshot.high_price_usd,
                 Card.name,
                 Card.market_price_usd.label("tcg_ref"),
             )
@@ -59,25 +60,39 @@ async def run(max_ratio: float, apply: bool) -> None:
         log.info(f"Scanning {len(rows)} eBay snapshot rows…")
 
         to_delete: list[int] = []
-        examples: list[tuple[str, float, float, float]] = []  # (card_name, tcg_ref, ebay_price, ratio)
+        examples: list[tuple[str, float, float, float, str]] = []
         for r in rows:
             ref = float(r.tcg_ref) if r.tcg_ref is not None else None
             price = float(r.market_price_usd) if r.market_price_usd is not None else None
-            if ref is None or ref <= 0 or price is None or price <= 0:
+            high = float(r.high_price_usd) if r.high_price_usd is not None else None
+            if ref is None or ref <= 0:
                 continue
-            ratio = price / ref
-            if ratio >= max_ratio:
+
+            # Two ways a row qualifies as polluted:
+            #   1. The stored median (market_price_usd) is way above TCG ref
+            #   2. The stored high (high_price_usd) is way above TCG ref —
+            #      a graded-slab outlier that slipped past the per-listing
+            #      title-noise filter but the median was still sane.
+            median_ratio = (price / ref) if (price and price > 0) else 0
+            high_ratio = (high / ref) if (high and high > 0) else 0
+            worst_ratio = max(median_ratio, high_ratio)
+
+            if worst_ratio >= max_ratio:
                 to_delete.append(r.id)
                 if len(examples) < 15:
-                    examples.append((r.name, ref, price, ratio))
+                    via = "median" if median_ratio >= high_ratio else "high"
+                    examples.append((r.name, ref, price or 0, worst_ratio, via))
 
         log.info(
             f"Found {len(to_delete)} rows where ebay_price >= {max_ratio}x tcg_ref."
         )
         if examples:
             log.info("Sample offenders:")
-            for name, ref, price, ratio in examples:
-                log.info(f"  {name[:32]:32s}  tcg={ref:>7.2f}  ebay={price:>9.2f}  ratio={ratio:>6.1f}x")
+            for name, ref, price, ratio, via in examples:
+                log.info(
+                    f"  {name[:32]:32s}  tcg={ref:>7.2f}  ebay_median={price:>9.2f}  "
+                    f"ratio={ratio:>6.1f}x  via={via}"
+                )
 
         if not apply:
             log.info("Dry-run only. Re-run with --apply to delete.")
