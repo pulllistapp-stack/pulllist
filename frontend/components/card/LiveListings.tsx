@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { getLiveListings, type LiveListing } from "@/lib/api";
+import { wrapEbayUrl, wrapTcgPlayerUrl } from "@/lib/affiliate";
 import { cn } from "@/lib/utils";
 
 function fmtUSD(v: number) {
@@ -245,9 +246,16 @@ function ListingCard({
   const graded = isGraded(listing.title);
   const freeShip = listing.shipping_usd === 0;
 
+  const outboundUrl =
+    listing.source === "eBay"
+      ? wrapEbayUrl(listing.url)
+      : listing.source === "TCGplayer"
+        ? wrapTcgPlayerUrl(listing.url)
+        : listing.url;
+
   return (
     <a
-      href={listing.url}
+      href={outboundUrl}
       target="_blank"
       rel="noopener noreferrer sponsored"
       className={cn(

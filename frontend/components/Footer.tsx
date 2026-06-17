@@ -92,18 +92,27 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 text-xs text-text-tertiary sm:flex-row sm:items-center">
-          <p>
-            © {new Date().getFullYear()} PullList. Not affiliated with Nintendo, Creatures,
-            or GAME FREAK.
+        <div className="mt-10 border-t border-border pt-6 text-xs text-text-tertiary">
+          <p className="mb-3 leading-relaxed">
+            PullList participates in affiliate programs with TCGplayer and the
+            eBay Partner Network. When you click an outbound &quot;Buy&quot; or
+            listing link and complete a qualifying purchase, we may earn a
+            commission at no extra cost to you. Affiliate links are labeled
+            with an &quot;Ad&quot; tag where they appear inline.
           </p>
-          <span className="inline-flex items-center gap-1.5 font-medium uppercase tracking-wider">
-            <span className="relative inline-flex h-2 w-2">
-              <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <p>
+              © {new Date().getFullYear()} PullList. Not affiliated with Nintendo,
+              Creatures, or GAME FREAK.
+            </p>
+            <span className="inline-flex items-center gap-1.5 font-medium uppercase tracking-wider">
+              <span className="relative inline-flex h-2 w-2">
+                <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Systems operational
             </span>
-            Systems operational
-          </span>
+          </div>
         </div>
       </div>
     </footer>

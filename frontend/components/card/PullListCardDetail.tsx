@@ -11,6 +11,8 @@ import {
   Star,
 } from "lucide-react";
 
+import { wrapEbayUrl, wrapTcgPlayerUrl } from "@/lib/affiliate";
+
 import { CardPriceChart } from "@/components/card/CardPriceChart";
 import { CardPriceHero } from "@/components/card/CardPriceHero";
 import { LiveListings } from "@/components/card/LiveListings";
@@ -77,9 +79,10 @@ export function PullListCardDetail({
           candidates.push({
             price: low,
             source: "TCGplayer",
-            url:
+            url: wrapTcgPlayerUrl(
               card.tcgplayer_url ||
-              `https://www.tcgplayer.com/search/pokemon/product?q=${encodeURIComponent(card.name)}`,
+                `https://www.tcgplayer.com/search/pokemon/product?q=${encodeURIComponent(card.name)}`,
+            ),
           });
         }
       }
@@ -96,7 +99,9 @@ export function PullListCardDetail({
       candidates.push({
         price: initialEbayMedian,
         source: "eBay",
-        url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_BIN=1`,
+        url: wrapEbayUrl(
+          `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_BIN=1`,
+        ),
       });
     }
     if (!candidates.length) return null;

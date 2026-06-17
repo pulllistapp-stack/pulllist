@@ -3,6 +3,11 @@
 import { ArrowUpRight, ShoppingCart, Star, Tag } from "lucide-react";
 
 import type { Card } from "@/lib/api";
+import {
+  AFFILIATE_ENABLED,
+  wrapEbayUrl,
+  wrapTcgPlayerUrl,
+} from "@/lib/affiliate";
 
 interface Props {
   card: Card;
@@ -41,10 +46,11 @@ export function CardPriceHero({
       ? (tcgMarket + ebayMedian) / 2
       : (tcgMarket ?? ebayMedian);
 
-  const tcgUrl =
+  const tcgUrl = wrapTcgPlayerUrl(
     card.tcgplayer_url ??
-    `https://www.tcgplayer.com/search/pokemon/product?q=${encodeURIComponent(card.name)}`;
-  const ebayUrl = buildEbayUrl(card);
+      `https://www.tcgplayer.com/search/pokemon/product?q=${encodeURIComponent(card.name)}`,
+  );
+  const ebayUrl = wrapEbayUrl(buildEbayUrl(card));
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -103,10 +109,18 @@ export function CardPriceHero({
             href={tcgUrl}
             target="_blank"
             rel="noopener noreferrer sponsored"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-teal-600 dark:text-teal-300 hover:text-teal-500 transition-colors"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-600 dark:text-teal-300 hover:text-teal-500 transition-colors"
           >
             Buy on TCGplayer
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+            {AFFILIATE_ENABLED && (
+              <span
+                className="rounded-sm bg-text-tertiary/15 px-1 py-0.5 text-[9px] font-mono uppercase tracking-wider text-text-tertiary"
+                title="Affiliate link — PullList may earn a commission"
+              >
+                Ad
+              </span>
+            )}
           </a>
         ) : (
           <p className="mt-3 text-xs text-text-tertiary">
@@ -141,10 +155,18 @@ export function CardPriceHero({
             href={ebayUrl}
             target="_blank"
             rel="noopener noreferrer sponsored"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-teal-600 dark:text-teal-300 hover:text-teal-500 transition-colors"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-600 dark:text-teal-300 hover:text-teal-500 transition-colors"
           >
             Buy on eBay
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+            {AFFILIATE_ENABLED && (
+              <span
+                className="rounded-sm bg-text-tertiary/15 px-1 py-0.5 text-[9px] font-mono uppercase tracking-wider text-text-tertiary"
+                title="Affiliate link — PullList may earn a commission"
+              >
+                Ad
+              </span>
+            )}
           </a>
         ) : (
           <p className="mt-3 text-xs text-text-tertiary">No active listings</p>
