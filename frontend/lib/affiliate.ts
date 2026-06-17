@@ -32,6 +32,39 @@ const EBAY_TOOLID = "10001"; // Standard for Direct Linking / Smart Link
 export const TCG_AFFILIATE_ENABLED = TCGPLAYER_PARAMS.length > 0;
 export const EBAY_AFFILIATE_ENABLED = EBAY_CAMPAIGN_ID.length > 0;
 
+/**
+ * True only when the URL is on tcgplayer.com itself. Pokemontcg.io
+ * gives us `https://prices.pokemontcg.io/tcgplayer/<card_id>` as the
+ * "tcgplayer_url" — a redirect endpoint that strips any incoming
+ * query params and substitutes Scrydex's affiliate id (irpid=4944541)
+ * before sending the user to tcgplayer.com. Our wrap params get
+ * obliterated by that redirect, so we can only earn commission on
+ * URLs that already point to tcgplayer.com.
+ */
+export function isCanonicalTcgPlayerUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.endsWith("tcgplayer.com");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Builds a TCGplayer search URL when we don't have a canonical product
+ * URL — lands the user on the search page for the card name + number
+ * rather than the exact product, but keeps our affiliate attribution
+ * intact (search results page is on tcgplayer.com, so our wrap params
+ * survive the click).
+ */
+export function buildTcgPlayerSearchUrl(
+  cardName: string,
+  cardNumber?: string | null,
+): string {
+  const q = [cardName, cardNumber].filter(Boolean).join(" ");
+  return `https://www.tcgplayer.com/search/pokemon/product?q=${encodeURIComponent(q)}`;
+}
+
 /** True when at least one affiliate program is wired. UI uses this to
  *  show the "Ad" badge only when commissions are actually being
  *  tracked. */
