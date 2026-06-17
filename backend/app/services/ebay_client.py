@@ -150,12 +150,54 @@ _RARITY_ABS_FLOOR = {
 # CGC Pristine etc.) that slipped past the title-noise filter. Applied as
 # a MIN against the TCG-relative ceiling so the tighter of the two wins.
 _RARITY_ABS_CEILING = {
+    # Chase rarities — applied as MIN against TCG-relative ceiling even when
+    # TCG ref is present, so PSA-10 slabs that slipped past title noise
+    # still get clipped. Numbers reflect the genuine raw upper bound of the
+    # category; anything above is almost certainly slabbed.
     "Special Illustration Rare": 5000.0,
     "Illustration Rare": 2000.0,
     "Hyper Rare": 5000.0,
     "Rare Rainbow": 5000.0,
     "Mega Hyper Rare": 8000.0,
+    # Vintage chase rarities — Pokemon ⭐ Star and Shining cards.
+    # Charizard ⭐ Dragon Frontiers raw NM peaks ~$7k; Shining Charizard
+    # Neo Destiny raw NM ~$5-7k. Headroom for top-end raw without
+    # leaving the door open for $15k+ PSA 10 slabs.
+    "Rare Holo Star": 10000.0,
+    "Rare Shining": 10000.0,
+    # Standard rarities — used as the SOLE ceiling when TCG ref is null
+    # (typical for vintage sets pokemontcg.io never priced). Tuned to
+    # accommodate genuine vintage prices (e.g. Base Set Charizard Rare
+    # Holo raw NM ~$2-3k) without leaving room for PSA-10 outliers.
+    "Common": 100.0,
+    "Uncommon": 200.0,
+    "Rare": 500.0,
+    "Rare Holo": 3000.0,
+    "Rare Holo EX": 3000.0,
+    "Rare Holo GX": 3000.0,
+    "Rare Holo V": 3000.0,
+    "Rare Holo VMAX": 3000.0,
+    "Rare Holo VSTAR": 3000.0,
+    "Rare Holo LV.X": 3000.0,
+    "Rare BREAK": 2000.0,
+    "Rare Prime": 3000.0,
+    "Rare ACE": 3000.0,
+    "Rare Shiny": 3000.0,
+    "Rare Shiny GX": 3000.0,
+    "Rare Ultra": 3000.0,
+    "Rare Secret": 3000.0,
+    "Rare Prism Star": 3000.0,
+    "Promo": 1000.0,
+    "Amazing Rare": 2000.0,
+    "Radiant Rare": 1500.0,
+    "Trainer Gallery Rare Holo": 2000.0,
+    "Double Rare": 500.0,
+    "Ultra Rare": 3000.0,
 }
+
+# Fallback ceiling for any rarity not in the table — keeps unknown-rarity
+# cards from silently passing through unbounded.
+_DEFAULT_ABS_CEILING = 2000.0
 
 # Kept for backwards-compat / callers that explicitly request stricter q-string excludes
 EXCLUDE_FOR_SINGLES = _DEFAULT_EXCLUDE_TERMS
@@ -523,17 +565,25 @@ class EbayClient:
             )
         if rarity and rarity in _RARITY_ABS_FLOOR:
             sanity_floor = max(sanity_floor or 0, _RARITY_ABS_FLOOR[rarity])
-        # Chase rarity absolute ceiling — caps the high outlier even when
-        # the TCG-relative ceiling is generous. PSA-10 slabs that slip past
-        # the title-noise filter (e.g. "PSA10" with no space) get clipped
-        # here. Min of the two ceilings wins (tighter).
-        if rarity and rarity in _RARITY_ABS_CEILING:
-            rarity_ceiling = _RARITY_ABS_CEILING[rarity]
-            sanity_ceiling = (
-                min(sanity_ceiling, rarity_ceiling)
-                if sanity_ceiling is not None
-                else rarity_ceiling
-            )
+        # Ceiling: always apply MIN of TCG-relative + rarity-absolute, with
+        # rarity-absolute as the sole ceiling when there's no TCG ref.
+        # Rarity ceilings are tuned wide enough to fit genuine raw NM
+        # prices (e.g. Charizard ⭐ raw $7k under Rare Holo Star $10k cap)
+        # but tight enough to clip PSA-10 slabs.
+        #
+        # This also defends against Card.market_price_usd backfill
+        # pollution — when the snapshot pipeline backfills the TCG ref
+        # from an earlier polluted eBay row (Eevee LC Common backfilled
+        # to $400), the rarity ceiling ($100 for Common) overrides it.
+        rarity_ceiling = (
+            _RARITY_ABS_CEILING.get(rarity, _DEFAULT_ABS_CEILING) if rarity
+            else _DEFAULT_ABS_CEILING
+        )
+        sanity_ceiling = (
+            min(sanity_ceiling, rarity_ceiling)
+            if sanity_ceiling is not None
+            else rarity_ceiling
+        )
 
         is_chase = bool(rarity and rarity in _CHASE_RARITIES)
         require_number_in_title = bool(is_chase and card_number)

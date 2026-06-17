@@ -34,8 +34,18 @@ from sqlalchemy import and_, delete, select
 
 from app.database import SessionLocal, init_db
 from app.models import Card, CardPriceSnapshot
+from app.services.ebay_client import _DEFAULT_ABS_CEILING, _RARITY_ABS_CEILING
 
 log = logging.getLogger("cleanup_bad_ebay")
+
+
+def _rarity_ceiling(rarity: str | None) -> float:
+    """Mirror the live filter's rarity-based absolute ceiling so cleanup
+    catches no-TCG-ref pollution (vintage Pokemon ⭐ Stars, Legendary
+    Collection reverse-holos, etc.) that the ratio check skips."""
+    if rarity and rarity in _RARITY_ABS_CEILING:
+        return _RARITY_ABS_CEILING[rarity]
+    return _DEFAULT_ABS_CEILING
 
 
 async def run(max_ratio: float, apply: bool) -> None:
@@ -51,6 +61,7 @@ async def run(max_ratio: float, apply: bool) -> None:
                 CardPriceSnapshot.market_price_usd,
                 CardPriceSnapshot.high_price_usd,
                 Card.name,
+                Card.rarity,
                 Card.market_price_usd.label("tcg_ref"),
             )
             .join(Card, Card.id == CardPriceSnapshot.card_id)
@@ -60,38 +71,48 @@ async def run(max_ratio: float, apply: bool) -> None:
         log.info(f"Scanning {len(rows)} eBay snapshot rows…")
 
         to_delete: list[int] = []
-        examples: list[tuple[str, float, float, float, str]] = []
+        examples: list[tuple[str, str, float | None, float, float, str]] = []
         for r in rows:
             ref = float(r.tcg_ref) if r.tcg_ref is not None else None
             price = float(r.market_price_usd) if r.market_price_usd is not None else None
             high = float(r.high_price_usd) if r.high_price_usd is not None else None
-            if ref is None or ref <= 0:
-                continue
 
-            # Two ways a row qualifies as polluted:
-            #   1. The stored median (market_price_usd) is way above TCG ref
-            #   2. The stored high (high_price_usd) is way above TCG ref —
-            #      a graded-slab outlier that slipped past the per-listing
-            #      title-noise filter but the median was still sane.
-            median_ratio = (price / ref) if (price and price > 0) else 0
-            high_ratio = (high / ref) if (high and high > 0) else 0
-            worst_ratio = max(median_ratio, high_ratio)
+            # Mirrors the live filter: rarity ceiling always applies, and
+            # when TCG ref is present we also run the 10x ratio check.
+            # Either gate firing = delete.
+            qualifies = False
+            via = ""
 
-            if worst_ratio >= max_ratio:
+            if ref is not None and ref > 0:
+                median_ratio = (price / ref) if (price and price > 0) else 0
+                high_ratio = (high / ref) if (high and high > 0) else 0
+                worst_ratio = max(median_ratio, high_ratio)
+                if worst_ratio >= max_ratio:
+                    qualifies = True
+                    via = "median" if median_ratio >= high_ratio else "high"
+
+            if not qualifies:
+                ceiling = _rarity_ceiling(r.rarity)
+                if (price and price > ceiling) or (high and high > ceiling):
+                    qualifies = True
+                    via = "ceiling"
+
+            if qualifies:
                 to_delete.append(r.id)
                 if len(examples) < 15:
-                    via = "median" if median_ratio >= high_ratio else "high"
-                    examples.append((r.name, ref, price or 0, worst_ratio, via))
+                    examples.append((r.name, r.rarity or "?", ref, price or 0, high or 0, via))
 
         log.info(
-            f"Found {len(to_delete)} rows where ebay_price >= {max_ratio}x tcg_ref."
+            f"Found {len(to_delete)} rows that fail ratio (>={max_ratio}x) "
+            f"or rarity-ceiling check."
         )
         if examples:
             log.info("Sample offenders:")
-            for name, ref, price, ratio, via in examples:
+            for name, rarity, ref, price, high, via in examples:
+                tcg = f"{ref:>7.2f}" if ref is not None else "   none"
                 log.info(
-                    f"  {name[:32]:32s}  tcg={ref:>7.2f}  ebay_median={price:>9.2f}  "
-                    f"ratio={ratio:>6.1f}x  via={via}"
+                    f"  {name[:28]:28s}  {rarity[:18]:18s}  tcg={tcg}  "
+                    f"median={price:>8.2f}  high={high:>9.2f}  via={via}"
                 )
 
         if not apply:
