@@ -5,14 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { Share2 } from "lucide-react";
+import { Download, Loader2, Share2 } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
 import { ShareModal } from "@/components/portfolio/ShareModal";
 import { PriceBadge } from "@/components/PriceBadge";
-import { listSets, type SetWithCardCount } from "@/lib/api";
+import {
+  downloadCollectionCsv,
+  listSets,
+  type SetWithCardCount,
+} from "@/lib/api";
 import {
   CollectionItemDetail,
   CollectionSummary,
@@ -29,6 +33,21 @@ export default function PortfolioPage() {
   const [sets, setSets] = useState<SetWithCardCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    const tok = getToken();
+    if (!tok || exporting) return;
+    setExporting(true);
+    try {
+      await downloadCollectionCsv(tok);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed — please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -141,6 +160,20 @@ export default function PortfolioPage() {
           </p>
         </div>
         <div className="shrink-0 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || items.length === 0}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-4 py-2.5 text-sm hover:border-accent-yellow/40 hover:text-accent-yellow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title={items.length === 0 ? "Add cards to enable export" : "Download your collection as CSV"}
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            {exporting ? "Exporting…" : "Export CSV"}
+          </button>
           <button
             onClick={() => setShareOpen(true)}
             className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-4 py-2.5 text-sm hover:border-accent-yellow/40 hover:text-accent-yellow transition-colors"

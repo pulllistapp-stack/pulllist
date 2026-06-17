@@ -37,13 +37,23 @@ export async function generateMetadata({
     data.estimated_value_usd != null
       ? `· $${data.estimated_value_usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
       : "";
+  const title = `${data.display_name}'s Pokémon TCG vault`;
+  const description = `${data.unique_cards} cards · ${data.sets_touched} sets ${value}`;
+  // Next.js automatically attaches the opengraph-image.tsx output to both
+  // OG and Twitter card metadata; we still set summary_large_image so
+  // Twitter renders the full-width unfurl rather than a thumbnail.
   return {
     title: `${data.display_name}'s vault · PullList`,
-    description: `${data.unique_cards} cards across ${data.sets_touched} sets ${value}`,
+    description,
     openGraph: {
-      title: `${data.display_name}'s Pokémon TCG vault`,
-      description: `${data.unique_cards} cards · ${data.sets_touched} sets ${value}`,
+      title,
+      description,
       type: "profile",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
     },
   };
 }

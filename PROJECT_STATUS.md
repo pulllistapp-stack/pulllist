@@ -161,12 +161,14 @@ Affiliate income: TCGplayer 3.5-4.5% commission on referred sales (passive).
 - [x] PWA conversion
 - [x] Card scanning V1
 - [x] Portfolio sharing V1
-- [ ] OG image auto-generation (`@vercel/og`) for share link previews
+- [x] OG image auto-generation (`next/og`) for share link previews —
+      `/p/[token]/opengraph-image.tsx`, renders display name, value,
+      stats, with brand stripe; Twitter summary_large_image wired
+- [x] CSV export endpoint + button (Portfolio page → "Export CSV")
 - [ ] Best Buy in-store predictive monitor V1 (single retailer, US only)
 - [ ] Discord webhook + Email alert delivery
 - [ ] Wishlist target-price alert dispatch (uses existing target field)
 - [ ] Daily portfolio digest email
-- [ ] CSV export endpoint + button
 
 ### Sprint 2
 - [ ] LemonSqueezy integration (Subscription model + webhooks)

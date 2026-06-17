@@ -3,7 +3,11 @@
 All routes require a valid JWT (user dependency).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import csv
+import io
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +24,78 @@ from app.schemas.collection import (
 )
 
 router = APIRouter(prefix="/collection", tags=["collection"])
+
+
+@router.get("/export.csv")
+async def export_collection_csv(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Stream the caller's full collection as a CSV download.
+
+    One row per CollectionItem (a (card, condition) pair the user owns),
+    sorted by set then card number so the file opens cleanly in Excel /
+    Google Sheets. Total value column = qty × market_price_usd; rows
+    without a market price get total_value_usd blank.
+    """
+    stmt = (
+        select(CollectionItem, Card, Set.name)
+        .join(Card, CollectionItem.card_id == Card.id)
+        .join(Set, Card.set_id == Set.id)
+        .where(CollectionItem.user_id == user.id)
+        .order_by(Set.name.asc(), Card.number_int.asc().nullslast(), Card.number.asc())
+    )
+    rows = (await db.execute(stmt)).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "card_id",
+            "name",
+            "set_name",
+            "number",
+            "rarity",
+            "condition",
+            "qty",
+            "market_price_usd",
+            "total_value_usd",
+            "purchase_price_usd",
+            "notes",
+            "added_at",
+        ]
+    )
+    for item, card, set_name in rows:
+        price = float(card.market_price_usd) if card.market_price_usd is not None else None
+        qty = item.qty or 0
+        total = f"{price * qty:.2f}" if price is not None else ""
+        writer.writerow(
+            [
+                card.id,
+                card.name,
+                set_name,
+                card.number or "",
+                card.rarity or "",
+                item.condition or "",
+                qty,
+                f"{price:.2f}" if price is not None else "",
+                total,
+                f"{float(item.purchase_price_usd):.2f}" if item.purchase_price_usd is not None else "",
+                (item.notes or "").replace("\n", " ").strip(),
+                item.created_at.date().isoformat() if item.created_at else "",
+            ]
+        )
+
+    csv_text = buf.getvalue()
+    today = date.today().isoformat()
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="pulllist-collection-{today}.csv"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get("/items", response_model=list[CollectionItemDetail])

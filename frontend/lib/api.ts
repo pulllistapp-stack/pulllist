@@ -294,6 +294,33 @@ export async function getPublicPortfolio(
   return apiFetch<PublicPortfolio>(`/p/${encodeURIComponent(token)}`);
 }
 
+/**
+ * Downloads the caller's collection as a CSV file. The browser File API
+ * doesn't let us attach Authorization headers to a plain <a download>,
+ * so we fetch the blob ourselves, build an object URL, and trigger a
+ * synthetic click. Caller must pass the JWT.
+ */
+export async function downloadCollectionCsv(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/collection/export.csv`, {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  // Match the server's Content-Disposition filename so older browsers
+  // that ignore the header still get a reasonable default.
+  const today = new Date().toISOString().slice(0, 10);
+  a.download = `pulllist-collection-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Defer revoke so Safari has time to start the download.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export type TrendingMover = {
   card_id: string;
   latest_price: number;
