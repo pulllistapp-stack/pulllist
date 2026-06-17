@@ -105,6 +105,12 @@ export default async function PortfolioOG({
   const valueLabel = fmtValue(data.estimated_value_usd);
   const valueIsPublic = data.estimated_value_usd != null;
   const sub = `${data.unique_cards.toLocaleString("en-US")} cards · ${data.sets_touched} sets touched`;
+  // Headlining card — the most valuable in the public top_cards list,
+  // peeking from the right edge with rotation + shadow so the unfurl
+  // feels physical rather than abstract. Falls back gracefully when the
+  // owner has no top cards or hid the image (no top_cards rendered).
+  const heroCard = data.top_cards[0] ?? null;
+  const heroImage = heroCard?.image_small ?? null;
 
   return new ImageResponse(
     (
@@ -119,8 +125,56 @@ export default async function PortfolioOG({
           fontFamily: "system-ui",
           padding: "60px 72px",
           position: "relative",
+          overflow: "hidden",
         }}
       >
+        {/* Hero card peeking from the right — drawn first so it sits
+            behind text. Soft drop shadow + rotation give it a tactile
+            "trading card pinned to a board" feel. */}
+        {heroImage ? (
+          <div
+            style={{
+              position: "absolute",
+              right: -130,
+              top: 80,
+              width: 380,
+              height: 530,
+              display: "flex",
+              transform: "rotate(11deg)",
+              filter: "drop-shadow(0 32px 48px rgba(15, 23, 42, 0.35))",
+            }}
+          >
+            <img
+              src={heroImage}
+              width={380}
+              height={530}
+              style={{
+                width: 380,
+                height: 530,
+                borderRadius: 18,
+                objectFit: "cover",
+              }}
+              alt=""
+            />
+          </div>
+        ) : null}
+
+        {/* Soft white fade over the card so the left-side text always
+            reads cleanly even when the card art is busy. */}
+        {heroImage ? (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: 760,
+              background:
+                "linear-gradient(90deg, rgba(255,251,235,1) 0%, rgba(255,251,235,1) 55%, rgba(255,251,235,0) 100%)",
+              display: "flex",
+            }}
+          />
+        ) : null}
         {/* Top row — mascot + brand wordmark */}
         <div
           style={{
@@ -230,70 +284,60 @@ export default async function PortfolioOG({
         {/* Spacer */}
         <div style={{ flex: 1, display: "flex" }} />
 
-        {/* Headline value + stats row */}
+        {/* Headline value + stats — stacked on the left so the right half
+            is reserved for the peeking hero card. */}
         <div
           style={{
             display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 32,
+            flexDirection: "column",
+            maxWidth: 700,
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: 4,
-                textTransform: "uppercase",
-                color: "#9CA3AF",
-                marginBottom: 8,
-              }}
-            >
-              {valueIsPublic ? "Portfolio Value" : "Portfolio Value"}
-            </div>
-            <div
-              style={{
-                fontSize: 120,
-                fontWeight: 900,
-                lineHeight: 1,
-                color: valueIsPublic ? "#F59E0B" : "#9CA3AF",
-                letterSpacing: -3,
-                fontFamily: "monospace",
-              }}
-            >
-              {valueIsPublic ? valueLabel : "Private"}
-            </div>
-          </div>
-
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 10,
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: 4,
+              textTransform: "uppercase",
+              color: "#9CA3AF",
+              marginBottom: 8,
             }}
           >
-            <div
-              style={{
-                fontSize: 26,
-                fontWeight: 600,
-                color: "#374151",
-                fontFamily: "monospace",
-                display: "flex",
-              }}
-            >
-              {sub}
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                color: "#9CA3AF",
-                display: "flex",
-              }}
-            >
-              Tracking every pull · catalog + collection + charts
-            </div>
+            Portfolio Value
+          </div>
+          <div
+            style={{
+              fontSize: 120,
+              fontWeight: 900,
+              lineHeight: 1,
+              color: valueIsPublic ? "#F59E0B" : "#9CA3AF",
+              letterSpacing: -3,
+              fontFamily: "monospace",
+              marginBottom: 18,
+            }}
+          >
+            {valueIsPublic ? valueLabel : "Private"}
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 600,
+              color: "#374151",
+              fontFamily: "monospace",
+              display: "flex",
+              marginBottom: 6,
+            }}
+          >
+            {sub}
+          </div>
+          <div
+            style={{
+              fontSize: 16,
+              color: "#9CA3AF",
+              display: "flex",
+            }}
+          >
+            Tracking every pull · catalog + collection + charts
           </div>
         </div>
 

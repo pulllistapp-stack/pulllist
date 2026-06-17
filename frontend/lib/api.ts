@@ -305,7 +305,17 @@ export async function downloadCollectionCsv(token: string): Promise<void> {
     cache: "no-store",
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  if (!res.ok) {
+    // Surface the real status + body so the alert isn't a black box.
+    let detail = "";
+    try {
+      const text = await res.text();
+      detail = text ? ` — ${text.slice(0, 200)}` : "";
+    } catch {
+      // ignore body-read failures
+    }
+    throw new Error(`Export failed (HTTP ${res.status})${detail}`);
+  }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

@@ -42,8 +42,9 @@ export default function PortfolioPage() {
     try {
       await downloadCollectionCsv(tok);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error(err);
-      alert("Export failed — please try again.");
+      alert(`Export failed.\n\n${msg}`);
     } finally {
       setExporting(false);
     }
