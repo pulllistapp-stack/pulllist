@@ -193,6 +193,7 @@ async def run(
     limit: int | None,
     min_price: float,
     throttle_ms: int,
+    resume: bool,
 ) -> None:
     await init_db()
     throttle = throttle_ms / 1000.0
@@ -206,11 +207,19 @@ async def run(
         )
         if min_price > 0:
             stmt = stmt.where(Card.market_price_usd >= min_price)
+        if resume:
+            # Resume mode: skip cards whose product_id is already resolved.
+            # The earlier run dies / gets killed mid-pass; we don't want to
+            # re-spend 2 HTTP calls per already-processed card.
+            stmt = stmt.where(Card.tcgplayer_product_id.is_(None))
         if limit:
             stmt = stmt.limit(limit)
 
         candidates = list((await db.execute(stmt)).scalars())
-        log.info(f"Selected {len(candidates)} candidates (min_price=${min_price})")
+        log.info(
+            f"Selected {len(candidates)} candidates "
+            f"(min_price=${min_price}, resume={resume})"
+        )
 
     headers = {
         "User-Agent": "Mozilla/5.0 (compatible; PullList/1.0; +https://pulllist.org)",
@@ -229,107 +238,30 @@ async def run(
         rows_batch: list[dict] = []
         for i, card in enumerate(candidates, 1):
             stats["scanned"] += 1
-
-            product_id = await _follow_to_product_id(http, card.tcgplayer_url)
-            if product_id is None:
-                stats["no_product_id"] += 1
-                if throttle:
-                    await asyncio.sleep(throttle / 2)
+            # Crash-resistant: every per-card step is wrapped so a single
+            # bad card (timeout, weird payload, DB hiccup) can't kill the
+            # whole multi-hour run. We log the offender and continue.
+            try:
+                await _process_one_card(http, card, rows_batch, throttle, stats, i, len(candidates))
+            except Exception as e:
+                stats["crash_recovered"] = stats.get("crash_recovered", 0) + 1
+                log.warning(f"  [skip] {card.id} {card.name[:30]}: {type(e).__name__}: {e}")
                 continue
-            # Store the resolved product_id so the affiliate link wrapper
-            # can route Buy clicks straight to the product page instead of
-            # falling back to a search URL. Idempotent — skip when the
-            # card already has the same id stored.
-            if card.tcgplayer_product_id != product_id:
-                async with SessionLocal() as ws:
-                    await ws.execute(
-                        update(Card)
-                        .where(Card.id == card.id)
-                        .values(tcgplayer_product_id=product_id)
-                    )
-                    await ws.commit()
-            if throttle:
-                await asyncio.sleep(throttle)
-
-            entries = await _fetch_history(http, product_id)
-            if not entries:
-                stats["no_history"] += 1
-                if throttle:
-                    await asyncio.sleep(throttle)
-                continue
-
-            chosen_entries = _pick_per_variant_entries(entries)
-            if not chosen_entries:
-                stats["no_variant_match"] += 1
-                continue
-
-            for entry in chosen_entries:
-                # Match the sync script's variant naming: API uses
-                # "Holofoil" / "Reverse Holofoil"; pokemontcg.io uses
-                # camelCase like "holofoil" / "reverseHolofoil". Map.
-                raw_variant = (entry.get("variant") or "Normal").strip()
-                variant = {
-                    "Normal": "normal",
-                    "Holofoil": "holofoil",
-                    "Reverse Holofoil": "reverseHolofoil",
-                    "1st Edition Holofoil": "1stEditionHolofoil",
-                    "1st Edition": "1stEdition",
-                    "Unlimited Holofoil": "unlimitedHolofoil",
-                }.get(raw_variant, raw_variant.lower().replace(" ", ""))
-
-                monthly = _bucket_to_monthly(entry.get("buckets", []))
-                for b in monthly:
-                    date_str = b["bucketStartDate"]
-                    market = _f(b.get("marketPrice"))
-                    # Skip buckets with no trading activity — vintage
-                    # cards have many empty months and writing $0 rows
-                    # poisons the chart.
-                    if market is None or market <= 0:
-                        continue
-                    low = _f(b.get("lowSalePrice"))
-                    high = _f(b.get("highSalePrice"))
-                    # Same defensive treatment for low/high — these
-                    # arrive as 0 when there were no sales in the bucket.
-                    if low is not None and low <= 0:
-                        low = None
-                    if high is not None and high <= 0:
-                        high = None
-                    # Apply the same band-clip the daily sync uses so
-                    # backfilled rows don't need a separate cleanup pass.
-                    low, high = _clip_tcg_band(market, low, high, card.rarity)
-                    rows_batch.append(
-                        {
-                            "card_id": card.id,
-                            "source": SOURCE,
-                            "variant": variant,
-                            "market_price_usd": market,
-                            "low_price_usd": low,
-                            "mid_price_usd": market,
-                            "high_price_usd": high,
-                            "sales_count": int(_f(b.get("quantitySold")) or 0) or None,
-                            "snapshot_at": datetime.utcnow(),
-                            "snapshot_date": date_str,
-                        }
-                    )
 
             if len(rows_batch) >= 200:
-                async with SessionLocal() as db:
-                    stats["snapshots_written"] += await _flush(db, rows_batch)
+                try:
+                    async with SessionLocal() as db:
+                        stats["snapshots_written"] += await _flush(db, rows_batch)
+                except Exception as e:
+                    log.warning(f"  [flush failed] {type(e).__name__}: {e}")
                 rows_batch.clear()
 
-            if i % 50 == 0:
-                log.info(
-                    f"  [{i}/{len(candidates)}] last={card.name[:30]} "
-                    f"writes={stats['snapshots_written']} "
-                    f"no_id={stats['no_product_id']} no_hist={stats['no_history']}"
-                )
-
-            if throttle:
-                await asyncio.sleep(throttle)
-
         if rows_batch:
-            async with SessionLocal() as db:
-                stats["snapshots_written"] += await _flush(db, rows_batch)
+            try:
+                async with SessionLocal() as db:
+                    stats["snapshots_written"] += await _flush(db, rows_batch)
+            except Exception as e:
+                log.warning(f"  [final flush failed] {type(e).__name__}: {e}")
 
     log.info(
         "\n=== Backfill summary ===\n"
@@ -337,8 +269,113 @@ async def run(
         f"  Skipped (no product_id): {stats['no_product_id']}\n"
         f"  Skipped (no history)   : {stats['no_history']}\n"
         f"  Skipped (no variant)   : {stats['no_variant_match']}\n"
+        f"  Crashes recovered      : {stats.get('crash_recovered', 0)}\n"
         f"  Snapshots written      : {stats['snapshots_written']}\n"
     )
+
+
+async def _process_one_card(
+    http: httpx.AsyncClient,
+    card: Card,
+    rows_batch: list[dict],
+    throttle: float,
+    stats: dict,
+    i: int,
+    total: int,
+) -> None:
+    """Per-card processing extracted so the outer loop can wrap it in a
+    crash boundary. Any exception here aborts THIS card only — the
+    overnight run survives a single bad payload / timeout / DB hiccup."""
+    product_id = await _follow_to_product_id(http, card.tcgplayer_url)
+    if product_id is None:
+        stats["no_product_id"] += 1
+        if throttle:
+            await asyncio.sleep(throttle / 2)
+        return
+
+    # Store the resolved product_id so the affiliate link wrapper can
+    # route Buy clicks straight to the product page instead of falling
+    # back to a search URL. Idempotent — skip when already stored.
+    if card.tcgplayer_product_id != product_id:
+        async with SessionLocal() as ws:
+            await ws.execute(
+                update(Card)
+                .where(Card.id == card.id)
+                .values(tcgplayer_product_id=product_id)
+            )
+            await ws.commit()
+
+    if throttle:
+        await asyncio.sleep(throttle)
+
+    entries = await _fetch_history(http, product_id)
+    if not entries:
+        stats["no_history"] += 1
+        if throttle:
+            await asyncio.sleep(throttle)
+        return
+
+    chosen_entries = _pick_per_variant_entries(entries)
+    if not chosen_entries:
+        stats["no_variant_match"] += 1
+        return
+
+    for entry in chosen_entries:
+        # Map API variant ("Holofoil" / "Reverse Holofoil") to the
+        # camelCase pokemontcg.io uses ("holofoil" / "reverseHolofoil")
+        # so this run matches the daily sync's writes by variant key.
+        raw_variant = (entry.get("variant") or "Normal").strip()
+        variant = {
+            "Normal": "normal",
+            "Holofoil": "holofoil",
+            "Reverse Holofoil": "reverseHolofoil",
+            "1st Edition Holofoil": "1stEditionHolofoil",
+            "1st Edition": "1stEdition",
+            "Unlimited Holofoil": "unlimitedHolofoil",
+        }.get(raw_variant, raw_variant.lower().replace(" ", ""))
+
+        monthly = _bucket_to_monthly(entry.get("buckets", []))
+        for b in monthly:
+            date_str = b["bucketStartDate"]
+            market = _f(b.get("marketPrice"))
+            # Skip empty months — vintage cards have many no-trade
+            # buckets and writing $0 rows poisons the chart.
+            if market is None or market <= 0:
+                continue
+            low = _f(b.get("lowSalePrice"))
+            high = _f(b.get("highSalePrice"))
+            if low is not None and low <= 0:
+                low = None
+            if high is not None and high <= 0:
+                high = None
+            # Apply the same band-clip the daily sync uses so backfill
+            # rows are usable on first write without a cleanup pass.
+            low, high = _clip_tcg_band(market, low, high, card.rarity)
+            rows_batch.append(
+                {
+                    "card_id": card.id,
+                    "source": SOURCE,
+                    "variant": variant,
+                    "market_price_usd": market,
+                    "low_price_usd": low,
+                    "mid_price_usd": market,
+                    "high_price_usd": high,
+                    "sales_count": int(_f(b.get("quantitySold")) or 0) or None,
+                    "snapshot_at": datetime.utcnow(),
+                    "snapshot_date": date_str,
+                }
+            )
+
+    if i % 50 == 0:
+        log.info(
+            f"  [{i}/{total}] last={card.name[:30]:30s} "
+            f"writes={stats['snapshots_written']} "
+            f"no_id={stats['no_product_id']} no_hist={stats['no_history']} "
+            f"crashes={stats.get('crash_recovered', 0)}"
+        )
+
+    if throttle:
+        await asyncio.sleep(throttle)
 
 
 def main() -> None:
@@ -346,11 +383,20 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="Cap number of cards (smoke test)")
     parser.add_argument("--min-price", type=float, default=1.0, help="Skip cards below this market price")
     parser.add_argument("--throttle-ms", type=int, default=500, help="Sleep between API calls (default 500ms = ~2 req/sec)")
+    parser.add_argument(
+        "--no-resume", action="store_true",
+        help="Disable resume mode and re-process cards with product_id already set (default: resume on)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     asyncio.run(
-        run(limit=args.limit, min_price=args.min_price, throttle_ms=args.throttle_ms)
+        run(
+            limit=args.limit,
+            min_price=args.min_price,
+            throttle_ms=args.throttle_ms,
+            resume=not args.no_resume,
+        )
     )
 
 
