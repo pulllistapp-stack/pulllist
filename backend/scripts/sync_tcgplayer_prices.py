@@ -105,8 +105,73 @@ async def fetch_cards_for_set(
     return all_cards
 
 
+# Ratio caps for clipping TCGplayer's reported low/high to the typical
+# raw NM range. TCGplayer's per-variant low includes Heavily Played
+# copies; its per-variant high includes 1st-edition / Mint slabs that
+# trade well above the variant's own market average. Clipping keeps
+# the chart band visually meaningful instead of stretching it 2-3x
+# wider than the median.
+_TCG_HIGH_RATIO = 1.5
+_TCG_LOW_RATIO = 0.5
+
+
+def _clip_tcg_band(
+    market: float | None,
+    raw_low: float | None,
+    raw_high: float | None,
+    rarity: str | None,
+) -> tuple[float | None, float | None]:
+    """Tighten TCGplayer's raw low/high so the chart band reflects the
+    typical raw-NM range rather than the full HP-to-slab spread.
+
+    The clip applies three independent gates and takes the tightest:
+      high = min(raw_high, market × 1.5, rarity_ceiling)
+      low  = max(raw_low,  market × 0.5, rarity_floor)
+
+    Falls through to the raw value when we have no market reference to
+    compare against. Imports rarity tables from the eBay client so the
+    two sources agree on what counts as plausible per rarity.
+    """
+    if market is None or market <= 0:
+        return raw_low, raw_high
+
+    from app.services.ebay_client import (
+        _DEFAULT_ABS_CEILING,
+        _RARITY_ABS_CEILING,
+        _RARITY_ABS_FLOOR,
+    )
+
+    rarity_ceiling = (
+        _RARITY_ABS_CEILING.get(rarity, _DEFAULT_ABS_CEILING)
+        if rarity
+        else _DEFAULT_ABS_CEILING
+    )
+    rarity_floor = _RARITY_ABS_FLOOR.get(rarity) if rarity else None
+
+    clipped_high = raw_high
+    if clipped_high is not None:
+        clipped_high = min(clipped_high, market * _TCG_HIGH_RATIO, rarity_ceiling)
+
+    clipped_low = raw_low
+    if clipped_low is not None:
+        floor_candidates: list[float] = [clipped_low, market * _TCG_LOW_RATIO]
+        if rarity_floor is not None:
+            floor_candidates.append(rarity_floor)
+        clipped_low = max(floor_candidates)
+        # Never invert the band — if our floor would exceed the ceiling
+        # (very high rarity_floor combined with very low market) clamp
+        # low down to high so the chart still renders.
+        if clipped_high is not None and clipped_low > clipped_high:
+            clipped_low = clipped_high
+
+    return clipped_low, clipped_high
+
+
 def collect_tcgplayer_snapshots(
-    card_id: str, prices: dict | None, snapshot_date: str
+    card_id: str,
+    prices: dict | None,
+    snapshot_date: str,
+    rarity: str | None = None,
 ) -> list[dict]:
     if not prices:
         return []
@@ -117,15 +182,18 @@ def collect_tcgplayer_snapshots(
         market = _f(payload.get("market")) or _f(payload.get("mid"))
         if market is None and _f(payload.get("low")) is None:
             continue
+        raw_low = _f(payload.get("low"))
+        raw_high = _f(payload.get("high"))
+        clipped_low, clipped_high = _clip_tcg_band(market, raw_low, raw_high, rarity)
         rows.append(
             {
                 "card_id": card_id,
                 "source": SOURCE_TCGPLAYER,
                 "variant": variant,
                 "market_price_usd": market,
-                "low_price_usd": _f(payload.get("low")),
+                "low_price_usd": clipped_low,
                 "mid_price_usd": _f(payload.get("mid")),
-                "high_price_usd": _f(payload.get("high")),
+                "high_price_usd": clipped_high,
                 "sales_count": None,
                 "snapshot_at": datetime.utcnow(),
                 "snapshot_date": snapshot_date,
@@ -254,7 +322,12 @@ async def sync(
 
                     if not skip_snapshots:
                         snapshot_batch.extend(
-                            collect_tcgplayer_snapshots(card_id, tcg_prices, snapshot_date)
+                            collect_tcgplayer_snapshots(
+                                card_id,
+                                tcg_prices,
+                                snapshot_date,
+                                rarity=existing.rarity,
+                            )
                             + collect_cardmarket_snapshots(card_id, cm_prices, snapshot_date)
                         )
 

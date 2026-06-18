@@ -490,6 +490,82 @@ def test_price_summary_chase_ceiling_clips_psa_outlier():
     assert detail["summary"]["high"] <= 900.0
 
 
+# ──────────────────────────── TCG band clip ──────────────────────────────
+
+
+def test_tcg_clip_tightens_high_via_ratio():
+    """Mew ex SIR: market $1020, TCGplayer high $2100 (1st-ed slabs). 1.5x
+    ratio cap should pull the high down to $1530."""
+    from scripts.sync_tcgplayer_prices import _clip_tcg_band
+
+    new_low, new_high = _clip_tcg_band(
+        market=1020.0, raw_low=974.0, raw_high=2100.0,
+        rarity="Special Illustration Rare",
+    )
+    assert new_high == 1020.0 * 1.5
+    assert new_low == 974.0  # within band, no clip
+
+
+def test_tcg_clip_tightens_high_via_rarity_ceiling():
+    """High Mega Hyper card with market $9000 — ratio would allow up to
+    $13500, but rarity ceiling caps at $8000."""
+    from scripts.sync_tcgplayer_prices import _clip_tcg_band
+
+    new_low, new_high = _clip_tcg_band(
+        market=9000.0, raw_low=7000.0, raw_high=20000.0,
+        rarity="Mega Hyper Rare",
+    )
+    assert new_high == 8000.0  # rarity ceiling wins
+
+
+def test_tcg_clip_pulls_low_up_when_raw_too_cheap():
+    """Common with market $5 but raw_low $0.50 (HP copies). 0.5x ratio
+    cap pulls low up to $2.50."""
+    from scripts.sync_tcgplayer_prices import _clip_tcg_band
+
+    new_low, new_high = _clip_tcg_band(
+        market=5.0, raw_low=0.50, raw_high=8.0, rarity="Common",
+    )
+    assert new_low == 5.0 * 0.5  # 2.50
+    # Common ceiling $100, ratio cap 5*1.5=7.5. Min = 7.5.
+    assert new_high == 7.5
+
+
+def test_tcg_clip_passthrough_when_market_unknown():
+    """No market reference -> can't compute ratio, return raw as-is."""
+    from scripts.sync_tcgplayer_prices import _clip_tcg_band
+
+    new_low, new_high = _clip_tcg_band(
+        market=None, raw_low=5.0, raw_high=2000.0, rarity="Common",
+    )
+    assert new_low == 5.0
+    assert new_high == 2000.0
+
+
+def test_tcg_clip_passthrough_when_band_within_range():
+    """SIR market $1000, raw_low $900, raw_high $1100 — entire band fits
+    in ratio cap, no clipping happens."""
+    from scripts.sync_tcgplayer_prices import _clip_tcg_band
+
+    new_low, new_high = _clip_tcg_band(
+        market=1000.0, raw_low=900.0, raw_high=1100.0,
+        rarity="Special Illustration Rare",
+    )
+    assert new_low == 900.0
+    assert new_high == 1100.0
+
+
+def test_tcg_clip_handles_null_low_high():
+    """Some pokemontcg.io variants have only market — null low/high stay null."""
+    from scripts.sync_tcgplayer_prices import _clip_tcg_band
+
+    new_low, new_high = _clip_tcg_band(
+        market=100.0, raw_low=None, raw_high=None, rarity="Rare",
+    )
+    assert new_low is None
+    assert new_high is None
+
+
 def test_price_summary_chase_ceiling_clips_without_tcg_ref():
     """Same SIR but no TCG reference — the rarity absolute ceiling ($5000)
     is the only thing standing between us and a $10k slab leak."""
