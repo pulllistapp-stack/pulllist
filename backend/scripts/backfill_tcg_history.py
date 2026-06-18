@@ -146,6 +146,9 @@ def _bucket_to_monthly(buckets: list[dict]) -> list[dict]:
 
     Picks the LAST bucket (most recent) within each year-month so the
     representative is the month-end price rather than month-start.
+
+    Use this for a fast first pass; for richer 30D/90D coverage call
+    _bucket_passthrough() instead which keeps all 52 weekly points.
     """
     if not buckets:
         return []
@@ -159,6 +162,23 @@ def _bucket_to_monthly(buckets: list[dict]) -> list[dict]:
         if prev is None or date_str > prev["bucketStartDate"]:
             by_month[month_key] = b
     return sorted(by_month.values(), key=lambda b: b["bucketStartDate"])
+
+
+def _bucket_passthrough(buckets: list[dict]) -> list[dict]:
+    """Keep every weekly bucket the API returned, sorted by date.
+
+    Used by --weekly mode for a deeper pass that densifies 30D and 90D
+    chart ranges. ON CONFLICT DO NOTHING keys on snapshot_date, so if a
+    weekly bucket lands on the same date as a previous monthly sample
+    (last week of month), the monthly version stays — the weekly pass
+    only ADDS the ~40 in-between weekly points, never overwrites.
+    """
+    if not buckets:
+        return []
+    return sorted(
+        [b for b in buckets if b.get("bucketStartDate")],
+        key=lambda b: b["bucketStartDate"],
+    )
 
 
 def _f(v) -> float | None:
@@ -194,6 +214,7 @@ async def run(
     min_price: float,
     throttle_ms: int,
     resume: bool,
+    weekly: bool,
 ) -> None:
     await init_db()
     throttle = throttle_ms / 1000.0
@@ -242,7 +263,7 @@ async def run(
             # bad card (timeout, weird payload, DB hiccup) can't kill the
             # whole multi-hour run. We log the offender and continue.
             try:
-                await _process_one_card(http, card, rows_batch, throttle, stats, i, len(candidates))
+                await _process_one_card(http, card, rows_batch, throttle, stats, i, len(candidates), weekly)
             except Exception as e:
                 stats["crash_recovered"] = stats.get("crash_recovered", 0) + 1
                 log.warning(f"  [skip] {card.id} {card.name[:30]}: {type(e).__name__}: {e}")
@@ -282,6 +303,7 @@ async def _process_one_card(
     stats: dict,
     i: int,
     total: int,
+    weekly: bool,
 ) -> None:
     """Per-card processing extracted so the outer loop can wrap it in a
     crash boundary. Any exception here aborts THIS card only — the
@@ -334,8 +356,14 @@ async def _process_one_card(
             "Unlimited Holofoil": "unlimitedHolofoil",
         }.get(raw_variant, raw_variant.lower().replace(" ", ""))
 
-        monthly = _bucket_to_monthly(entry.get("buckets", []))
-        for b in monthly:
+        # --weekly densifies 30D/90D by keeping all ~52 buckets.
+        # Default monthly mode picks one bucket per calendar month.
+        samples = (
+            _bucket_passthrough(entry.get("buckets", []))
+            if weekly
+            else _bucket_to_monthly(entry.get("buckets", []))
+        )
+        for b in samples:
             date_str = b["bucketStartDate"]
             market = _f(b.get("marketPrice"))
             # Skip empty months — vintage cards have many no-trade
@@ -387,6 +415,10 @@ def main() -> None:
         "--no-resume", action="store_true",
         help="Disable resume mode and re-process cards with product_id already set (default: resume on)",
     )
+    parser.add_argument(
+        "--weekly", action="store_true",
+        help="Store all ~52 weekly buckets per variant (densifies 30D/90D ranges). Default writes ~12 monthly samples.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -396,6 +428,7 @@ def main() -> None:
             min_price=args.min_price,
             throttle_ms=args.throttle_ms,
             resume=not args.no_resume,
+            weekly=args.weekly,
         )
     )
 
