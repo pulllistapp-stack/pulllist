@@ -80,7 +80,8 @@ async def main(window_min: int) -> None:
     print(f"  product_id done   : {resolved:,}  ({pct:.1f}%)")
     print(f"  tcg snaps in DB   : {total_snaps:,}")
     print(f"  written last {window_min}m   : {recent_snaps:,}  ({snaps_per_min:.0f}/min)")
-    print(f"  mode (auto)       : {'WEEKLY densify (~60 snaps/card)' if weekly_mode else 'MONTHLY resolve (~12 snaps/card)'}")
+    mode_label = f"WEEKLY densify (~{snaps_per_card} snaps/card)" if weekly_mode else f"MONTHLY resolve (~{snaps_per_card} snaps/card)"
+    print(f"  mode (auto)       : {mode_label}")
     if recent_snaps == 0:
         print(f"  STATUS            : no activity in window - backfill may be stalled or finished")
     else:
