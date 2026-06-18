@@ -14,6 +14,7 @@ import {
   fetchMe,
   getToken,
   login as apiLogin,
+  loginWithGoogle as apiLoginWithGoogle,
   saveToken,
   signup as apiSignup,
   User,
@@ -24,6 +25,7 @@ type AuthContextValue = {
   loading: boolean;
   signup: (email: string, password: string, name?: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 };
@@ -70,6 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
   }, []);
 
+  const loginWithGoogle = useCallback(async (credential: string) => {
+    const res = await apiLoginWithGoogle(credential);
+    saveToken(res.access_token);
+    setUser(res.user);
+  }, []);
+
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
@@ -77,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, signup, login, logout, refresh }}
+      value={{ user, loading, signup, login, loginWithGoogle, logout, refresh }}
     >
       {children}
     </AuthContext.Provider>

@@ -11,7 +11,16 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+    # Nullable so Google-only accounts can exist without a password. Login
+    # by password is still required to be non-null for email/password flow.
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Google "sub" claim (stable user id). Lets us recognize the same
+    # Google identity across email changes and link an existing
+    # email-account on first Google sign-in.
+    google_id: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, nullable=True
+    )
 
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)

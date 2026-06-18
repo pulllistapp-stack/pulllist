@@ -14,6 +14,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    # ID token (JWT) returned by Google Identity Services on the frontend
+    # after the user authorizes our app. We verify the signature server-side
+    # so the frontend can't forge identities.
+    credential: str = Field(min_length=20)
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

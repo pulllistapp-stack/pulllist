@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 14  # 14 days
 
+    # Google Identity Services - same Client ID the frontend uses. We
+    # verify ID tokens against Google's public keys + assert this audience
+    # so tokens issued for another app can't authenticate against us.
+    google_client_id: str = ""
+
     env: str = "development"
     debug: bool = True
 

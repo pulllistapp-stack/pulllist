@@ -85,6 +85,15 @@ export async function login(
   });
 }
 
+export async function loginWithGoogle(
+  credential: string,
+): Promise<TokenResponse> {
+  return authFetch<TokenResponse>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+}
+
 export async function fetchMe(): Promise<User> {
   return authFetch<User>("/auth/me");
 }
