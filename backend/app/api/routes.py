@@ -14,6 +14,17 @@ from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientE
 router = APIRouter()
 
 
+def _median(values: list[float | None]) -> float | None:
+    """Median of non-null prices; returns None if the list is all-null/empty."""
+    clean = sorted(float(v) for v in values if v is not None)
+    if not clean:
+        return None
+    mid = len(clean) // 2
+    if len(clean) % 2:
+        return clean[mid]
+    return (clean[mid - 1] + clean[mid]) / 2.0
+
+
 @router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -388,17 +399,33 @@ async def get_trending(
         if len(snaps) < 2:
             continue
         snaps.sort(key=lambda s: s.snapshot_date)
-        oldest = snaps[0].market_price_usd
-        latest = snaps[-1].market_price_usd
+        # Use median of the first and last thirds (or first/last snapshot
+        # if we have too few) as baseline + current. Single-point comparison
+        # against snaps[0]/snaps[-1] gets blown up by ONE bad backfilled
+        # value - a card going from a spurious $5 baseline to $200 reads
+        # as +3900% when the real move is +30%. Tercile medians shrug off
+        # one outlier per side.
+        prices = [s.market_price_usd for s in snaps if s.market_price_usd is not None]
+        if len(prices) < 2:
+            continue
+        third = max(1, len(prices) // 3)
+        oldest = _median(prices[:third])
+        latest = _median(prices[-third:])
         if oldest is None or latest is None or oldest <= 0:
             continue
-        # Quality floors — both endpoints must clear the price floor AND the
+        # Quality floors - both endpoints must clear the price floor AND the
         # absolute change must be meaningful.
         if float(oldest) < min_price_usd or float(latest) < min_price_usd:
             continue
         if abs(float(latest) - float(oldest)) < min_abs_change_usd:
             continue
         delta_pct = ((latest - oldest) / oldest) * 100.0
+        # Cap displayed % at +/-500 - moves beyond that are almost always
+        # data quality artifacts (sparse snapshots crossing a backfill
+        # boundary). Surfacing them as #1/#2/#3 destroys user trust faster
+        # than missing a legitimate moonshot.
+        if abs(delta_pct) > 500:
+            continue
         entry = {
             "card_id": card_id,
             "variant": variant,

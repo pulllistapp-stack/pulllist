@@ -22,7 +22,11 @@ const RANGE_META: Record<
   { label: string; days: number; gapDays: number; bucket: "daily" | "weekly" | "monthly" }
 > = {
   "7d": { label: "7D", days: 7, gapDays: 2, bucket: "daily" },
-  "30d": { label: "30D", days: 30, gapDays: 3, bucket: "daily" },
+  // gapDays must clear the actual sample spacing or the line shatters
+  // into one-point "segments" that don't render. Weekly backfill rows
+  // sit 7 days apart, so 30D needs >= 8 to connect them; daily sync
+  // will overwrite with denser data over time.
+  "30d": { label: "30D", days: 30, gapDays: 8, bucket: "daily" },
   "90d": { label: "90D", days: 90, gapDays: 10, bucket: "weekly" },
   "1y": { label: "1Y", days: 365, gapDays: 40, bucket: "monthly" },
 };
