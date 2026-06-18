@@ -65,6 +65,36 @@ export function buildTcgPlayerSearchUrl(
   return `https://www.tcgplayer.com/search/pokemon/product?q=${encodeURIComponent(q)}`;
 }
 
+/**
+ * Builds the canonical TCGplayer product URL when we know the numeric
+ * product id. This is the URL the "View on TCGplayer" buttons SHOULD
+ * land on — the exact product page with the listings grid below.
+ * Falls back to a generic structure since TCGplayer's URLs are
+ * forgiving: the slug after the id is optional.
+ */
+export function buildTcgPlayerProductUrl(productId: number): string {
+  return `https://www.tcgplayer.com/product/${productId}`;
+}
+
+/**
+ * Picks the best TCGplayer landing URL given what we know about a card.
+ * - Has a canonical product id  → product page (exact card listings).
+ * - No product id, name + number → search page (collector still finds it).
+ * - Pure fallback                → name-only search.
+ * In every case, run through wrapTcgPlayerUrl() to attach affiliate
+ * tracking params.
+ */
+export function bestTcgPlayerUrl(opts: {
+  productId?: number | null;
+  cardName: string;
+  cardNumber?: string | null;
+}): string {
+  if (opts.productId != null) {
+    return buildTcgPlayerProductUrl(opts.productId);
+  }
+  return buildTcgPlayerSearchUrl(opts.cardName, opts.cardNumber);
+}
+
 /** True when at least one affiliate program is wired. UI uses this to
  *  show the "Ad" badge only when commissions are actually being
  *  tracked. */

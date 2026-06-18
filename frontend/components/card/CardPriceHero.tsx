@@ -5,8 +5,7 @@ import { ArrowUpRight, ShoppingCart, Star, Tag } from "lucide-react";
 import type { Card } from "@/lib/api";
 import {
   AFFILIATE_ENABLED,
-  buildTcgPlayerSearchUrl,
-  isCanonicalTcgPlayerUrl,
+  bestTcgPlayerUrl,
   wrapEbayUrl,
   wrapTcgPlayerUrl,
 } from "@/lib/affiliate";
@@ -48,13 +47,15 @@ export function CardPriceHero({
       ? (tcgMarket + ebayMedian) / 2
       : (tcgMarket ?? ebayMedian);
 
-  // Only use card.tcgplayer_url if it actually points to tcgplayer.com.
-  // pokemontcg.io stores its own redirect endpoint there which strips
-  // our affiliate params and re-attaches Scrydex's id.
+  // Prefer the canonical product URL when we know the TCGplayer product
+  // id (resolved out-of-band from pokemontcg.io's redirect endpoint and
+  // stored on Card.tcgplayer_product_id). Search URL is the fallback.
   const tcgUrl = wrapTcgPlayerUrl(
-    isCanonicalTcgPlayerUrl(card.tcgplayer_url)
-      ? card.tcgplayer_url!
-      : buildTcgPlayerSearchUrl(card.name, card.number),
+    bestTcgPlayerUrl({
+      productId: card.tcgplayer_product_id,
+      cardName: card.name,
+      cardNumber: card.number,
+    }),
   );
   const ebayUrl = wrapEbayUrl(buildEbayUrl(card));
 

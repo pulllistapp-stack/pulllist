@@ -28,6 +28,7 @@ export type Card = {
   image_small: string | null;
   image_large: string | null;
   tcgplayer_url: string | null;
+  tcgplayer_product_id: number | null;
   tcgplayer_prices: Record<string, {
     low?: number | null;
     mid?: number | null;

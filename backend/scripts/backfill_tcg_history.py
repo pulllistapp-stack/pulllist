@@ -41,7 +41,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -235,6 +235,18 @@ async def run(
                 if throttle:
                     await asyncio.sleep(throttle / 2)
                 continue
+            # Store the resolved product_id so the affiliate link wrapper
+            # can route Buy clicks straight to the product page instead of
+            # falling back to a search URL. Idempotent — skip when the
+            # card already has the same id stored.
+            if card.tcgplayer_product_id != product_id:
+                async with SessionLocal() as ws:
+                    await ws.execute(
+                        update(Card)
+                        .where(Card.id == card.id)
+                        .values(tcgplayer_product_id=product_id)
+                    )
+                    await ws.commit()
             if throttle:
                 await asyncio.sleep(throttle)
 

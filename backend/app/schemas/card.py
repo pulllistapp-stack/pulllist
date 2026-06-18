@@ -20,6 +20,7 @@ class CardBase(BaseModel):
     image_large: str | None = None
 
     tcgplayer_url: str | None = None
+    tcgplayer_product_id: int | None = None
     tcgplayer_prices: dict | None = None
     cardmarket_url: str | None = None
     cardmarket_prices: dict | None = None

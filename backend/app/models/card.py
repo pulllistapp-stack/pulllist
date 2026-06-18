@@ -28,6 +28,13 @@ class Card(Base):
 
     tcgplayer_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     tcgplayer_prices: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Canonical TCGplayer product id (e.g. 534919 for Mew ex SV: Paldean
+    # Fates #232). pokemontcg.io's `tcgplayer_url` is a 302 redirect
+    # endpoint; storing the resolved id lets us link to the exact
+    # product page (instead of falling back to a search URL) and reuse
+    # the id for affiliate wrapping. Backfilled by
+    # scripts/backfill_tcg_history.py when it follows the redirect.
+    tcgplayer_product_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     cardmarket_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     cardmarket_prices: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 

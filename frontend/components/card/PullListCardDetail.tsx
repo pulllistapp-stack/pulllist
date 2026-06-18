@@ -12,8 +12,7 @@ import {
 } from "lucide-react";
 
 import {
-  buildTcgPlayerSearchUrl,
-  isCanonicalTcgPlayerUrl,
+  bestTcgPlayerUrl,
   wrapEbayUrl,
   wrapTcgPlayerUrl,
 } from "@/lib/affiliate";
@@ -85,9 +84,11 @@ export function PullListCardDetail({
             price: low,
             source: "TCGplayer",
             url: wrapTcgPlayerUrl(
-              isCanonicalTcgPlayerUrl(card.tcgplayer_url)
-                ? card.tcgplayer_url!
-                : buildTcgPlayerSearchUrl(card.name, card.number),
+              bestTcgPlayerUrl({
+                productId: card.tcgplayer_product_id,
+                cardName: card.name,
+                cardNumber: card.number,
+              }),
             ),
           });
         }
