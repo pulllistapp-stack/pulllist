@@ -98,6 +98,10 @@ export async function fetchMe(): Promise<User> {
   return authFetch<User>("/auth/me");
 }
 
+export async function deleteMe(): Promise<void> {
+  return authFetch<void>("/auth/me", { method: "DELETE" });
+}
+
 export type CollectionSummary = {
   total_entries: number;
   unique_cards: number;

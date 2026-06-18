@@ -5,7 +5,7 @@ const SITE_URL =
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "https://api.pulllist.org/api/v1";
 
-type SetLite = { id: string; updated_at?: string | null };
+type SetLite = { id: string; release_date?: string | null };
 
 /**
  * Generated dynamically at build (and every revalidate window) so new sets
@@ -38,7 +38,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const sets = (await res.json()) as SetLite[];
       setPages = sets.map((s) => ({
         url: `${SITE_URL}/sets/${s.id}`,
-        lastModified: s.updated_at ? new Date(s.updated_at) : now,
+        // Backend doesn't track per-set updated_at; release_date is the
+        // best proxy we have for "when did this content last change".
+        lastModified: s.release_date ? new Date(s.release_date) : now,
         priority: 0.6,
       }));
     }

@@ -3,6 +3,7 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import { CollectionProvider } from "@/components/CollectionProvider";
+import { CookieBanner } from "@/components/CookieBanner";
 import { Footer } from "@/components/Footer";
 import { PWARegister } from "@/components/PWARegister";
 import { ScanFAB } from "@/components/ScanFAB";
@@ -82,6 +83,7 @@ export default function RootLayout({
                 {children}
                 <Footer />
                 <ScanFAB />
+                <CookieBanner />
               </WishlistProvider>
             </CollectionProvider>
           </AuthProvider>

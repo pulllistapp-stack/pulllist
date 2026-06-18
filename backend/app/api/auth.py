@@ -160,3 +160,23 @@ async def google_login(
 @router.get("/me", response_model=UserRead)
 async def me(user: User = Depends(get_current_user)) -> UserRead:
     return UserRead.model_validate(user)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Permanently delete the user's account and all owned data.
+
+    Required by KR 개인정보보호법 / GDPR Article 17. CollectionItem +
+    WishlistItem have ON DELETE CASCADE on user_id so they go with the
+    user row. Portfolio snapshots also cascade. Share tokens become
+    permanently dead immediately - any cached link returns 404.
+
+    This is irreversible. We don't soft-delete because that pattern
+    invites accidental re-surfacing of "deleted" data later.
+    """
+    await db.delete(user)
+    await db.commit()
+
