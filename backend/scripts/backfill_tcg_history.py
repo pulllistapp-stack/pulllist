@@ -48,6 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import SessionLocal, init_db
 from app.models import Card, CardPriceSnapshot
+from scripts.sync_tcgplayer_prices import _clip_tcg_band
 
 log = logging.getLogger("backfill_tcg_history")
 
@@ -293,6 +294,9 @@ async def run(
                         low = None
                     if high is not None and high <= 0:
                         high = None
+                    # Apply the same band-clip the daily sync uses so
+                    # backfilled rows don't need a separate cleanup pass.
+                    low, high = _clip_tcg_band(market, low, high, card.rarity)
                     rows_batch.append(
                         {
                             "card_id": card.id,
