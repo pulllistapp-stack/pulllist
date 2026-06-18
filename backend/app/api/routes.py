@@ -378,36 +378,29 @@ async def get_trending(
 
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
 
-    # Pulling full CardPriceSnapshot ORM objects for an entire window
-    # bursts Render's 512MB tier (90d × all cards × all variants of
-    # tcgplayer ~ 280k rows × ~1KB ORM overhead = OOM 502). Select only
-    # the columns the aggregator actually needs as tuples, ordered so we
-    # can stream-group without a Python sort.
-    snap_stmt = (
-        select(
-            CardPriceSnapshot.card_id,
-            CardPriceSnapshot.variant,
-            CardPriceSnapshot.snapshot_date,
-            CardPriceSnapshot.market_price_usd,
-        )
-        .where(CardPriceSnapshot.source == source)
-        .where(CardPriceSnapshot.snapshot_date >= cutoff)
-        .order_by(
-            CardPriceSnapshot.card_id,
-            CardPriceSnapshot.variant,
-            CardPriceSnapshot.snapshot_date,
-        )
+    # Aggregate to one row per (card_id, variant) at the SQL layer so
+    # Python never sees the underlying ~280k snapshots. Postgres returns
+    # the per-group price array already sorted by date; we only need to
+    # slice the head/tail for the tercile medians. Cuts memory + wall
+    # time enough to fit a 90d query into Render's 30s + 512MB envelope.
+    from sqlalchemy import text  # local import - rarely-used helper
+    agg_stmt = text(
+        """
+        SELECT card_id, variant,
+               array_agg(market_price_usd ORDER BY snapshot_date) AS prices
+        FROM card_price_snapshots
+        WHERE source = :source
+          AND snapshot_date >= :cutoff
+          AND market_price_usd IS NOT NULL
+        GROUP BY card_id, variant
+        HAVING count(*) >= 2
+        """
     )
-
-    # Group by (card_id, variant) — comparing different variants of the same
-    # card is meaningless (a card's "normal" $0.02 vs "holofoil" $0.27 is not
-    # a price movement, it's two products). Per card we then pick the variant
-    # with the largest absolute %change to surface as that card's mover.
     by_card_variant: dict[tuple[str, str], list[float]] = {}
-    for card_id, variant, _date, price in (await db.execute(snap_stmt)).all():
-        if price is None:
-            continue
-        by_card_variant.setdefault((card_id, variant), []).append(float(price))
+    for card_id, variant, prices in (
+        await db.execute(agg_stmt, {"source": source, "cutoff": cutoff})
+    ).all():
+        by_card_variant[(card_id, variant)] = [float(p) for p in prices]
 
     best_per_card: dict[str, dict] = {}
     for (card_id, variant), prices in by_card_variant.items():
