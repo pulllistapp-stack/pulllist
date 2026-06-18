@@ -378,36 +378,47 @@ async def get_trending(
 
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
 
+    # Pulling full CardPriceSnapshot ORM objects for an entire window
+    # bursts Render's 512MB tier (90d × all cards × all variants of
+    # tcgplayer ~ 280k rows × ~1KB ORM overhead = OOM 502). Select only
+    # the columns the aggregator actually needs as tuples, ordered so we
+    # can stream-group without a Python sort.
     snap_stmt = (
-        select(CardPriceSnapshot)
+        select(
+            CardPriceSnapshot.card_id,
+            CardPriceSnapshot.variant,
+            CardPriceSnapshot.snapshot_date,
+            CardPriceSnapshot.market_price_usd,
+        )
         .where(CardPriceSnapshot.source == source)
         .where(CardPriceSnapshot.snapshot_date >= cutoff)
-        .order_by(CardPriceSnapshot.card_id, CardPriceSnapshot.snapshot_date)
+        .order_by(
+            CardPriceSnapshot.card_id,
+            CardPriceSnapshot.variant,
+            CardPriceSnapshot.snapshot_date,
+        )
     )
-    snapshots = list((await db.execute(snap_stmt)).scalars())
 
     # Group by (card_id, variant) — comparing different variants of the same
     # card is meaningless (a card's "normal" $0.02 vs "holofoil" $0.27 is not
     # a price movement, it's two products). Per card we then pick the variant
     # with the largest absolute %change to surface as that card's mover.
-    by_card_variant: dict[tuple[str, str], list[CardPriceSnapshot]] = {}
-    for s in snapshots:
-        by_card_variant.setdefault((s.card_id, s.variant), []).append(s)
+    by_card_variant: dict[tuple[str, str], list[float]] = {}
+    for card_id, variant, _date, price in (await db.execute(snap_stmt)).all():
+        if price is None:
+            continue
+        by_card_variant.setdefault((card_id, variant), []).append(float(price))
 
     best_per_card: dict[str, dict] = {}
-    for (card_id, variant), snaps in by_card_variant.items():
-        if len(snaps) < 2:
+    for (card_id, variant), prices in by_card_variant.items():
+        if len(prices) < 2:
             continue
-        snaps.sort(key=lambda s: s.snapshot_date)
         # Use median of the first and last thirds (or first/last snapshot
         # if we have too few) as baseline + current. Single-point comparison
         # against snaps[0]/snaps[-1] gets blown up by ONE bad backfilled
         # value - a card going from a spurious $5 baseline to $200 reads
         # as +3900% when the real move is +30%. Tercile medians shrug off
         # one outlier per side.
-        prices = [s.market_price_usd for s in snaps if s.market_price_usd is not None]
-        if len(prices) < 2:
-            continue
         third = max(1, len(prices) // 3)
         oldest = _median(prices[:third])
         latest = _median(prices[-third:])
@@ -432,7 +443,7 @@ async def get_trending(
             "latest_price": float(latest),
             "oldest_price": float(oldest),
             "delta_pct": delta_pct,
-            "snapshots_count": len(snaps),
+            "snapshots_count": len(prices),
         }
         # Keep the variant with the largest absolute %change per card.
         prior = best_per_card.get(card_id)

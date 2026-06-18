@@ -164,6 +164,17 @@ def _clip_tcg_band(
         if clipped_high is not None and clipped_low > clipped_high:
             clipped_low = clipped_high
 
+    # Final safety: the market price MUST sit inside [low, high] for any
+    # band-aware chart logic (and any sane reader) to make sense. The
+    # rarity clamps above can push high below market on cheap-rarity-tier
+    # cards and floor candidates can push low above market on cards where
+    # raw low > market - both produce impossible bands. Snap the offending
+    # edge back to market.
+    if clipped_low is not None and clipped_low > market:
+        clipped_low = market
+    if clipped_high is not None and clipped_high < market:
+        clipped_high = market
+
     return clipped_low, clipped_high
 
 
