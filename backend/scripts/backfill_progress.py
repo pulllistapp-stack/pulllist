@@ -63,17 +63,24 @@ async def main(window_min: int) -> None:
         ).scalar() or 0
 
     pct = (resolved / target * 100) if target else 0
-    # Throughput estimate: each completed card writes ~12 monthly rows.
-    # snaps_per_min / 12 ≈ cards processed per minute.
     snaps_per_min = recent_snaps / max(window_min, 1)
-    cards_per_min = snaps_per_min / 12
-    remaining = max(target - resolved, 0)
+    # Auto-detect mode: once product_id resolution saturates (>=95% of
+    # target), the active workload is the weekly densification pass, not
+    # the original monthly pass. The two pass shapes have very different
+    # snaps-per-card averages and we want a sane ETA for both.
+    weekly_mode = pct >= 95 and target > 0
+    # Empirically: weekly pass averages ~40 snaps/card (52 weekly buckets
+    # × variants minus filtered zeros). Monthly averaged ~12.
+    snaps_per_card = 40 if weekly_mode else 12
+    cards_per_min = snaps_per_min / snaps_per_card
+    remaining = max(target - resolved, 0) if not weekly_mode else target
     eta_hr = (remaining / cards_per_min / 60) if cards_per_min > 0 else 0
 
     print(f"\n  TARGET            : {target:,} cards (>=$5 with TCGplayer URL)")
     print(f"  product_id done   : {resolved:,}  ({pct:.1f}%)")
     print(f"  tcg snaps in DB   : {total_snaps:,}")
     print(f"  written last {window_min}m   : {recent_snaps:,}  ({snaps_per_min:.0f}/min)")
+    print(f"  mode (auto)       : {'WEEKLY densify (~60 snaps/card)' if weekly_mode else 'MONTHLY resolve (~12 snaps/card)'}")
     if recent_snaps == 0:
         print(f"  STATUS            : no activity in window - backfill may be stalled or finished")
     else:
