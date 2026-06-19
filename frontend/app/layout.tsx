@@ -4,6 +4,7 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { CollectionProvider } from "@/components/CollectionProvider";
 import { CookieBanner } from "@/components/CookieBanner";
+import { LanguageProvider } from "@/components/LanguageProvider";
 import { Footer } from "@/components/Footer";
 import { PWARegister } from "@/components/PWARegister";
 import { ScanFAB } from "@/components/ScanFAB";
@@ -75,18 +76,20 @@ export default function RootLayout({
     >
       <body className="bg-bg text-text-primary min-h-screen">
         <ThemeProvider>
-          <AuthProvider>
-            <CollectionProvider>
-              <WishlistProvider>
-                <PWARegister />
-                <TopNav />
-                {children}
-                <Footer />
-                <ScanFAB />
-                <CookieBanner />
-              </WishlistProvider>
-            </CollectionProvider>
-          </AuthProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <CollectionProvider>
+                <WishlistProvider>
+                  <PWARegister />
+                  <TopNav />
+                  {children}
+                  <Footer />
+                  <ScanFAB />
+                  <CookieBanner />
+                </WishlistProvider>
+              </CollectionProvider>
+            </AuthProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

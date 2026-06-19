@@ -28,6 +28,15 @@ class Set(Base):
     name_local: Mapped[str | None] = mapped_column(String(255), nullable=True)
     """Native-language set name (e.g., リザードンEXパック). Use `name` for English."""
 
+    name_ko: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    """Korean translation of the set name, even for non-KR primary sets.
+
+    Distinct from `name_local` because for an EN-primary set this is a
+    *translation label* shown when the user toggles UI language to KR,
+    not the set's own native name. Populated from TCGdex's /ko/sets feed
+    by scripts/import_ko_set_names.py.
+    """
+
     parent_set_id: Mapped[str | None] = mapped_column(
         String(64), nullable=True, index=True
     )

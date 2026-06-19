@@ -8,6 +8,9 @@ class SetBase(BaseModel):
 
     id: str
     name: str
+    name_ko: str | None = None
+    """Korean translation of the set name. Frontend swaps to this when the
+    user toggles UI language to KR. Null for sets we haven't mapped yet."""
     series: str | None = None
     printed_total: int | None = None
     total: int | None = None

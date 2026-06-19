@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "./AuthProvider";
+import { LanguageToggle } from "./LanguageToggle";
 import { SearchBar } from "./SearchBar";
 
 function ThemeToggle() {
@@ -94,8 +95,9 @@ export function TopNav() {
           <SearchBar compact />
         </div>
 
-        {/* Theme toggle — always visible (desktop + mobile) */}
-        <div className="flex-shrink-0">
+        {/* Language + theme toggles — always visible (desktop + mobile) */}
+        <div className="flex-shrink-0 flex items-center gap-1.5">
+          <LanguageToggle />
           <ThemeToggle />
         </div>
 

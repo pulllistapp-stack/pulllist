@@ -1,6 +1,9 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 
+import { useLanguage } from "@/components/LanguageProvider";
 import type { SetWithCardCount } from "@/lib/api";
 
 type Props = {
@@ -25,6 +28,8 @@ function fmtValue(v: number | null): string | null {
 }
 
 export function SetCard({ set }: Props) {
+  const { setName } = useLanguage();
+  const displayName = setName(set);
   const releaseLabel = formatReleaseDate(set.release_date);
   const valueLabel = fmtValue(set.total_value_usd);
   const progress = set.owned_unique != null && set.card_count > 0
@@ -53,7 +58,7 @@ export function SetCard({ set }: Props) {
         {set.logo_url ? (
           <Image
             src={set.logo_url}
-            alt={set.name}
+            alt={displayName}
             width={160}
             height={64}
             className="max-h-16 w-auto object-contain group-hover:scale-[1.04] transition-transform duration-300"
@@ -64,8 +69,8 @@ export function SetCard({ set }: Props) {
         )}
       </div>
 
-      <div className="text-sm font-semibold truncate w-full text-center" title={set.name}>
-        {set.name}
+      <div className="text-sm font-semibold truncate w-full text-center" title={displayName}>
+        {displayName}
       </div>
 
       <div className="mt-2 flex items-center justify-center gap-2 text-xs font-mono text-text-tertiary">
