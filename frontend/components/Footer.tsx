@@ -17,7 +17,7 @@ export function Footer() {
   return (
     <footer className="mt-20 border-t border-border bg-bg-surface/40">
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <Link href="/" className="inline-block">
               <span className="relative block h-10 w-[140px]">
@@ -39,7 +39,7 @@ export function Footer() {
 
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
-              Marketplace
+              Catalog
             </h3>
             <ul className="mt-3 space-y-2 text-sm">
               <li>
@@ -53,13 +53,13 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/drops" className="text-text-secondary hover:text-text-primary">
-                  Recent drops
+                <Link href="/trending" className="text-text-secondary hover:text-text-primary">
+                  Trending
                 </Link>
               </li>
               <li>
-                <Link href="/pricing" className="text-text-secondary hover:text-text-primary">
-                  Pricing trends
+                <Link href="/drops" className="text-text-secondary hover:text-text-primary">
+                  Recent drops
                 </Link>
               </li>
             </ul>
@@ -79,6 +79,14 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link
+                  href="/me/settings"
+                  className="text-text-secondary hover:text-text-primary"
+                >
+                  Settings
+                </Link>
+              </li>
+              <li>
                 <Link href="/login" className="text-text-secondary hover:text-text-primary">
                   Login
                 </Link>
@@ -87,6 +95,42 @@ export function Footer() {
                 <Link href="/signup" className="text-text-secondary hover:text-text-primary">
                   Sign up
                 </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
+              Company
+            </h3>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li>
+                <Link href="/about" className="text-text-secondary hover:text-text-primary">
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link href="/pricing" className="text-text-secondary hover:text-text-primary">
+                  Pricing
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="text-text-secondary hover:text-text-primary">
+                  Privacy
+                </Link>
+              </li>
+              <li>
+                <Link href="/terms" className="text-text-secondary hover:text-text-primary">
+                  Terms
+                </Link>
+              </li>
+              <li>
+                <a
+                  href="mailto:hello@pulllist.org"
+                  className="text-text-secondary hover:text-text-primary"
+                >
+                  Contact
+                </a>
               </li>
             </ul>
           </div>

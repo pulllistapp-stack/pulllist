@@ -118,12 +118,13 @@ export function TopNav() {
                 Portfolio
               </Link>
               <span className="text-text-tertiary">·</span>
-              <span
-                className="text-text-primary truncate max-w-[120px]"
-                title={user.email}
+              <Link
+                href="/me/settings"
+                className="text-text-primary truncate max-w-[120px] hover:text-accent-yellow transition-colors"
+                title={`${user.email} - Settings`}
               >
                 {user.name ?? user.email.split("@")[0]}
-              </span>
+              </Link>
               <button
                 onClick={logout}
                 className="text-text-secondary hover:text-text-primary"
@@ -179,6 +180,7 @@ export function TopNav() {
                 <MobileLink href="/scan">📸 Scan a card</MobileLink>
                 <MobileLink href="/wishlist">Wishlist</MobileLink>
                 <MobileLink href="/portfolio">Portfolio</MobileLink>
+                <MobileLink href="/me/settings">Settings</MobileLink>
                 <div className="px-3 py-2 text-xs text-text-tertiary font-mono truncate">
                   Logged in as {user.name ?? user.email}
                 </div>
