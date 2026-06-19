@@ -14,7 +14,10 @@ type SetLite = { id: string; release_date?: string | null };
  * slow crawls without lifting indexed page count meaningfully; the set
  * pages already link to every card and Google follows them.
  */
-export const revalidate = 60 * 60 * 24; // 1 day
+// 86400 = 60 * 60 * 24, but Next.js 16's segment-config validator wants a
+// literal here, not an expression — using the math form throws "Invalid
+// segment configuration export" at build time.
+export const revalidate = 86400; // 1 day
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
