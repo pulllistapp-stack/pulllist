@@ -67,6 +67,13 @@ async def list_sets(
 
     rows = (await db.execute(stmt)).all()
 
+    # For JP, hide promo eras that ended up with zero cards (old eras
+    # like PCG-P, ADV-P, World Collection — we have set rows but no
+    # source provides card data for them). A logo'd expansion with zero
+    # cards stays visible: that's a content gap worth surfacing.
+    if language == "ja":
+        rows = [r for r in rows if not (r[0].id.startswith("JPP-") and r[1] == 0)]
+
     # Per-user owned counts in one query if logged in
     owned_map: dict[str, int] = {}
     if current_user is not None:

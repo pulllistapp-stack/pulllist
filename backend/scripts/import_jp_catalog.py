@@ -92,8 +92,13 @@ async def _upsert_set(db, raw: dict, processed: set[str]) -> Set | None:
     row.printed_total = _coerce_int(cardcount.get("official"))
     row.total = _coerce_int(cardcount.get("total"))
     row.release_date = _parse_date(raw.get("releaseDate"))
-    row.logo_url = (raw.get("logo") or "") + ".webp" if raw.get("logo") else None
-    row.symbol_url = (raw.get("symbol") or "") + ".webp" if raw.get("symbol") else None
+    # Don't clobber a logo/symbol we mirrored ourselves (Bulbapedia, card-binder,
+    # manual). TCGdex returns null for these on most JP sets, and overwriting
+    # with None wipes the mirrors. Only update when the API actually has one.
+    if raw.get("logo"):
+        row.logo_url = raw["logo"] + ".webp"
+    if raw.get("symbol"):
+        row.symbol_url = raw["symbol"] + ".webp"
     row.language = "ja"
     return row
 
