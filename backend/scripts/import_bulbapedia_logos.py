@@ -53,6 +53,7 @@ USER_AGENT = "PullList-Catalog/1.0 (https://pulllist.org; hello@pulllist.org)"
 JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     # Mega Evolution era (2025-2026)
     "M3":     "Nihil Zero (TCG)",
+    "M2a":    "MEGA Dream ex (TCG)",
     "M2":     "Inferno X (TCG)",
     "M1L":    "Mega Brave (TCG)",
     "M1S":    "Mega Symphonia (TCG)",
@@ -224,6 +225,18 @@ async def run(dry: bool) -> None:
                 log.warning(f"  ! {set_id:8s} '{page}' — no logo files on page ({len(imgs)} images total)")
                 misses.append(set_id)
                 continue
+
+            # When a page hosts multiple JP logos (e.g. Mega Brave/Symphonia
+            # combined article has M1L, M1S and M1 logos all linked),
+            # prefer the file whose name leads with this set's id so M1S
+            # gets M1S_Logo_JP.png rather than the M1L one it happens to
+            # find first.
+            id_prefixed = [
+                i for i in jp_logos
+                if re.match(rf"^{re.escape(set_id)}[_\s]", i, re.IGNORECASE)
+            ]
+            if id_prefixed:
+                jp_logos = id_prefixed
 
             chosen = jp_logos[0]
             url = await _file_url(client, chosen)
