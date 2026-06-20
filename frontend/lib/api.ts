@@ -97,16 +97,23 @@ export type CardList = {
   page_size: number;
 };
 
-export async function listSets(token?: string): Promise<SetWithCardCount[]> {
-  if (!token) {
-    return apiFetch<SetWithCardCount[]>("/sets");
+export type CatalogRegion = "en" | "ja" | "ko";
+
+export async function listSets(opts: {
+  token?: string;
+  region?: CatalogRegion;
+} = {}): Promise<SetWithCardCount[]> {
+  const region = opts.region ?? "en";
+  const qs = `?language=${region}`;
+  if (!opts.token) {
+    return apiFetch<SetWithCardCount[]>(`/sets${qs}`);
   }
-  // When we have a token, include it so the backend can fill in `owned_unique`
-  // per set for the requesting user. We bypass the in-memory cache because the
-  // response is user-specific.
-  const res = await fetch(`${API_BASE}/sets`, {
+  // With a token, include it so the backend can fill in `owned_unique`
+  // per set for the requesting user. Bypass the in-memory cache because
+  // the response is user-specific.
+  const res = await fetch(`${API_BASE}/sets${qs}`, {
     cache: "no-store",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${opts.token}` },
   });
   if (!res.ok) throw new Error(`API ${res.status}: /sets`);
   return res.json() as Promise<SetWithCardCount[]>;

@@ -62,7 +62,7 @@ export default function PortfolioPage() {
         const [s, list, allSets] = await Promise.all([
           collectionSummary(),
           listMyItems(),
-          listSets(getToken() ?? undefined),
+          listSets({ token: getToken() ?? undefined }),
         ]);
         if (cancelled) return;
         setSummary(s);

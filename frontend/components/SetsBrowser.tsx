@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import type { SetWithCardCount } from "@/lib/api";
+import type { CatalogRegion, SetWithCardCount } from "@/lib/api";
 import { listSets } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
@@ -12,12 +12,18 @@ import { SetCard } from "./SetCard";
 
 type Props = {
   initialSets: SetWithCardCount[];
+  region?: CatalogRegion;
 };
 
-export function SetsBrowser({ initialSets }: Props) {
+export function SetsBrowser({ initialSets, region = "en" }: Props) {
   const { user, loading } = useAuth();
   const [sets, setSets] = useState<SetWithCardCount[]>(initialSets);
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
+
+  // Reset to incoming server-rendered list on region switch.
+  useEffect(() => {
+    setSets(initialSets);
+  }, [initialSets]);
 
   // Once we know the user is logged in, refetch with their token so the
   // backend can fill in per-set `owned_unique` and the progress bars render.
@@ -26,7 +32,7 @@ export function SetsBrowser({ initialSets }: Props) {
     const token = getToken();
     if (!token) return;
     let cancelled = false;
-    listSets(token)
+    listSets({ token, region })
       .then((fresh) => {
         if (!cancelled) setSets(fresh);
       })
@@ -36,7 +42,7 @@ export function SetsBrowser({ initialSets }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [user, loading]);
+  }, [user, loading, region]);
 
   const seriesList = useMemo(() => {
     const groups: Record<string, number> = {};

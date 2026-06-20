@@ -34,6 +34,11 @@ async def health() -> dict[str, str]:
 async def list_sets(
     db: AsyncSession = Depends(get_db),
     series: str | None = Query(None, description="Filter by series name"),
+    language: str = Query(
+        "en",
+        description="Catalog language: 'en' (default, pokemontcg.io English), 'ja' (TCGdex Japanese). 'ko' is reserved; no data yet.",
+        pattern="^(en|ja|ko)$",
+    ),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> list[SetWithCardCount]:
     stmt = (
@@ -43,6 +48,7 @@ async def list_sets(
             func.sum(Card.market_price_usd).label("total_value"),
         )
         .outerjoin(Card, Card.set_id == Set.id)
+        .where(Set.language == language)
         .group_by(Set.id)
         .order_by(Set.release_date.desc().nullslast())
     )
@@ -160,17 +166,27 @@ async def search_cards(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
+    language: str = Query(
+        "en",
+        description="Card catalog language: en / ja / ko.",
+        pattern="^(en|ja|ko)$",
+    ),
 ) -> CardList:
     offset = (page - 1) * page_size
     pattern = f"%{q}%"
 
-    total_stmt = select(func.count(Card.id)).where(Card.name.ilike(pattern))
+    total_stmt = (
+        select(func.count(Card.id))
+        .where(Card.name.ilike(pattern))
+        .where(Card.language == language)
+    )
     total = (await db.execute(total_stmt)).scalar_one()
 
     stmt = (
         select(Card, Set.name, Set.printed_total, Set.ptcgo_code)
         .join(Set, Card.set_id == Set.id)
         .where(Card.name.ilike(pattern))
+        .where(Card.language == language)
         .order_by(
             Card.market_price_usd.desc().nullslast(),
             Card.name,
