@@ -26,12 +26,21 @@ import argparse
 import asyncio
 import logging
 import re
-from urllib.parse import quote
+from pathlib import Path
+from urllib.parse import quote, urlparse
 
 import httpx
 
 from app.database import SessionLocal, init_db
 from app.models import Set
+
+# We mirror the images into the Next.js public folder so the frontend
+# can serve them from its own origin. Bulbapedia sits behind Cloudflare
+# with `Cross-Origin-Resource-Policy: same-origin` and a browser-UA
+# challenge, so direct hotlinking from pulllist.org yields 403 even
+# though server-to-server fetches return the bytes fine.
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+MIRROR_DIR = REPO_ROOT / "frontend" / "public" / "set-logos"
 
 log = logging.getLogger("import_bulbapedia_logos")
 
@@ -151,12 +160,28 @@ async def _file_url(client: httpx.AsyncClient, filename: str) -> str | None:
     return None
 
 
+async def _download_image(client: httpx.AsyncClient, url: str, dest: Path) -> bool:
+    """Stream a Bulbapedia image to disk. Returns True on success."""
+    try:
+        r = await client.get(url, timeout=30)
+        r.raise_for_status()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(r.content)
+        return True
+    except httpx.HTTPError as e:
+        log.warning(f"  ! download {url}: {e}")
+        return False
+
+
 async def run(dry: bool) -> None:
     await init_db()
 
     headers = {"User-Agent": USER_AGENT}
-    found: dict[str, str] = {}
+    found: dict[str, tuple[str, str]] = {}  # set_id -> (remote_url, local_path)
     misses: list[str] = []
+
+    if not dry:
+        MIRROR_DIR.mkdir(parents=True, exist_ok=True)
 
     async with httpx.AsyncClient(headers=headers) as client:
         for set_id, page in JP_SET_TO_BULBAPEDIA.items():
@@ -186,20 +211,34 @@ async def run(dry: bool) -> None:
                 misses.append(set_id)
                 continue
 
-            log.info(f"  ✓ {set_id:8s} {page:38s} -> {chosen} ({url})")
-            found[set_id] = url
+            # Mirror to /frontend/public/set-logos/{set_id}.{ext} since
+            # Bulbapedia's CDN refuses cross-origin loads from browsers.
+            ext = Path(urlparse(url).path).suffix or ".png"
+            local_rel = f"/set-logos/{set_id}{ext}"
+            local_abs = MIRROR_DIR / f"{set_id}{ext}"
+
+            if dry:
+                log.info(f"  ✓ {set_id:8s} {page:38s} -> {chosen} (would save to {local_rel})")
+            else:
+                ok = await _download_image(client, url, local_abs)
+                if not ok:
+                    misses.append(set_id)
+                    continue
+                log.info(f"  ✓ {set_id:8s} {page:38s} -> {local_rel} ({local_abs.stat().st_size:,} bytes)")
+
+            found[set_id] = (url, local_rel)
 
     if dry:
         log.info(f"\n  MODE: DRY RUN — {len(found)} matched, {len(misses)} missed")
         return
 
     async with SessionLocal() as db:
-        for set_id, url in found.items():
+        for set_id, (_, local_rel) in found.items():
             row = await db.get(Set, set_id)
             if row is None:
                 log.warning(f"  ! {set_id} no longer in DB, skipping")
                 continue
-            row.logo_url = url
+            row.logo_url = local_rel
         await db.commit()
 
     log.info(f"\n=== Summary ===")
