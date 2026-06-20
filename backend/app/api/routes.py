@@ -10,6 +10,7 @@ from app.models import Card, CardPriceSnapshot, CollectionItem, Set, User
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
 from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
+from app.services.listing_match import filter_listings
 
 router = APIRouter()
 
@@ -534,11 +535,18 @@ async def get_live_listings(
         set_name=set_obj.name if set_obj else None,
     )
 
+    # Over-fetch so the post-filter has headroom. eBay's fuzzy keyword
+    # match routinely returns 3-5 different print variants of the same
+    # Pokemon in a single page — at limit=12, after we drop wrong-number
+    # listings we can land at 3-4 actual matches. Pulling 3x gives the
+    # strict filter room to breathe without changing the user-facing limit.
+    raw_limit = min(limit * 3, 60)
+
     try:
         async with EbayClient() as ebay:
             result = await ebay.browse_search(
                 query,
-                limit=limit,
+                limit=raw_limit,
                 category_id=POKEMON_CATEGORIES["tcg_root"],
             )
     except EbayClientError as e:
@@ -546,8 +554,20 @@ async def get_live_listings(
     except Exception as e:
         return {"listings": [], "query": query, "error": f"unexpected: {e}"}
 
+    raw_items = result.get("itemSummaries") or []
+    # Strict card-number match: drop listings whose titles reference a
+    # different x/y than this card. See app/services/listing_match.py
+    # for the tier breakdown. Wishlist alerts (future) will tighten this
+    # to score == 100 only; for the live panel >= 70 is comfortable.
+    filtered_items, dropped = filter_listings(
+        raw_items,
+        card_number=card.number,
+        printed_total=set_obj.printed_total if set_obj else None,
+        min_score=70,
+    )
+
     listings = []
-    for it in result.get("itemSummaries") or []:
+    for it in filtered_items[:limit]:
         try:
             price_obj = it.get("price") or {}
             price_v = float(price_obj.get("value", 0))
@@ -587,7 +607,19 @@ async def get_live_listings(
             continue
 
     listings.sort(key=lambda x: x["total_usd"])
-    return {"listings": listings, "query": query, "count": len(listings)}
+    return {
+        "listings": listings,
+        "query": query,
+        "count": len(listings),
+        # Surfaced for the frontend so we can show "X listings hidden as
+        # different prints of this card" if we ever want a peek-back UI.
+        "filter": {
+            "min_score": 70,
+            "raw_count": len(raw_items),
+            "dropped_other_print": dropped.get(0, 0),
+            "dropped_no_pattern": dropped.get(30, 0),
+        },
+    }
 
 
 @router.get("/cards/{card_id}", response_model=CardRead)
