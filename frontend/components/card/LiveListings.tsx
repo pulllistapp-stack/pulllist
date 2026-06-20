@@ -112,8 +112,10 @@ export function LiveListings({ cardId }: { cardId: string }) {
     [listings, filter],
   );
 
-  // The cheapest under the current filter — flagged with a Crown chip.
-  const cheapestKey = filtered[0]?.url;
+  // The cheapest *trustworthy* listing under the current filter. We
+  // skip suspicious ones so the Cheapest badge doesn't land on a scam
+  // decoy (e.g. 0-feedback seller at 9% of market price).
+  const cheapestKey = filtered.find((l) => !l.suspicious)?.url;
 
   // Per-filter counts for the chip badges.
   const counts = useMemo(() => {
@@ -238,6 +240,7 @@ function ListingCard({
   const feedback = parseFeedback(listing.seller_feedback_pct);
   const graded = isGraded(listing.title);
   const freeShip = listing.shipping_usd === 0;
+  const suspicious = listing.suspicious === true;
 
   const outboundUrl =
     listing.source === "eBay"
@@ -246,6 +249,14 @@ function ListingCard({
         ? wrapTcgPlayerUrl(listing.url)
         : listing.url;
 
+  // Stack badges in the upper-left so they never overlap. Cheapest sits
+  // at the top when present, then Graded; Suspicious *replaces* both —
+  // a flagged listing isn't the cheapest of anything we trust.
+  const topBadges: Array<"cheapest" | "graded" | "suspicious"> = [];
+  if (suspicious) topBadges.push("suspicious");
+  else if (isCheapest) topBadges.push("cheapest");
+  if (graded) topBadges.push("graded");
+
   // Compact carousel card — eBay-style horizontal strip. The whole tile is the
   // outbound link; no separate Buy button needed.
   return (
@@ -253,12 +264,18 @@ function ListingCard({
       href={outboundUrl}
       target="_blank"
       rel="noopener noreferrer sponsored"
-      title={listing.title}
+      title={
+        suspicious
+          ? `⚠ Suspicious: new seller asking far below market. ${listing.title}`
+          : listing.title
+      }
       className={cn(
         "group relative flex w-[150px] shrink-0 snap-start flex-col gap-1.5 rounded-2xl border bg-bg p-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
-        isCheapest
-          ? "border-accent-yellow/60 hover:border-accent-yellow shadow-sm shadow-accent-yellow/10"
-          : "border-border hover:border-accent-yellow/40",
+        suspicious
+          ? "border-accent-red/40 opacity-75 hover:opacity-100 hover:border-accent-red/70"
+          : isCheapest
+            ? "border-accent-yellow/60 hover:border-accent-yellow shadow-sm shadow-accent-yellow/10"
+            : "border-border hover:border-accent-yellow/40",
       )}
     >
       {/* Thumbnail */}
@@ -268,7 +285,10 @@ function ListingCard({
             src={listing.image_url}
             alt=""
             fill
-            className="object-contain transition-transform duration-200 group-hover:scale-[1.04]"
+            className={cn(
+              "object-contain transition-transform duration-200 group-hover:scale-[1.04]",
+              suspicious && "grayscale-[40%] group-hover:grayscale-0",
+            )}
             sizes="150px"
             unoptimized
           />
@@ -280,23 +300,47 @@ function ListingCard({
 
         {/* Badges sit *inside* the thumbnail so the horizontal-scroll parent
             (overflow-x: auto, which also clips overflow-y) can't shave the
-            top off a -top badge. */}
-        {isCheapest && (
-          <span className="absolute top-1 left-1 inline-flex items-center rounded-full bg-accent-yellow text-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm">
-            Cheapest
-          </span>
-        )}
-
-        {graded && (
-          <span
-            className={cn(
-              "absolute left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase",
-              isCheapest ? "top-7" : "top-1",
-            )}
-          >
-            Graded
-          </span>
-        )}
+            top off a -top badge. Stack downward — index 0 at top-1. */}
+        {topBadges.map((kind, i) => {
+          const top = i === 0 ? "top-1" : i === 1 ? "top-7" : "top-[3.25rem]";
+          if (kind === "suspicious") {
+            return (
+              <span
+                key={kind}
+                className={cn(
+                  "absolute left-1 inline-flex items-center gap-0.5 rounded-full bg-accent-red text-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm",
+                  top,
+                )}
+              >
+                ⚠ Risky
+              </span>
+            );
+          }
+          if (kind === "cheapest") {
+            return (
+              <span
+                key={kind}
+                className={cn(
+                  "absolute left-1 inline-flex items-center rounded-full bg-accent-yellow text-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm",
+                  top,
+                )}
+              >
+                Cheapest
+              </span>
+            );
+          }
+          return (
+            <span
+              key={kind}
+              className={cn(
+                "absolute left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                top,
+              )}
+            >
+              Graded
+            </span>
+          );
+        })}
 
         {freeShip && (
           <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-full bg-accent-green/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase">

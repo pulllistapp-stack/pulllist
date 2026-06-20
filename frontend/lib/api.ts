@@ -225,6 +225,11 @@ export type LiveListing = {
   condition: string;
   seller: string;
   seller_feedback_pct: number | string | null;
+  seller_feedback_score?: number | null;
+  seller_trust_tier?: "new" | "low" | "poor" | "ok" | "trusted";
+  /** Backend-flagged: low-trust seller asking <40% of market median.
+   *  See backend/app/services/listing_match.py is_suspicious(). */
+  suspicious?: boolean;
   url: string;
   image_url?: string | null;
   source: "eBay" | "TCGplayer";

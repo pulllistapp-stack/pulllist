@@ -10,7 +10,7 @@ from app.models import Card, CardPriceSnapshot, CollectionItem, Set, User
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
 from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
-from app.services.listing_match import filter_listings
+from app.services.listing_match import filter_listings, is_suspicious, seller_trust_tier
 
 router = APIRouter()
 
@@ -591,14 +591,34 @@ async def get_live_listings(
                 (thumbs[0].get("imageUrl") if thumbs else None)
                 or img.get("imageUrl")
             )
+
+            # Seller trust tier — feedbackScore is the total transaction
+            # count, feedbackPercentage the positive-rating percent.
+            raw_score = seller.get("feedbackScore")
+            try:
+                seller_score = int(raw_score) if raw_score is not None else None
+            except (TypeError, ValueError):
+                seller_score = None
+            raw_pct = seller.get("feedbackPercentage")
+            try:
+                seller_pct = float(raw_pct) if raw_pct is not None else None
+            except (TypeError, ValueError):
+                seller_pct = None
+            trust = seller_trust_tier(seller_score, seller_pct)
+            total_usd = price_v + ship_cost
+            sus = is_suspicious(total_usd, card.market_price_usd, trust)
+
             listings.append({
                 "title": (it.get("title") or "")[:180],
                 "price_usd": price_v,
                 "shipping_usd": ship_cost,
-                "total_usd": price_v + ship_cost,
+                "total_usd": total_usd,
                 "condition": it.get("condition") or "Ungraded",
                 "seller": seller.get("username") or "?",
-                "seller_feedback_pct": seller.get("feedbackPercentage"),
+                "seller_feedback_pct": seller_pct,
+                "seller_feedback_score": seller_score,
+                "seller_trust_tier": trust,
+                "suspicious": sus,
                 "url": it.get("itemWebUrl") or "",
                 "image_url": image_url,
                 "source": "eBay",
@@ -606,7 +626,10 @@ async def get_live_listings(
         except Exception:
             continue
 
-    listings.sort(key=lambda x: x["total_usd"])
+    # Sort: clean listings first (by price ascending), then suspicious ones
+    # at the bottom (also by price). Keeps the "Cheapest" tile on a real
+    # match instead of a scam decoy.
+    listings.sort(key=lambda x: (x["suspicious"], x["total_usd"]))
     return {
         "listings": listings,
         "query": query,

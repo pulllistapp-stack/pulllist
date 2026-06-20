@@ -114,3 +114,59 @@ def filter_listings(
         else:
             dropped[res.score] = dropped.get(res.score, 0) + 1
     return kept, dropped
+
+
+# ── Seller trust + price anomaly ─────────────────────────────────────
+# These two signals are weak alone but devastating together. A brand-
+# new (0 feedback) seller listing a $900 card for $74 is the canonical
+# scam pattern: stolen photo, fake card on delivery, or take-the-money-
+# and-run. We flag rather than drop — users sometimes do want to see
+# the noise floor, but the panel sorts safe listings to the top and
+# the "Cheapest" badge skips suspicious tiles.
+
+# Trust tiers, ordered worst → best
+TRUST_NEW = "new"        # feedback score 0
+TRUST_LOW = "low"        # score 1-9
+TRUST_POOR = "poor"      # score >= 10 but feedback% < 95
+TRUST_OK = "ok"          # score 10-99, feedback% >= 95
+TRUST_TRUSTED = "trusted"  # score >= 100, feedback% >= 99
+
+# Price-anomaly cutoff: listing total below this fraction of the
+# card's market median is suspicious *when paired* with a weak seller.
+# 0.40 catches the obvious 9%-of-market scams while sparing legitimate
+# undercutters (sellers who price 15-25% below median to move stock).
+PRICE_ANOMALY_THRESHOLD = 0.40
+
+
+def seller_trust_tier(feedback_score: int | None, feedback_pct: float | None) -> str:
+    score = feedback_score if feedback_score is not None else -1
+    pct = feedback_pct if feedback_pct is not None else 0.0
+    if score == 0:
+        return TRUST_NEW
+    if 0 < score < 10:
+        return TRUST_LOW
+    if pct < 95:
+        return TRUST_POOR
+    if score >= 100 and pct >= 99:
+        return TRUST_TRUSTED
+    return TRUST_OK
+
+
+def is_suspicious(
+    total_price: float,
+    market_median: float | None,
+    trust_tier: str,
+) -> bool:
+    """A listing is suspicious when *both* the seller is new/low-trust
+    AND the price is anomalously below the market.
+
+    Either signal alone is fine: trusted sellers can list low for a
+    legit reason (damage, want to move stock, no time to research),
+    and new sellers can list at full market without being scammers.
+    The combination is what flags the pattern from the screenshot —
+    bri_769542 (0) at $74.52 on a $900 card."""
+    if trust_tier not in (TRUST_NEW, TRUST_LOW, TRUST_POOR):
+        return False
+    if market_median is None or market_median <= 0:
+        return False
+    return total_price < market_median * PRICE_ANOMALY_THRESHOLD
