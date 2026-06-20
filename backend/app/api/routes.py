@@ -55,6 +55,15 @@ async def list_sets(
     if series:
         stmt = stmt.where(Set.series == series)
 
+    # JP region default: hide sets that don't have a logo. TCGdex's /ja
+    # catalog mixes modern JP-exclusive expansions (which we want) with
+    # vintage / EN-translated / obscure sub-sets we have no artwork for
+    # (which clutter the grid). A logo URL is a clean proxy for "real
+    # JP set worth showing" - card-binder + Bulbapedia + manual entries
+    # together cover the modern eras (MEGA + SV + SwSh).
+    if language == "ja":
+        stmt = stmt.where(Set.logo_url.is_not(None))
+
     rows = (await db.execute(stmt)).all()
 
     # Per-user owned counts in one query if logged in
