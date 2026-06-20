@@ -12,6 +12,10 @@ const nextConfig = {
       { protocol: "https", hostname: "assets.tcgdex.net" },
       // Google profile pictures for Sign-in-with-Google avatars
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      // Bulbapedia / Bulbagarden archives — JP set logos (CC-BY-NC-SA 2.5,
+      // credit on /about). Used when TCGdex returns logo: null for a set,
+      // which is every JP set as of import.
+      { protocol: "https", hostname: "archives.bulbagarden.net" },
     ],
   },
   async rewrites() {
