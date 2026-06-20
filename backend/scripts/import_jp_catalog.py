@@ -70,6 +70,15 @@ async def _upsert_set(db, raw: dict, processed: set[str]) -> Set | None:
         return None
     processed.add(set_id)
     row = await db.get(Set, set_id)
+    if row is not None and row.language != "ja":
+        # Cross-language ID collision (e.g. lowercase JP set "sv1a" vs
+        # pokemontcg.io's English "sv1a"). Refuse to touch the row -
+        # silently overwriting EN data is worse than missing a JP set.
+        # Long-term we'll re-import these under a prefixed id.
+        log.warning(
+            f"  ! skip {set_id}: existing row is language={row.language!r}, refusing to overwrite"
+        )
+        return None
     if row is None:
         row = Set(id=set_id, language="ja")
         db.add(row)
@@ -89,9 +98,16 @@ async def _upsert_set(db, raw: dict, processed: set[str]) -> Set | None:
     return row
 
 
-async def _upsert_card(db, raw: dict, set_id: str) -> Card:
+async def _upsert_card(db, raw: dict, set_id: str) -> Card | None:
     card_id = raw["id"]
     row = await db.get(Card, card_id)
+    if row is not None and row.language != "ja":
+        # Same protection as _upsert_set - never overwrite an EN row
+        # because of a case-equal-id collision.
+        log.warning(
+            f"  ! skip card {card_id}: existing row is language={row.language!r}"
+        )
+        return None
     if row is None:
         row = Card(id=card_id, language="ja", set_id=set_id)
         db.add(row)
