@@ -48,8 +48,16 @@ export function CardThumb({ card, priority = false }: Props) {
             loading={priority ? "eager" : "lazy"}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-text-tertiary text-xs">
-            no image
+          // Vintage JP catalog (PMCG-era, late 90s sets) has no image data
+          // upstream from TCGdex - render a styled card-back instead of bare
+          // "no image" text so the grid stays visually consistent.
+          <div className="flex h-full flex-col items-center justify-center gap-1 p-3 text-center bg-gradient-to-br from-bg/40 to-accent-yellow/[0.06] border border-dashed border-border/50">
+            <span className="font-bold text-sm text-text-primary/80 leading-tight line-clamp-3">
+              {card.name}
+            </span>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-text-tertiary mt-1">
+              No artwork
+            </span>
           </div>
         )}
 
