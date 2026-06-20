@@ -72,10 +72,18 @@ export function Footer() {
             <ul className="mt-3 space-y-2 text-sm">
               <li>
                 <Link
-                  href="/me/collection"
+                  href="/portfolio"
                   className="text-text-secondary hover:text-text-primary"
                 >
-                  My collection
+                  Portfolio
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/wishlist"
+                  className="text-text-secondary hover:text-text-primary"
+                >
+                  Wishlist
                 </Link>
               </li>
               <li>

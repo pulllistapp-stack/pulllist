@@ -90,10 +90,10 @@ export default function AccountSettingsPage() {
             View portfolio
           </Link>
           <Link
-            href="/me/collection"
+            href="/wishlist"
             className="rounded-full border border-border bg-bg px-4 py-2 text-sm font-semibold text-center hover:border-accent-yellow/60 transition-colors"
           >
-            Manage collection
+            View wishlist
           </Link>
         </div>
       </section>

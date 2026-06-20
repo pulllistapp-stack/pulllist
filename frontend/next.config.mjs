@@ -28,6 +28,18 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // /me/collection used to be a near-duplicate of /portfolio (same
+      // stat cards + vault-by-set listing). Merged into /portfolio; this
+      // keeps old bookmarks and inbound links working.
+      {
+        source: "/me/collection",
+        destination: "/portfolio",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
