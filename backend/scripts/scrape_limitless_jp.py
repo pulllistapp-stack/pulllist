@@ -58,6 +58,21 @@ async def _empty_visible_sets(db) -> list[str]:
     return [r[0] for r in rows]
 
 
+async def _sets_with_missing_images(db) -> list[str]:
+    """Visible JP sets whose card rows exist but lack image URLs — happens
+    when TCGdex per-card returns image=null (M-series, SV11B/W)."""
+    rows = (await db.execute(text("""
+        SELECT s.id FROM sets s
+        JOIN cards c ON c.set_id=s.id AND c.language='ja'
+        WHERE s.language='ja'
+          AND s.logo_url IS NOT NULL
+          AND (c.image_small IS NULL OR c.image_large IS NULL)
+        GROUP BY s.id
+        ORDER BY s.id
+    """))).all()
+    return [r[0] for r in rows]
+
+
 async def _fetch_list(client: httpx.AsyncClient, set_id: str) -> list[tuple[str, str]]:
     """Returns [(card_number, sm_image_url), ...] for one set."""
     r = await client.get(f"{BASE}/cards/jp/{set_id}", timeout=20)
@@ -122,9 +137,40 @@ async def _scrape_set(client: httpx.AsyncClient, set_id: str) -> list[CardInfo]:
     return [r for r in results if r]
 
 
-async def _upsert(db, cards: list[CardInfo]) -> int:
+async def _upsert(db, cards: list[CardInfo], images_only: bool = False) -> int:
+    """When images_only=True, look up existing rows by (set_id, number_int)
+    rather than constructing the id ourselves — TCGdex uses zero-padded
+    ids (M1L-001) while Limitless lists raw numbers (1). Patch only the
+    blank image fields and leave the rest of TCGdex's data alone."""
     written = 0
     for c in cards:
+        row = None
+        if images_only:
+            try:
+                num_int = int(c.number)
+            except ValueError:
+                num_int = None
+            if num_int is not None:
+                from sqlalchemy import select as _select
+                row = (await db.execute(
+                    _select(Card).where(
+                        Card.set_id == c.set_id,
+                        Card.language == "ja",
+                        Card.number_int == num_int,
+                    ).limit(1)
+                )).scalar_one_or_none()
+            if row is None:
+                # No matching TCGdex row to patch — skip rather than
+                # silently creating a duplicate at a different id.
+                continue
+            if not row.image_small:
+                row.image_small = c.image_small
+            if not row.image_large:
+                row.image_large = c.image_large
+            written += 1
+            continue
+
+        # Default mode: id is set_id + "-" + number as-given.
         card_id = f"{c.set_id}-{c.number}"
         row = await db.get(Card, card_id)
         if row is not None and row.language != "ja":
@@ -149,12 +195,15 @@ async def _upsert(db, cards: list[CardInfo]) -> int:
     return written
 
 
-async def run(only: str | None, dry: bool) -> None:
+async def run(only: str | None, dry: bool, mode: str) -> None:
     await init_db()
 
     async with SessionLocal() as db:
         if only:
             targets = [only]
+        elif mode == "fill-images":
+            targets = await _sets_with_missing_images(db)
+            log.info(f"Found {len(targets)} visible JP sets missing card images.")
         else:
             targets = await _empty_visible_sets(db)
             log.info(f"Found {len(targets)} visible JP sets with 0 cards.")
@@ -163,6 +212,7 @@ async def run(only: str | None, dry: bool) -> None:
         log.info("Nothing to do.")
         return
 
+    images_only = (mode == "fill-images")
     headers = {"User-Agent": "PullList-Catalog/1.0 (+https://pulllist.org)"}
     async with httpx.AsyncClient(headers=headers, follow_redirects=True) as client:
         for i, sid in enumerate(targets, 1):
@@ -174,19 +224,22 @@ async def run(only: str | None, dry: bool) -> None:
                 log.info(f"  {sid}: would write {len(cards)} cards (sample: {cards[0].name_jp})")
                 continue
             async with SessionLocal() as db:
-                n = await _upsert(db, cards)
-                log.info(f"  {sid}: wrote {n} cards")
+                n = await _upsert(db, cards, images_only=images_only)
+                log.info(f"  {sid}: wrote {n} cards" + (" (images only)" if images_only else ""))
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--set", dest="only", help="One TCGdex set id (e.g. S11a)")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--fill-images", action="store_true",
+                   help="Target sets that already have card rows but blank image URLs (TCGdex returned image=null)")
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    asyncio.run(run(args.only, args.dry_run))
+    mode = "fill-images" if args.fill_images else "empty-sets"
+    asyncio.run(run(args.only, args.dry_run, mode))
 
 
 if __name__ == "__main__":

@@ -60,6 +60,30 @@ def _image_urls(base: str | None) -> tuple[str | None, str | None]:
     return base + IMAGE_SMALL_SUFFIX, base + IMAGE_LARGE_SUFFIX
 
 
+# TCGdex's JP rarity labels use inconsistent casing ("Double rare",
+# "Illustration rare") and a few non-pokemontcg.io spellings ("Holo Rare",
+# "Secret Rare"). The frontend filter groups (FilterSidebar) and the
+# rarity-tier color map (lib/rarity.ts) both key off pokemontcg.io's
+# canonical names, so we normalize on the way in.
+_RARITY_REMAP: dict[str, str] = {
+    "Holo Rare": "Rare Holo",
+    "Double rare": "Double Rare",
+    "Illustration rare": "Illustration Rare",
+    "Special illustration rare": "Special Illustration Rare",
+    "Shiny rare": "Shiny Rare",
+    "Secret Rare": "Rare Secret",
+}
+
+
+def _normalize_rarity(value: str | None) -> str | None:
+    if not value:
+        return None
+    # TCGdex sometimes returns the string "None"; treat it as missing.
+    if value == "None":
+        return None
+    return _RARITY_REMAP.get(value, value)
+
+
 async def _upsert_set(db, raw: dict, processed: set[str]) -> Set | None:
     set_id = raw["id"]
     # Defend against duplicate detail responses in the same batch. The
@@ -125,7 +149,7 @@ async def _upsert_card(db, raw: dict, set_id: str) -> Card | None:
     row.name_local = name  # JP catalog: native name == display name
     row.supertype = raw.get("category")
     row.types = raw.get("types")
-    row.rarity = raw.get("rarity")
+    row.rarity = _normalize_rarity(raw.get("rarity"))
     row.number = raw.get("localId")
     row.number_int = _coerce_int(raw.get("localId"))
     row.hp = str(raw.get("hp")) if raw.get("hp") is not None else None
