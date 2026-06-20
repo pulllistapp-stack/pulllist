@@ -80,8 +80,16 @@ export function SetCard({ set }: Props) {
         )}
       </div>
 
-      <div className="text-sm font-semibold truncate w-full text-center" title={displayName}>
-        {displayName}
+      <div className="text-sm font-semibold w-full text-center leading-tight" title={displayName}>
+        <div className="truncate">{displayName}</div>
+        {/* English name in muted parens for JP-primary sets - matches the
+            card-binder convention "クレイバースト (Clay Burst)". Skip when
+            the English name is identical (avoids "Wild Force (Wild Force)"). */}
+        {set.name_en && set.name_en !== displayName && (
+          <div className="mt-0.5 text-xs font-normal text-text-tertiary truncate">
+            ({set.name_en})
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex items-center justify-center gap-2 text-xs font-mono text-text-tertiary">

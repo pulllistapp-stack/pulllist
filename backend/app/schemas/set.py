@@ -11,6 +11,9 @@ class SetBase(BaseModel):
     name_ko: str | None = None
     """Korean translation of the set name. Frontend swaps to this when the
     user toggles UI language to KR. Null for sets we haven't mapped yet."""
+    name_en: str | None = None
+    """English equivalent of a JP-primary set name (e.g., 'Snow Hazard'
+    for スノーハザード). Frontend renders 'JP (EN)' on JP catalog cards."""
     series: str | None = None
     printed_total: int | None = None
     total: int | None = None

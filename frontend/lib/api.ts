@@ -2,6 +2,7 @@ export type SetWithCardCount = {
   id: string;
   name: string;
   name_ko: string | null;
+  name_en: string | null;
   series: string | null;
   printed_total: number | null;
   total: number | null;

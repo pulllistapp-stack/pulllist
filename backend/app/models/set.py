@@ -28,6 +28,12 @@ class Set(Base):
     name_local: Mapped[str | None] = mapped_column(String(255), nullable=True)
     """Native-language set name (e.g., リザードンEXパック). Use `name` for English."""
 
+    name_en: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    """English translation/equivalent of the set name. Used to render
+    "JP Name (English Name)" labels on JP catalog cards, the same way
+    card-binder.com surfaces both. Populated from JP_SET_TO_BULBAPEDIA
+    page titles."""
+
     name_ko: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     """Korean translation of the set name, even for non-KR primary sets.
 
