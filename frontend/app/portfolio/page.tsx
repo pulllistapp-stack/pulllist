@@ -222,10 +222,10 @@ export default function PortfolioPage() {
         <div className="rounded-card bg-bg-surface border border-border p-5">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary">
-              Top cards by value
+              Top 10 cards by value
             </h2>
             <span className="text-xs font-mono text-text-tertiary">
-              {items.length} total
+              {Math.min(items.length, 10)} of {items.length}
             </span>
           </div>
 
@@ -245,26 +245,31 @@ export default function PortfolioPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {[...items]
                 .sort(
                   (a, b) =>
                     (b.market_price_usd ?? 0) - (a.market_price_usd ?? 0),
                 )
-                .slice(0, 12)
-                .map((it) => (
+                .slice(0, 10)
+                .map((it, i) => (
                   <Link
                     key={it.id}
                     href={`/cards/${it.card_id}`}
                     className="group block"
                   >
                     <div className="relative aspect-[245/342] overflow-hidden rounded-md bg-bg border border-border group-hover:border-accent-yellow/40">
+                      {/* Rank badge — makes the "Top 10" ordering explicit
+                          so the row is read as a leaderboard, not a sample. */}
+                      <span className="absolute top-1 left-1 z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900/80 dark:bg-zinc-900/80 px-1.5 text-[10px] font-bold text-white backdrop-blur">
+                        #{i + 1}
+                      </span>
                       {it.image_small && (
                         <Image
                           src={it.image_small}
                           alt={it.card_name}
                           fill
-                          sizes="100px"
+                          sizes="120px"
                           className="object-contain group-hover:scale-[1.03] transition-transform"
                           unoptimized
                         />
@@ -272,7 +277,7 @@ export default function PortfolioPage() {
                     </div>
                     <div className="mt-1.5 flex items-center justify-between text-xs">
                       <span className="font-mono text-text-tertiary truncate">
-                        #{it.card_number ?? "—"}
+                        {it.card_number ? `№${it.card_number}` : "—"}
                       </span>
                       <span className="font-mono font-bold text-accent-yellow">
                         {it.market_price_usd != null
