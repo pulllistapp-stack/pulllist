@@ -54,7 +54,7 @@ export function SetCard({ set }: Props) {
         </div>
       )}
 
-      <div className="h-16 w-full flex items-center justify-center mb-3">
+      <div className="relative h-16 w-full flex items-center justify-center mb-3">
         {set.logo_url ? (
           <Image
             src={set.logo_url}
@@ -65,7 +65,18 @@ export function SetCard({ set }: Props) {
             unoptimized
           />
         ) : (
-          <span className="text-text-tertiary text-xs">no logo</span>
+          // Pretty placeholder for sets without a logo - common for JP imports
+          // where TCGdex returns logo: null. Better than the bare "no logo"
+          // text; renders the set name in a styled card so the grid still has
+          // visual weight.
+          <div className="h-full w-full flex items-center justify-center rounded-md bg-gradient-to-br from-bg/60 to-accent-yellow/[0.08] dark:from-bg/40 dark:to-accent-yellow/10 border border-dashed border-border/60 px-3 group-hover:border-accent-yellow/40 group-hover:scale-[1.02] transition-all duration-300">
+            <span
+              className="font-bold text-sm text-text-primary/80 text-center leading-tight line-clamp-2"
+              title={displayName}
+            >
+              {displayName}
+            </span>
+          </div>
         )}
       </div>
 
