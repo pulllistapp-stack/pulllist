@@ -144,12 +144,20 @@ export function Footer() {
             commission at no extra cost to you. Affiliate links are labeled
             with an &quot;Ad&quot; tag where they appear inline.
           </p>
+          <p className="mb-3 leading-relaxed">
+            Card data: pokemontcg.io (CC BY 4.0), TCGdex, Limitless TCG. Set
+            logos under fair use and CC BY-NC-SA 2.5 from Bulbapedia / Bulbagarden
+            Archives. See <Link href="/about" className="underline hover:text-text-secondary">About</Link> for the full attributions.
+          </p>
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-            <p>
-              © {new Date().getFullYear()} PullList. Not affiliated with Nintendo,
-              Creatures, or GAME FREAK.
+            <p className="max-w-2xl leading-relaxed">
+              © {new Date().getFullYear()} PullList. Pokémon and all related
+              characters are trademarks of Nintendo, Creatures Inc., GAME FREAK
+              inc., and The Pokémon Company International. Wizards of the Coast
+              owns trademarks on older Pokémon TCG sets. PullList is unaffiliated
+              with, not endorsed by, and not sponsored by any of these companies.
             </p>
-            <span className="inline-flex items-center gap-1.5 font-medium uppercase tracking-wider">
+            <span className="inline-flex shrink-0 items-center gap-1.5 font-medium uppercase tracking-wider">
               <span className="relative inline-flex h-2 w-2">
                 <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />

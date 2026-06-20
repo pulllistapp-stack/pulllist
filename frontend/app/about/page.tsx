@@ -92,31 +92,98 @@ export default function AboutPage() {
 
       <section className="rounded-2xl border border-border bg-bg-surface p-6">
         <h2 className="text-sm font-mono uppercase tracking-widest text-text-tertiary mb-3">
-          Data sources
+          Data sources &amp; attributions
         </h2>
-        <ul className="text-sm text-text-secondary space-y-1.5">
+        <ul className="text-sm text-text-secondary space-y-2">
           <li>
-            <strong className="text-text-primary">Card catalog:</strong>{" "}
-            pokemontcg.io (CC BY 4.0)
+            <strong className="text-text-primary">English card catalog:</strong>{" "}
+            <a
+              href="https://pokemontcg.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              pokemontcg.io
+            </a>{" "}
+            (CC BY 4.0)
+          </li>
+          <li>
+            <strong className="text-text-primary">Japanese card catalog:</strong>{" "}
+            <a
+              href="https://tcgdex.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              TCGdex
+            </a>{" "}
+            — see their site for license terms
+          </li>
+          <li>
+            <strong className="text-text-primary">JP card images (gap-fill):</strong>{" "}
+            <a
+              href="https://limitlesstcg.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              Limitless TCG
+            </a>{" "}
+            — used for sets and promos where TCGdex has metadata only
+          </li>
+          <li>
+            <strong className="text-text-primary">Set logos:</strong>{" "}
+            <a
+              href="https://bulbapedia.bulbagarden.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              Bulbapedia / Bulbagarden Archives
+            </a>{" "}
+            (CC BY-NC-SA 2.5)
           </li>
           <li>
             <strong className="text-text-primary">TCGplayer prices:</strong>{" "}
             public infinite-api history endpoint
           </li>
           <li>
-            <strong className="text-text-primary">eBay prices:</strong> Browse
-            API (sold listings)
+            <strong className="text-text-primary">eBay listings &amp; prices:</strong>{" "}
+            <a
+              href="https://developer.ebay.com/develop/get-started/getting-started"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              eBay Browse API
+            </a>
           </li>
           <li>
             <strong className="text-text-primary">Cardmarket prices:</strong>{" "}
             pokemontcg.io aggregated trend data
           </li>
         </ul>
+        <p className="mt-4 text-xs text-text-tertiary leading-relaxed">
+          Card and set names are used for identification only (nominative fair
+          use). Card images are displayed via the licensed APIs above or under
+          fair-use thumbnail conventions. If you&apos;re a rights holder and
+          believe content here needs to come down,{" "}
+          <a
+            href="mailto:hello@pulllist.org"
+            className="underline hover:text-text-secondary"
+          >
+            email us
+          </a>{" "}
+          and we&apos;ll act on it within 48 hours.
+        </p>
       </section>
 
-      <footer className="mt-12 text-center text-xs text-text-tertiary font-mono uppercase tracking-widest">
-        Pokémon and all related characters are trademarks of Nintendo /
-        Creatures Inc. / GAME FREAK inc. PullList is unaffiliated.
+      <footer className="mt-12 text-center text-xs text-text-tertiary font-mono uppercase tracking-widest leading-relaxed">
+        Pokémon and all related characters are trademarks of Nintendo, Creatures
+        Inc., GAME FREAK inc., and The Pokémon Company International. Wizards of
+        the Coast owns trademarks on older Pokémon TCG sets. PullList is
+        unaffiliated with, not endorsed by, and not sponsored by any of these
+        companies.
         <div className="mt-3 flex items-center justify-center gap-4">
           <Link href="/privacy" className="hover:text-text-secondary">
             Privacy
