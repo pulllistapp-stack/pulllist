@@ -116,6 +116,21 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     "S1H":    "Shield (TCG)",
 }
 
+# Direct image URL overrides for sets where Bulbapedia has no logo file
+# uploaded. Drop a remote URL here, the script will download + mirror it
+# under /public/set-logos/{set_id}.png. Useful for the modern JP sets
+# whose Bulbapedia pages don't link a logo image (SV6, SV7a, SV8, SV8a,
+# SV9, SV9a, SV10, S7D, S6K, S11a, SV2a, etc.).
+#
+# LO usage: when you find a logo image anywhere - pokemon-card.com,
+# Twitter, a Reddit thread, a forum post - copy the image URL and add
+# it here. The script handles the rest.
+MANUAL_LOGO_URLS: dict[str, str] = {
+    # "SV10":   "https://...",
+    # "SV9":    "https://...",
+    # "SV8":    "https://...",
+}
+
 
 def _is_jp_logo_filename(name: str) -> bool:
     """Heuristic: Bulbapedia uploads JP set logos as e.g. M2_Logo_JP.png,
@@ -208,7 +223,28 @@ async def run(dry: bool) -> None:
         MIRROR_DIR.mkdir(parents=True, exist_ok=True)
 
     async with httpx.AsyncClient(headers=headers) as client:
+        # ── Pass 0: manual URL overrides ─────────────────────────────
+        # LO drops a logo image URL into MANUAL_LOGO_URLS for any set
+        # Bulbapedia doesn't host. We download + mirror those first so
+        # they take precedence and skip the API path entirely.
+        for set_id, url in MANUAL_LOGO_URLS.items():
+            ext = Path(urlparse(url).path).suffix or ".png"
+            local_rel = f"/set-logos/{set_id}{ext}"
+            local_abs = MIRROR_DIR / f"{set_id}{ext}"
+            if dry:
+                log.info(f"  ↻ {set_id:8s} MANUAL {url[:60]} (would save to {local_rel})")
+                found[set_id] = (url, local_rel)
+                continue
+            ok = await _download_image(client, url, local_abs)
+            if ok:
+                log.info(f"  ↻ {set_id:8s} MANUAL -> {local_rel} ({local_abs.stat().st_size:,} bytes)")
+                found[set_id] = (url, local_rel)
+            else:
+                misses.append(set_id)
+
         for set_id, page in JP_SET_TO_BULBAPEDIA.items():
+            if set_id in MANUAL_LOGO_URLS:
+                continue  # already handled in pass 0
             try:
                 imgs = await _page_images(client, page)
             except httpx.HTTPError as e:
