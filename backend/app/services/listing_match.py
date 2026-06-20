@@ -30,6 +30,61 @@ from dataclasses import dataclass
 _NUMBER_PAIR_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 
 
+# ── Accessory-listing denylist ───────────────────────────────────────
+# Some sellers list custom display cases, acrylic stands, proxies, or
+# empty wrappers and put the card's full name + number in the title for
+# discoverability. The listing image often shows the actual card with
+# "Card Not Included" superimposed. These are legitimate sellers (the
+# Dragon Slabs example had 6938 feedback / 100% positive) so the seller-
+# trust filter waves them through, and the card-number filter accepts
+# them because the number is in the title. We drop them by title phrase.
+#
+# Phrases > single words because "case" alone would catch graded slabs
+# ("PSA Case 9.5") which are real cards.
+_ACCESSORY_PHRASES = [
+    # Display / protection accessories
+    "artwork case", "art case", "display case", "acrylic case",
+    "custom case", "tcg case", "extended artwork",
+    "display stand", "card stand", "acrylic stand",
+    "card holder", "card display", "acrylic display",
+    "acrylic frame", "card frame",
+    # Sleeves / binders — only multi-word forms
+    "card sleeve", "card sleeves", "card binder",
+    # Proxies / fan art
+    "custom proxy", "proxy card", "fan art", "fanart",
+    "fan made", "custom print",
+    # Empties
+    "empty pack", "empty wrapper", "empty booster", "empty box",
+    # Explicit "not the card" tells
+    "card not included", "no card included", "case only",
+    "slab only",
+]
+
+# Single-word red flags — strict word-boundary match.
+_ACCESSORY_WORDS = [
+    "proxy", "replica",
+]
+_ACCESSORY_WORD_RE = re.compile(
+    r"\b(" + "|".join(_ACCESSORY_WORDS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def is_accessory_listing(title: str) -> bool:
+    """True when the title looks like a case/stand/proxy/empty rather
+    than the actual card. Drop these entirely rather than flagging —
+    they're not the same product class."""
+    if not title:
+        return False
+    t = title.lower()
+    for phrase in _ACCESSORY_PHRASES:
+        if phrase in t:
+            return True
+    if _ACCESSORY_WORD_RE.search(t):
+        return True
+    return False
+
+
 @dataclass(frozen=True)
 class MatchResult:
     score: int
@@ -98,21 +153,36 @@ def filter_listings(
     card_number: str | None,
     printed_total: int | None,
     min_score: int = 70,
-) -> tuple[list[dict], dict[int, int]]:
+) -> tuple[list[dict], dict[str, int]]:
     """Filter a list of eBay itemSummaries by score.
 
-    Returns (kept, dropped_breakdown). The breakdown counts per tier
-    so the endpoint can include it in the response for debugging.
+    Returns (kept, dropped_breakdown). The breakdown buckets dropped
+    items by reason (different-print / no-pattern / accessory) so the
+    endpoint can surface counts for debugging or a future "show hidden"
+    UI.
     """
     kept: list[dict] = []
-    dropped: dict[int, int] = {0: 0, 30: 0, 70: 0, 100: 0}
+    dropped: dict[str, int] = {
+        "different_print": 0,
+        "no_pattern": 0,
+        "accessory": 0,
+    }
     for it in items:
         title = (it.get("title") or "").strip()
+
+        # Accessory check first — it doesn't matter what the card-number
+        # match says if the listing is a case/stand/proxy/empty.
+        if is_accessory_listing(title):
+            dropped["accessory"] += 1
+            continue
+
         res = score_listing(title, card_number, printed_total)
         if res.score >= min_score:
             kept.append(it)
+        elif res.score == 0:
+            dropped["different_print"] += 1
         else:
-            dropped[res.score] = dropped.get(res.score, 0) + 1
+            dropped["no_pattern"] += 1
     return kept, dropped
 
 
@@ -157,16 +227,29 @@ def is_suspicious(
     market_median: float | None,
     trust_tier: str,
 ) -> bool:
-    """A listing is suspicious when *both* the seller is new/low-trust
-    AND the price is anomalously below the market.
+    """A listing is suspicious when EITHER
 
-    Either signal alone is fine: trusted sellers can list low for a
-    legit reason (damage, want to move stock, no time to research),
+    1. low-trust seller + below 40% of market (the bri_769542 scam
+       pattern: 0-feedback seller at 9% of market), OR
+    2. ANY seller + below 10% of market on a >$30 card — even trusted
+       sellers don't legitimately sell $854 cards for $12. That's
+       either an accessory we missed (Dragon Slabs cases), a price
+       typo, or a Buy-It-Now decoy. Worth a warning regardless of who.
+
+    Otherwise we don't flag: trusted sellers can list 50% below market
+    for damage / clearance / fast-sale reasons without it being a scam,
     and new sellers can list at full market without being scammers.
-    The combination is what flags the pattern from the screenshot —
-    bri_769542 (0) at $74.52 on a $900 card."""
-    if trust_tier not in (TRUST_NEW, TRUST_LOW, TRUST_POOR):
-        return False
+    """
     if market_median is None or market_median <= 0:
         return False
-    return total_price < market_median * PRICE_ANOMALY_THRESHOLD
+
+    # Rule 2 — ultra-low ratio, trust-agnostic. Skips low-value cards
+    # ($30 floor) where small absolute prices are normal.
+    if market_median >= 30 and total_price < market_median * 0.10:
+        return True
+
+    # Rule 1 — bad-seller + below 40%
+    if trust_tier in (TRUST_NEW, TRUST_LOW, TRUST_POOR):
+        return total_price < market_median * PRICE_ANOMALY_THRESHOLD
+
+    return False

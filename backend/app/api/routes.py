@@ -639,8 +639,9 @@ async def get_live_listings(
         "filter": {
             "min_score": 70,
             "raw_count": len(raw_items),
-            "dropped_other_print": dropped.get(0, 0),
-            "dropped_no_pattern": dropped.get(30, 0),
+            "dropped_other_print": dropped.get("different_print", 0),
+            "dropped_no_pattern": dropped.get("no_pattern", 0),
+            "dropped_accessory": dropped.get("accessory", 0),
         },
     }
 

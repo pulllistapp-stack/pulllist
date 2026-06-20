@@ -10,6 +10,7 @@ from app.services.listing_match import (
     TRUST_POOR,
     TRUST_TRUSTED,
     filter_listings,
+    is_accessory_listing,
     is_suspicious,
     score_listing,
     seller_trust_tier,
@@ -121,7 +122,7 @@ class TestFilterListings:
         )
         kept, dropped = filter_listings(items, TARGET_NUM, TARGET_TOTAL)
         assert len(kept) == 2
-        assert dropped[0] == 2
+        assert dropped["different_print"] == 2
 
     def test_filter_at_70_keeps_partial(self):
         items = self._items(
@@ -130,7 +131,7 @@ class TestFilterListings:
         )
         kept, dropped = filter_listings(items, TARGET_NUM, TARGET_TOTAL, min_score=70)
         assert len(kept) == 1
-        assert dropped[0] == 1
+        assert dropped["different_print"] == 1
 
     def test_filter_at_100_strict_for_alerts(self):
         # Wishlist alert mode: only the perfect-exact listings survive
@@ -141,8 +142,21 @@ class TestFilterListings:
         )
         kept, dropped = filter_listings(items, TARGET_NUM, TARGET_TOTAL, min_score=100)
         assert len(kept) == 1
-        assert dropped[70] == 1
-        assert dropped[0] == 1
+        assert dropped["no_pattern"] == 1  # 62/124 is below min_score=100
+        assert dropped["different_print"] == 1
+
+    def test_filter_drops_accessories(self):
+        # Even if title has matching number, accessory keyword wins
+        items = self._items(
+            "Pokemon Meowth ex 062/088 Mega Brave",        # 100, kept
+            "Mega Charizard X 125/094 Extended Artwork Case",  # accessory
+            "Custom Acrylic Display Case 062/088 Meowth",  # accessory
+        )
+        # Note this test uses Meowth target so the Charizard accessory
+        # also wouldn't score-match, but the accessory drop happens first.
+        kept, dropped = filter_listings(items, TARGET_NUM, TARGET_TOTAL)
+        assert len(kept) == 1
+        assert dropped["accessory"] == 2
 
 
 class TestSellerTrust:
@@ -179,10 +193,22 @@ class TestIsSuspicious:
         # from a 0-feedback seller. Must flag.
         assert is_suspicious(74.52, 854.65, TRUST_NEW) is True
 
-    def test_trusted_low_price_not_suspicious(self):
-        # Trusted seller listing below market is just a deal, not a scam
-        assert is_suspicious(74.52, 854.65, TRUST_TRUSTED) is False
-        assert is_suspicious(74.52, 854.65, TRUST_OK) is False
+    def test_trusted_modest_discount_not_suspicious(self):
+        # 50% off from a trusted seller is just a deal — damage,
+        # clearance, fast-sale. Don't flag.
+        assert is_suspicious(400.0, 854.65, TRUST_TRUSTED) is False
+        assert is_suspicious(400.0, 854.65, TRUST_OK) is False
+
+    def test_trusted_ultra_low_still_flagged(self):
+        # Even trusted sellers don't legitimately sell $854 cards for $74.
+        # That's a typo, an accessory, or a Buy-It-Now decoy — flag it.
+        assert is_suspicious(74.52, 854.65, TRUST_TRUSTED) is True
+
+    def test_dragon_slabs_case_pattern(self):
+        # The real case: trusted seller (6938 feedback) asking $12 on
+        # a $854 SIR. Title keyword filter catches this first, but the
+        # ultra-low rule is a backstop if the title isn't obvious.
+        assert is_suspicious(12.00, 854.65, TRUST_TRUSTED) is True
 
     def test_new_seller_market_price_not_suspicious(self):
         # New seller asking close to market — could be legit beginner
@@ -204,3 +230,40 @@ class TestIsSuspicious:
         assert is_suspicious(0.50, 2.00, TRUST_NEW) is True  # tier alone matches
         # That's by design — we treat ANY new+low combo the same. Frontend
         # can suppress the warning for cards under a value threshold.
+
+    def test_low_value_card_ignored_by_ultra_low(self):
+        # On a $20 card the ultra-low rule shouldn't fire (market<$30 floor)
+        # so a $1 trusted listing isn't auto-flagged. Trust path still applies.
+        assert is_suspicious(1.0, 20.0, TRUST_TRUSTED) is False
+
+
+class TestIsAccessoryListing:
+    def test_dragon_slabs_artwork_case(self):
+        # Real eBay title from the screenshot
+        assert is_accessory_listing(
+            "Pokemon Mega Charizard X EX SIR 125/094 Phantasmal Flames Extended Artwork Case"
+        )
+
+    def test_acrylic_display(self):
+        assert is_accessory_listing("Pokemon Card Acrylic Display Stand 062/088")
+
+    def test_card_not_included_tell(self):
+        assert is_accessory_listing("Custom Print Charizard 4/102 Card Not Included")
+
+    def test_proxy_dropped(self):
+        assert is_accessory_listing("Mewtwo ex 062/088 Custom Proxy Card")
+
+    def test_real_graded_slab_kept(self):
+        # PSA-graded slab listings DO have "case" implications in
+        # description but the title usually doesn't. We must not drop:
+        assert not is_accessory_listing(
+            "PSA 10 Charizard 4/102 Base Set Holo Pokemon"
+        )
+
+    def test_real_raw_card_kept(self):
+        assert not is_accessory_listing(
+            "Pokemon Meowth ex 062/088 Double Rare Perfect Order NM"
+        )
+
+    def test_empty_wrapper_dropped(self):
+        assert is_accessory_listing("Pokemon Mega Evolution Empty Booster Wrapper")
