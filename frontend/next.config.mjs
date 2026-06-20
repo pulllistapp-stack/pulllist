@@ -8,6 +8,10 @@ const nextConfig = {
       // eBay listing thumbnails for the Live Listings panel
       { protocol: "https", hostname: "i.ebayimg.com" },
       { protocol: "https", hostname: "thumbs.ebaystatic.com" },
+      // TCGdex hosts JP card + set asset images for the Japan catalog
+      { protocol: "https", hostname: "assets.tcgdex.net" },
+      // Google profile pictures for Sign-in-with-Google avatars
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
   async rewrites() {
