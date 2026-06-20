@@ -2,14 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import {
-  CheckCircle2,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  ShieldCheck,
-  Truck,
-} from "lucide-react";
+import { Loader2, RefreshCw, ShieldCheck, Truck } from "lucide-react";
 
 import { getLiveListings, type LiveListing } from "@/lib/api";
 import { wrapEbayUrl, wrapTcgPlayerUrl } from "@/lib/affiliate";
@@ -221,7 +214,7 @@ export function LiveListings({ cardId }: { cardId: string }) {
       )}
 
       {filtered.length > 0 && (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-3 snap-x scroll-pl-1">
           {filtered.map((l) => (
             <ListingCard
               key={l.url}
@@ -253,27 +246,36 @@ function ListingCard({
         ? wrapTcgPlayerUrl(listing.url)
         : listing.url;
 
+  // Compact carousel card — eBay-style horizontal strip. The whole tile is the
+  // outbound link; no separate Buy button needed.
   return (
     <a
       href={outboundUrl}
       target="_blank"
       rel="noopener noreferrer sponsored"
+      title={listing.title}
       className={cn(
-        "group relative flex gap-3 rounded-2xl border bg-bg p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        "group relative flex w-[150px] shrink-0 snap-start flex-col gap-1.5 rounded-2xl border bg-bg p-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
         isCheapest
-          ? "border-accent-yellow/50 hover:border-accent-yellow shadow-sm shadow-accent-yellow/10"
+          ? "border-accent-yellow/60 hover:border-accent-yellow shadow-sm shadow-accent-yellow/10"
           : "border-border hover:border-accent-yellow/40",
       )}
     >
+      {isCheapest && (
+        <span className="absolute -top-2 left-2 z-10 inline-flex items-center rounded-full bg-accent-yellow text-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm">
+          Cheapest
+        </span>
+      )}
+
       {/* Thumbnail */}
-      <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-lg bg-bg-surface">
+      <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-bg-surface">
         {listing.image_url ? (
           <Image
             src={listing.image_url}
             alt=""
             fill
-            className="object-contain"
-            sizes="96px"
+            className="object-contain transition-transform duration-200 group-hover:scale-[1.04]"
+            sizes="150px"
             unoptimized
           />
         ) : (
@@ -281,61 +283,44 @@ function ListingCard({
             no img
           </div>
         )}
-      </div>
 
-      {/* Middle: title + chips + seller */}
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5 mb-1">
-          {isCheapest && (
-            <span className="inline-flex items-center rounded-full bg-accent-yellow/15 text-accent-yellow border border-accent-yellow/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-              Cheapest
-            </span>
-          )}
-          {graded ? (
-            <span className="inline-flex items-center rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-300 border border-violet-500/30 px-2 py-0.5 text-[10px] font-semibold uppercase">
-              Graded
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-full bg-bg-surface text-text-tertiary border border-border px-2 py-0.5 text-[10px] font-semibold uppercase">
-              {listing.condition}
-            </span>
-          )}
-          {freeShip && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-accent-green/15 text-accent-green border border-accent-green/30 px-2 py-0.5 text-[10px] font-semibold uppercase">
-              <Truck className="h-2.5 w-2.5" />
-              Free ship
-            </span>
-          )}
-        </div>
-
-        <p className="line-clamp-2 text-xs text-text-primary leading-snug">
-          {listing.title}
-        </p>
-
-        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-text-tertiary">
-          <span className="truncate font-medium text-text-secondary max-w-[160px]">
-            {listing.seller}
+        {freeShip && (
+          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-full bg-accent-green/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+            <Truck className="h-2.5 w-2.5" />
+            Free
           </span>
-          <SellerTrust pct={feedback} />
-        </div>
+        )}
+
+        {graded && (
+          <span className="absolute top-1 left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+            Graded
+          </span>
+        )}
       </div>
 
-      {/* Right: price stack */}
-      <div className="flex flex-col items-end justify-between shrink-0">
-        <div className="text-right">
-          <p className="font-mono text-lg sm:text-xl font-extrabold text-text-primary leading-none">
-            {fmtUSD(listing.total_usd)}
+      {/* Price */}
+      <div>
+        <p className="font-mono text-base font-extrabold text-text-primary leading-none">
+          {fmtUSD(listing.total_usd)}
+        </p>
+        {!freeShip && (
+          <p className="mt-0.5 text-[9px] font-mono text-text-tertiary leading-none">
+            +{fmtUSD(listing.shipping_usd)} ship
           </p>
-          {!freeShip && (
-            <p className="mt-0.5 text-[10px] font-mono text-text-tertiary">
-              {fmtUSD(listing.price_usd)} + {fmtUSD(listing.shipping_usd)} ship
-            </p>
-          )}
-        </div>
-        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-900 dark:bg-zinc-100 text-white dark:text-gray-900 px-3 py-1 text-[11px] font-bold group-hover:brightness-110 transition">
-          Buy
-          <ExternalLink className="h-3 w-3" />
-        </span>
+        )}
+      </div>
+
+      {/* Title */}
+      <p className="line-clamp-2 text-[11px] text-text-secondary leading-snug">
+        {listing.title}
+      </p>
+
+      {/* Bottom: condition (when ungraded) + seller trust */}
+      <div className="mt-auto flex items-center justify-between gap-1 text-[10px] text-text-tertiary">
+        {!graded && (
+          <span className="font-mono uppercase truncate">{listing.condition}</span>
+        )}
+        <SellerTrust pct={feedback} />
       </div>
     </a>
   );
@@ -343,22 +328,16 @@ function ListingCard({
 
 function ListingsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-2.5">
-      {[0, 1, 2].map((i) => (
+    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-3">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <div
           key={i}
-          className="flex gap-3 rounded-2xl border border-border bg-bg p-3 animate-pulse"
+          className="flex w-[150px] shrink-0 flex-col gap-1.5 rounded-2xl border border-border bg-bg p-2 animate-pulse"
         >
-          <div className="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-lg bg-bg-surface" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3 w-1/3 rounded bg-bg-surface" />
-            <div className="h-3 w-3/4 rounded bg-bg-surface" />
-            <div className="h-2 w-1/2 rounded bg-bg-surface" />
-          </div>
-          <div className="space-y-2 text-right">
-            <div className="h-5 w-16 rounded bg-bg-surface" />
-            <div className="h-6 w-12 rounded bg-bg-surface" />
-          </div>
+          <div className="aspect-square w-full rounded-lg bg-bg-surface" />
+          <div className="h-4 w-16 rounded bg-bg-surface" />
+          <div className="h-3 w-3/4 rounded bg-bg-surface" />
+          <div className="h-3 w-1/2 rounded bg-bg-surface" />
         </div>
       ))}
     </div>
