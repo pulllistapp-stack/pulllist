@@ -126,9 +126,21 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
 # Twitter, a Reddit thread, a forum post - copy the image URL and add
 # it here. The script handles the rest.
 MANUAL_LOGO_URLS: dict[str, str] = {
-    # "SV10":   "https://...",
-    # "SV9":    "https://...",
-    # "SV8":    "https://...",
+    # card-binder.com collection thumbnails - clean, transparent webp logos
+    # they uploaded for their JP set product pages. Mirroring to our own
+    # /public/set-logos/ so we're not hotlinking their Shopify CDN.
+    "SV9a":  "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-Hot-Air-Heat-Wave-Arena-Logo_e4b93fa3-3e7e-43e5-8848-312ca721e511.webp",
+    "SV10":  "https://card-binder.com/cdn/shop/collections/Glory-of-Team-Rocket.logo.413.webp",
+    "SV9":   "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-Battle-Partners-Logo_796f4586-33eb-40dd-bfdc-764a26dcc638.webp",
+    "SV8a":  "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-Terastal-Festival-ex-Logo_c23e1b7b-26bf-4f5a-af55-cfee69ff78d6.webp",
+    "SV8":   "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-Super-Electric-Breaker-Logo_5555e9c7-9a7d-49c6-927c-93874d6d3c2f.webp",
+    "SV7a":  "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-Paradise-Dragona-Logo_516d307a-a500-406c-811c-8fa370a9478b.webp",
+    "SV6":   "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-Mask-of-Change-Logo_bfce4f9b-a8b4-43f6-bcef-db3eab7d4431.webp",
+    "SV2a":  "https://card-binder.com/cdn/shop/collections/Pokemon-TCG-Japan-151-Logo_038a8b53-aca5-42aa-9781-6b03e63614b0.webp",
+    "S11a":  "https://card-binder.com/cdn/shop/collections/Incandescent-Arcana.logo.webp",
+    "S7D":   "https://card-binder.com/cdn/shop/collections/Perfect-Skyscraper.logo.webp",
+    "S6K":   "https://card-binder.com/cdn/shop/collections/Pokemon-Jet-Black-Spirit-Booster-Box-Japanese-s6K.webp",
+    "S10b":  "https://card-binder.com/cdn/shop/collections/Pokemon_Go_97f5456a-f502-4f3d-b8f5-fc3f91511bfe.webp",
 }
 
 
