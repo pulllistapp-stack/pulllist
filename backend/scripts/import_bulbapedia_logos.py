@@ -118,23 +118,46 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
 
 def _is_jp_logo_filename(name: str) -> bool:
     """Heuristic: Bulbapedia uploads JP set logos as e.g. M2_Logo_JP.png,
-    SV9a_Logo_JP.png. We want the JP-suffix variant, not English."""
-    return bool(re.search(r"Logo[_\s].*?JP", name, re.IGNORECASE)) and (
-        ".png" in name.lower() or ".jpg" in name.lower() or ".jpeg" in name.lower()
-    )
+    SV5 Logo JP.png. Match either underscore or space separator. We want
+    the JP variant, not English/Korean/etc."""
+    if not (name.lower().endswith(".png") or name.lower().endswith(".jpg") or name.lower().endswith(".jpeg")):
+        return False
+    # "Logo JP" with space or underscore separator, JP must end a word
+    return bool(re.search(r"Logo[_\s]+JP\b", name, re.IGNORECASE))
+
+
+def _is_any_logo_filename(name: str) -> bool:
+    if not (name.lower().endswith(".png") or name.lower().endswith(".jpg") or name.lower().endswith(".jpeg")):
+        return False
+    return "Logo" in name
 
 
 async def _page_images(client: httpx.AsyncClient, page: str) -> list[str]:
+    """Use action=query (not parse) because parse doesn't follow redirects,
+    and most JP TCG pages on Bulbapedia redirect to their EN counterpart
+    where both _JP and _EN logos are linked."""
     r = await client.get(
         WIKI_API,
-        params={"action": "parse", "page": page, "prop": "images", "format": "json"},
+        params={
+            "action": "query",
+            "titles": page,
+            "prop": "images",
+            "imlimit": 100,
+            "redirects": 1,
+            "format": "json",
+        },
         timeout=20,
     )
     r.raise_for_status()
     body = r.json()
-    if "error" in body:
-        return []
-    return list(body.get("parse", {}).get("images", []))
+    pages = body.get("query", {}).get("pages", {})
+    images: list[str] = []
+    for _, pdata in pages.items():
+        for im in pdata.get("images", []):
+            title = im.get("title", "")
+            # title comes as "File:SV5 Logo JP.png" - drop the namespace.
+            images.append(title.removeprefix("File:"))
+    return images
 
 
 async def _file_url(client: httpx.AsyncClient, filename: str) -> str | None:
@@ -196,11 +219,9 @@ async def run(dry: bool) -> None:
             if not jp_logos:
                 # Fallback: any Logo file (some pages only have the EN logo
                 # uploaded, which is still better than the blank placeholder).
-                jp_logos = [i for i in imgs if "Logo" in i and (
-                    ".png" in i.lower() or ".jpg" in i.lower()
-                )]
+                jp_logos = [i for i in imgs if _is_any_logo_filename(i)]
             if not jp_logos:
-                log.warning(f"  ! {set_id:8s} '{page}' — no logo files on page")
+                log.warning(f"  ! {set_id:8s} '{page}' — no logo files on page ({len(imgs)} images total)")
                 misses.append(set_id)
                 continue
 
