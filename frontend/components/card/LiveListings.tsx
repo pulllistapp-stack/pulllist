@@ -261,12 +261,6 @@ function ListingCard({
           : "border-border hover:border-accent-yellow/40",
       )}
     >
-      {isCheapest && (
-        <span className="absolute -top-2 left-2 z-10 inline-flex items-center rounded-full bg-accent-yellow text-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm">
-          Cheapest
-        </span>
-      )}
-
       {/* Thumbnail */}
       <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-bg-surface">
         {listing.image_url ? (
@@ -284,16 +278,30 @@ function ListingCard({
           </div>
         )}
 
-        {freeShip && (
-          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-full bg-accent-green/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase">
-            <Truck className="h-2.5 w-2.5" />
-            Free
+        {/* Badges sit *inside* the thumbnail so the horizontal-scroll parent
+            (overflow-x: auto, which also clips overflow-y) can't shave the
+            top off a -top badge. */}
+        {isCheapest && (
+          <span className="absolute top-1 left-1 inline-flex items-center rounded-full bg-accent-yellow text-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm">
+            Cheapest
           </span>
         )}
 
         {graded && (
-          <span className="absolute top-1 left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+          <span
+            className={cn(
+              "absolute left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+              isCheapest ? "top-7" : "top-1",
+            )}
+          >
             Graded
+          </span>
+        )}
+
+        {freeShip && (
+          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-full bg-accent-green/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase">
+            <Truck className="h-2.5 w-2.5" />
+            Free
           </span>
         )}
       </div>
