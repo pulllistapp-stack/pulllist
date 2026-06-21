@@ -550,12 +550,14 @@ async def get_trending(
     # only end up "trending" because the TCGplayer market-price algorithm
     # cooked one outlier listing into the public price. Requiring real
     # density flushes them out.
-    # TCGplayer prices update ~weekly via pokemontcg.io, so even an active
-    # card maxes out at ~8 snapshots in 30 days. 25% coverage works in
-    # practice: 5 / 7 / 22 for 7d / 30d / 90d windows.
+    # TCGplayer prices update ~weekly via pokemontcg.io. The 25% coverage
+    # ratio works for 7d/30d but overshoots at 90d (a stable card may only
+    # generate 8-12 snapshots over 90 days even though it's heavily traded
+    # — our backfill only writes when the price moves). Cap the floor at
+    # 10 so 90d isn't an empty page.
     effective_min_snapshots = (
         min_snapshots if min_snapshots is not None
-        else max(5, int(period_days * 0.25))
+        else min(10, max(5, int(period_days * 0.25)))
     )
 
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
