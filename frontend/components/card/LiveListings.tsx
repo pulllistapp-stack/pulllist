@@ -25,6 +25,7 @@ function parseFeedback(v: number | string | null | undefined): number | null {
 }
 
 type Filter = "all" | "raw" | "graded" | "free_ship";
+type SortKey = "cheap" | "expensive";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
@@ -84,13 +85,17 @@ export function LiveListings({ cardId }: { cardId: string }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("cheap");
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setErr(null);
-    getLiveListings(cardId, 12)
+    // 20 instead of 12 — gives room to surface the high-end PSA 10 /
+    // BGS 9.5 chase variants on top of the cheap-end results so users
+    // can scroll the whole spectrum without bouncing to eBay.
+    getLiveListings(cardId, 20)
       .then((r) => {
         if (cancelled) return;
         setListings(r.listings);
@@ -107,15 +112,33 @@ export function LiveListings({ cardId }: { cardId: string }) {
     };
   }, [cardId, refreshKey]);
 
-  const filtered = useMemo(
-    () => (listings ? applyFilter(listings, filter) : []),
-    [listings, filter],
-  );
+  const filtered = useMemo(() => {
+    if (!listings) return [];
+    const base = applyFilter(listings, filter);
+    // Backend already sorts (suspicious-last, then by total). Frontend
+    // sort lets users flip to "expensive first" to see chase-grade
+    // variants ($140k BGS 9.5 etc) without scrolling past 20+ raws.
+    const sorted = [...base].sort((a, b) => {
+      // Suspicious listings always at the bottom regardless of sort
+      const aSus = a.suspicious ? 1 : 0;
+      const bSus = b.suspicious ? 1 : 0;
+      if (aSus !== bSus) return aSus - bSus;
+      return sortKey === "cheap"
+        ? a.total_usd - b.total_usd
+        : b.total_usd - a.total_usd;
+    });
+    return sorted;
+  }, [listings, filter, sortKey]);
 
-  // The cheapest *trustworthy* listing under the current filter. We
-  // skip suspicious ones so the Cheapest badge doesn't land on a scam
-  // decoy (e.g. 0-feedback seller at 9% of market price).
-  const cheapestKey = filtered.find((l) => !l.suspicious)?.url;
+  // The cheapest *trustworthy* listing — independent of sort direction,
+  // computed against the unsorted filtered set. We skip suspicious ones
+  // so the Cheapest badge doesn't land on a scam decoy.
+  const cheapestKey = useMemo(() => {
+    if (!listings) return undefined;
+    const base = applyFilter(listings, filter).filter((l) => !l.suspicious);
+    if (base.length === 0) return undefined;
+    return base.reduce((min, l) => (l.total_usd < min.total_usd ? l : min)).url;
+  }, [listings, filter]);
 
   // Per-filter counts for the chip badges.
   const counts = useMemo(() => {
@@ -161,30 +184,61 @@ export function LiveListings({ cardId }: { cardId: string }) {
         </div>
       </div>
 
-      {/* Filter pills */}
+      {/* Filter pills + sort toggle */}
       {listings && listings.length > 0 && (
-        <div className="mb-4 inline-flex rounded-full border border-border bg-bg-surface p-1">
-          {FILTERS.map((f) => (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                disabled={counts[f.key] === 0 && f.key !== "all"}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  filter === f.key
+                    ? "bg-bg-elevated text-text-primary shadow-sm"
+                    : "text-text-secondary hover:text-text-primary",
+                  counts[f.key] === 0 &&
+                    f.key !== "all" &&
+                    "opacity-40 cursor-not-allowed",
+                )}
+              >
+                {f.label}
+                <span className="ml-1 text-[10px] text-text-tertiary font-mono">
+                  {counts[f.key]}
+                </span>
+              </button>
+            ))}
+          </div>
+          {/* Sort: cheapest-first (default) or most-expensive-first.
+              The latter surfaces graded chase variants ($140k BGS 9.5,
+              $20k CGC 10) at the top instead of buried past 20 raws. */}
+          <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
             <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              disabled={counts[f.key] === 0 && f.key !== "all"}
+              onClick={() => setSortKey("cheap")}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                filter === f.key
+                sortKey === "cheap"
                   ? "bg-bg-elevated text-text-primary shadow-sm"
                   : "text-text-secondary hover:text-text-primary",
-                counts[f.key] === 0 &&
-                  f.key !== "all" &&
-                  "opacity-40 cursor-not-allowed",
               )}
+              title="Cheapest first"
             >
-              {f.label}
-              <span className="ml-1 text-[10px] text-text-tertiary font-mono">
-                {counts[f.key]}
-              </span>
+              $ ↑
             </button>
-          ))}
+            <button
+              onClick={() => setSortKey("expensive")}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                sortKey === "expensive"
+                  ? "bg-bg-elevated text-text-primary shadow-sm"
+                  : "text-text-secondary hover:text-text-primary",
+              )}
+              title="Most expensive first — surfaces graded chase variants"
+            >
+              $ ↓
+            </button>
+          </div>
         </div>
       )}
 

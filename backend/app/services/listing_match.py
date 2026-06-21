@@ -29,6 +29,19 @@ from dataclasses import dataclass
 
 _NUMBER_PAIR_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 
+# Standalone card-number patterns for titles that omit the "/total"
+# part — common on graded slab listings ("PSA 10 Umbreon Holo Rare #13"
+# or "Charizard 4 1st Edition"). Recognising these lets us include
+# high-end graded listings without falsely matching every "1st" or
+# year-number that happens to appear in the title.
+#   - "#13"
+#   - "no. 13" or "no 13"
+#   - "card 13" or "card #13"
+#   - "13/" with the slash but no denominator (rare)
+_HASH_NUM_RE = re.compile(r"#\s*(\d{1,4})\b")
+_NO_NUM_RE = re.compile(r"\bno\.?\s*(\d{1,4})\b", re.IGNORECASE)
+_CARD_NUM_RE = re.compile(r"\bcard\s*#?\s*(\d{1,4})\b", re.IGNORECASE)
+
 
 # ── Accessory-listing denylist ───────────────────────────────────────
 # Some sellers list custom display cases, acrylic stands, proxies, or
@@ -123,11 +136,24 @@ def score_listing(
 
     pairs = _NUMBER_PAIR_RE.findall(title)
     if not pairs:
-        # No x/y in the title. Either an older card listed by name only
-        # ("Charizard Holo Base Set") or a vendor-formatted title that
-        # dropped the slash. Accept at the same tier as printed_total-
-        # mismatch — it's not negative evidence, just absent evidence.
-        return MatchResult(30, "no x/y pattern in title")
+        # No x/y pattern. Try the standalone-number patterns ("#13",
+        # "No. 13", "card 13") — common on PSA-graded slab listings
+        # that drop the denominator. Lets the $65k PSA 10 Umbreon
+        # listing "Umbreon Holo Rare #13 PSA 10" survive instead of
+        # falling into the 30-tier we'd drop.
+        for pat in (_HASH_NUM_RE, _NO_NUM_RE, _CARD_NUM_RE):
+            for m in pat.finditer(title):
+                try:
+                    if int(m.group(1)) == target_n:
+                        return MatchResult(70, f"standalone #{target_n} match")
+                except ValueError:
+                    continue
+        # Truly no card-number reference in the title. Either an older
+        # card listed by name only ("Charizard Holo Base Set") or a
+        # vendor-formatted title that has no number at all. Accept at
+        # the same tier as printed_total-mismatch — it's not negative
+        # evidence, just absent evidence.
+        return MatchResult(30, "no card-number reference")
 
     saw_number_match = False
     for n_str, t_str in pairs:
