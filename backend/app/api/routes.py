@@ -512,14 +512,15 @@ async def get_trending(
         ge=0,
         description="Minimum absolute $ change between oldest and latest snapshot.",
     ),
-    min_snapshots: int = Query(
-        5,
+    min_snapshots: int | None = Query(
+        None,
         ge=2,
-        le=30,
+        le=60,
         description=(
-            "Minimum snapshot count per (card, variant). Thin histories "
-            "blow up on one bad outlier — the tercile median needs 3+ "
-            "points per tercile to actually smooth."
+            "Minimum snapshot count per (card, variant). Auto-scales with "
+            "period_days when omitted (~40% coverage of the window) — "
+            "5 for 7-day, 12 for 30-day, 36 for 90-day. Thin histories "
+            "are TCGplayer's sticky-price artifacts, not real trends."
         ),
     ),
     max_mad_ratio: float = Query(
@@ -543,6 +544,16 @@ async def get_trending(
     """
     if direction not in ("up", "down"):
         raise HTTPException(status_code=400, detail="direction must be 'up' or 'down'")
+
+    # Auto-scale snapshot floor to ~40% of the window when caller didn't
+    # pin it. Vintage low-volume cards rarely have daily snapshots; they
+    # only end up "trending" because the TCGplayer market-price algorithm
+    # cooked one outlier listing into the public price. Requiring real
+    # density flushes them out.
+    effective_min_snapshots = (
+        min_snapshots if min_snapshots is not None
+        else max(5, int(period_days * 0.4))
+    )
 
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
 
@@ -568,14 +579,14 @@ async def get_trending(
     for card_id, variant, prices in (
         await db.execute(
             agg_stmt,
-            {"source": source, "cutoff": cutoff, "min_snapshots": min_snapshots},
+            {"source": source, "cutoff": cutoff, "min_snapshots": effective_min_snapshots},
         )
     ).all():
         by_card_variant[(card_id, variant)] = [float(p) for p in prices]
 
     best_per_card: dict[str, dict] = {}
     for (card_id, variant), prices in by_card_variant.items():
-        if len(prices) < min_snapshots:
+        if len(prices) < effective_min_snapshots:
             continue
         # Bubble guard 1 — full-window spread. A flat $30 series with one
         # bad $240 sale at the end has MAD/median around 0.7+; we treat that
@@ -614,9 +625,10 @@ async def get_trending(
             span = latest - oldest
             if abs(span) >= 0.01:
                 # Fraction of the move that happened by the middle tercile.
-                # Below 0.2 means the spike is essentially all in the tail.
+                # Below 0.4 means the move is still tail-loaded — real
+                # trending should be more than half-baked by mid-window.
                 progress = (middle - oldest) / span
-                if progress < 0.2:
+                if progress < 0.4:
                     continue
         # Quality floors - both endpoints must clear the price floor AND the
         # absolute change must be meaningful.
@@ -625,11 +637,12 @@ async def get_trending(
         if abs(float(latest) - float(oldest)) < min_abs_change_usd:
             continue
         delta_pct = ((latest - oldest) / oldest) * 100.0
-        # Cap displayed % at +/-500 - moves beyond that are almost always
-        # data quality artifacts (sparse snapshots crossing a backfill
-        # boundary). Surfacing them as #1/#2/#3 destroys user trust faster
-        # than missing a legitimate moonshot.
-        if abs(delta_pct) > 500:
+        # Cap displayed % at +/-200 - in our experience anything bigger
+        # than this is either a sparse-snapshot artifact or a TCGplayer
+        # listing-price spike with no real sales behind it. The few real
+        # +300% moves we lose are worth the trust we keep by not running
+        # bubbly #1s on the trending page.
+        if abs(delta_pct) > 200:
             continue
         entry = {
             "card_id": card_id,
