@@ -26,6 +26,34 @@ def _median(values: list[float | None]) -> float | None:
     return (clean[mid - 1] + clean[mid]) / 2.0
 
 
+def _mad_ratio(prices: list[float]) -> float:
+    """Median absolute deviation / median. High value means the price series
+    has a wide spread relative to its center — likely a noisy/spiky card."""
+    if len(prices) < 2:
+        return 0.0
+    med = _median(prices)
+    if med is None or med <= 0:
+        return float("inf")
+    devs = sorted(abs(p - med) for p in prices)
+    mid = len(devs) // 2
+    mad = devs[mid] if len(devs) % 2 else (devs[mid - 1] + devs[mid]) / 2.0
+    return mad / med
+
+
+def _has_lone_spike(prices: list[float], ratio: float = 2.5) -> bool:
+    """True if the max price is `ratio`x bigger than the median of the rest.
+    Catches single-sale outliers that poison a tercile mean — a $30 flat
+    series with one $238 entry trips this immediately."""
+    if len(prices) < 3:
+        return False
+    sorted_p = sorted(prices)
+    rest = sorted_p[:-1]
+    rest_med = _median(rest)
+    if rest_med is None or rest_med <= 0:
+        return False
+    return sorted_p[-1] / rest_med >= ratio
+
+
 @router.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -397,6 +425,25 @@ async def get_trending(
         ge=0,
         description="Minimum absolute $ change between oldest and latest snapshot.",
     ),
+    min_snapshots: int = Query(
+        5,
+        ge=2,
+        le=30,
+        description=(
+            "Minimum snapshot count per (card, variant). Thin histories "
+            "blow up on one bad outlier — the tercile median needs 3+ "
+            "points per tercile to actually smooth."
+        ),
+    ),
+    max_mad_ratio: float = Query(
+        0.6,
+        ge=0,
+        description=(
+            "Max allowed MAD/median for the full window. Cards above this "
+            "are too spiky to call 'trending' — usually a single $200 "
+            "outlier sale sitting on top of a $30 flat history."
+        ),
+    ),
 ) -> dict:
     """Top movers — cards with the biggest %change over the last `period_days`.
 
@@ -427,18 +474,26 @@ async def get_trending(
           AND snapshot_date >= :cutoff
           AND market_price_usd IS NOT NULL
         GROUP BY card_id, variant
-        HAVING count(*) >= 2
+        HAVING count(*) >= :min_snapshots
         """
     )
     by_card_variant: dict[tuple[str, str], list[float]] = {}
     for card_id, variant, prices in (
-        await db.execute(agg_stmt, {"source": source, "cutoff": cutoff})
+        await db.execute(
+            agg_stmt,
+            {"source": source, "cutoff": cutoff, "min_snapshots": min_snapshots},
+        )
     ).all():
         by_card_variant[(card_id, variant)] = [float(p) for p in prices]
 
     best_per_card: dict[str, dict] = {}
     for (card_id, variant), prices in by_card_variant.items():
-        if len(prices) < 2:
+        if len(prices) < min_snapshots:
+            continue
+        # Bubble guard 1 — full-window spread. A flat $30 series with one
+        # bad $240 sale at the end has MAD/median around 0.7+; we treat that
+        # as noise instead of a "trend".
+        if _mad_ratio(prices) > max_mad_ratio:
             continue
         # Use median of the first and last thirds (or first/last snapshot
         # if we have too few) as baseline + current. Single-point comparison
@@ -447,8 +502,16 @@ async def get_trending(
         # as +3900% when the real move is +30%. Tercile medians shrug off
         # one outlier per side.
         third = max(1, len(prices) // 3)
-        oldest = _median(prices[:third])
-        latest = _median(prices[-third:])
+        oldest_window = prices[:third]
+        latest_window = prices[-third:]
+        # Bubble guard 2 — single-point spike inside the latest tercile.
+        # Median is robust to one outlier in a tercile of 5+, but for the
+        # 3- or 4-point terciles we get from a one-week window, a lone
+        # spike still drags the median up. Drop the card if it's there.
+        if _has_lone_spike(latest_window):
+            continue
+        oldest = _median(oldest_window)
+        latest = _median(latest_window)
         if oldest is None or latest is None or oldest <= 0:
             continue
         # Quality floors - both endpoints must clear the price floor AND the
