@@ -17,8 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Card, Set, User, WishlistItem
+from app.services.variant_pricing import price_for_variant
 
 router = APIRouter(prefix="/wishlist", tags=["wishlist"])
+
+
+_VARIANT_PATTERN = (
+    r"^(normal|holofoil|reverseHolofoil|1stEdition|1stEditionHolofoil|"
+    r"unlimited|unlimitedHolofoil)$"
+)
 
 
 # ────────── schemas ──────────
@@ -27,6 +34,7 @@ router = APIRouter(prefix="/wishlist", tags=["wishlist"])
 class WishlistItemRead(BaseModel):
     id: int
     card_id: str
+    variant: str = "normal"
     priority: int
     max_price_usd: Optional[float] = None
     notes: Optional[str] = None
@@ -50,12 +58,14 @@ class WishlistItemDetail(WishlistItemRead):
 
 class WishlistItemCreate(BaseModel):
     card_id: str
+    variant: str = Field(default="normal", pattern=_VARIANT_PATTERN)
     priority: int = Field(3, ge=1, le=5)
     max_price_usd: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = Field(None, max_length=500)
 
 
 class WishlistItemUpdate(BaseModel):
+    variant: Optional[str] = Field(default=None, pattern=_VARIANT_PATTERN)
     priority: Optional[int] = Field(None, ge=1, le=5)
     max_price_usd: Optional[float] = Field(None, ge=0)
     notes: Optional[str] = Field(None, max_length=500)
@@ -90,10 +100,15 @@ async def list_my_wishlist(
     rows = (await db.execute(stmt)).all()
     out: list[WishlistItemDetail] = []
     for item, card, set_name in rows:
+        # Variant-aware: target_met fires only against the variant
+        # the user actually wants, not the card's denormalized max.
+        variant_price = price_for_variant(
+            card.tcgplayer_prices, item.variant, card.market_price_usd
+        )
         target_met = (
             item.max_price_usd is not None
-            and card.market_price_usd is not None
-            and float(card.market_price_usd) <= float(item.max_price_usd)
+            and variant_price is not None
+            and variant_price <= float(item.max_price_usd)
         )
         if only_target_met and not target_met:
             continue
@@ -105,9 +120,7 @@ async def list_my_wishlist(
                 card_number=card.number,
                 image_small=card.image_small,
                 rarity=card.rarity,
-                market_price_usd=float(card.market_price_usd)
-                if card.market_price_usd is not None
-                else None,
+                market_price_usd=variant_price,
                 set_id=card.set_id,
                 set_name=set_name,
                 target_met=target_met,
@@ -144,6 +157,7 @@ async def add_to_wishlist(
     item = WishlistItem(
         user_id=user.id,
         card_id=payload.card_id,
+        variant=payload.variant,
         priority=payload.priority,
         max_price_usd=payload.max_price_usd,
         notes=payload.notes,
@@ -193,11 +207,14 @@ async def remove_wishlist_item(
 @router.post("/cards/{card_id}/toggle", response_model=dict)
 async def toggle_wishlist(
     card_id: str,
+    variant: str = Query("normal", pattern=_VARIANT_PATTERN),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """One-click toggle — adds with default priority=3 if not on wishlist,
-    removes if already there. Used by the heart icon on card thumbnails."""
+    """One-click toggle for a specific variant of the card. Toggles
+    normal by default — heart icon on thumbnails maps to the standard
+    print. Variant-aware so a user can wishlist normal AND
+    reverseHolofoil of the same card without one toggling the other."""
     card = await db.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -207,6 +224,7 @@ async def toggle_wishlist(
             select(WishlistItem).where(
                 WishlistItem.user_id == user.id,
                 WishlistItem.card_id == card_id,
+                WishlistItem.variant == variant,
             )
         )
     ).scalar_one_or_none()
@@ -214,16 +232,17 @@ async def toggle_wishlist(
     if existing:
         await db.delete(existing)
         await db.commit()
-        return {"wishlisted": False}
+        return {"wishlisted": False, "variant": variant}
 
     item = WishlistItem(
         user_id=user.id,
         card_id=card_id,
+        variant=variant,
         priority=3,
     )
     db.add(item)
     await db.commit()
-    return {"wishlisted": True}
+    return {"wishlisted": True, "variant": variant}
 
 
 @router.get("/summary", response_model=dict)
@@ -231,40 +250,35 @@ async def wishlist_summary(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """High-level stats for the wishlist (count, est. total cost, # at target)."""
-    stmt = (
-        select(
-            func.count(WishlistItem.id).label("total"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (Card.market_price_usd.is_not(None), Card.market_price_usd),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("est_value"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            (WishlistItem.max_price_usd.is_not(None))
-                            & (Card.market_price_usd.is_not(None))
-                            & (Card.market_price_usd <= WishlistItem.max_price_usd),
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("at_target"),
+    """High-level stats for the wishlist (count, est. total cost,
+    # at target). Variant-aware — the est_value sums the wished-for
+    # variant's market price for each item (a holo Charizard costs
+    # the holo market, not the normal market)."""
+    rows = (
+        await db.execute(
+            select(
+                WishlistItem.variant,
+                WishlistItem.max_price_usd,
+                Card.tcgplayer_prices,
+                Card.market_price_usd,
+            )
+            .join(Card, WishlistItem.card_id == Card.id)
+            .where(WishlistItem.user_id == user.id)
         )
-        .join(Card, WishlistItem.card_id == Card.id)
-        .where(WishlistItem.user_id == user.id)
-    )
-    row = (await db.execute(stmt)).one()
+    ).all()
+
+    total = len(rows)
+    est_value = 0.0
+    at_target = 0
+    for variant, max_price, prices, fallback in rows:
+        p = price_for_variant(prices, variant, fallback)
+        if p is not None:
+            est_value += p
+        if max_price is not None and p is not None and p <= float(max_price):
+            at_target += 1
+
     return {
-        "total": row.total or 0,
-        "estimated_value_usd": round(float(row.est_value or 0), 2),
-        "at_target_count": int(row.at_target or 0),
+        "total": total,
+        "estimated_value_usd": round(est_value, 2),
+        "at_target_count": at_target,
     }

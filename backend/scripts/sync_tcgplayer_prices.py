@@ -69,18 +69,52 @@ def _f(value) -> float | None:
 
 
 def _market_price_from_tcgplayer(prices: dict | None) -> float | None:
-    """Pick the largest market/mid across variants — mirrors seed_sets behavior."""
+    """Pick the BASE variant's market price.
+
+    TCGplayer ships per-variant prices in `tcgplayer.prices` —
+    {normal, holofoil, reverseHolofoil, 1stEdition, ...}. The
+    denormalized `cards.market_price_usd` field needs a single number,
+    and we want that to represent the standard print so it doesn't
+    poison the suspicious-listing filter or distort portfolio value
+    for collectors who own only the base print.
+
+    Priority order matches "what the typical buyer thinks of as the
+    card's price":
+      1. normal             (modern base print, all SV/SwSh commons/rares)
+      2. holofoil           (older WotC/EX-era Rare Holo only ships as this)
+      3. reverseHolofoil    (only meaningful when normal is absent)
+      4. 1stEdition*        (vintage)
+      5. unlimited*         (vintage)
+
+    Per-variant prices remain accessible via the cards.tcgplayer_prices
+    JSON column for the variant-tab UI on the card detail page.
+    """
     if not prices:
         return None
-    best: float | None = None
+    PRIORITY = (
+        "normal",
+        "holofoil",
+        "reverseHolofoil",
+        "1stEditionHolofoil",
+        "1stEdition",
+        "unlimitedHolofoil",
+        "unlimited",
+    )
+    for key in PRIORITY:
+        variant = prices.get(key)
+        if not isinstance(variant, dict):
+            continue
+        m = variant.get("market") or variant.get("mid")
+        if isinstance(m, (int, float)) and m > 0:
+            return float(m)
+    # No prioritised variant had data — fall back to any variant with a price
     for variant in prices.values():
         if not isinstance(variant, dict):
             continue
-        market = variant.get("market") or variant.get("mid")
-        if isinstance(market, (int, float)):
-            if best is None or market > best:
-                best = float(market)
-    return best
+        m = variant.get("market") or variant.get("mid")
+        if isinstance(m, (int, float)) and m > 0:
+            return float(m)
+    return None
 
 
 async def fetch_cards_for_set(

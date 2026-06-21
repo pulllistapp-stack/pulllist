@@ -22,6 +22,7 @@ from app.schemas.collection import (
     CollectionItemUpdate,
     SetCompletion,
 )
+from app.services.variant_pricing import price_for_variant
 
 router = APIRouter(prefix="/collection", tags=["collection"])
 
@@ -56,6 +57,7 @@ async def export_collection_csv(
             "set_name",
             "number",
             "rarity",
+            "variant",
             "condition",
             "qty",
             "market_price_usd",
@@ -66,7 +68,11 @@ async def export_collection_csv(
         ]
     )
     for item, card, set_name in rows:
-        price = float(card.market_price_usd) if card.market_price_usd is not None else None
+        # Variant-specific market price — reverseHolofoil entry priced
+        # at reverse-holo's $34.67, normal at $0.50.
+        price = price_for_variant(
+            card.tcgplayer_prices, item.variant, card.market_price_usd
+        )
         qty = item.qty or 0
         total = f"{price * qty:.2f}" if price is not None else ""
         writer.writerow(
@@ -76,11 +82,12 @@ async def export_collection_csv(
                 set_name,
                 card.number or "",
                 card.rarity or "",
+                item.variant or "normal",
                 item.condition or "",
                 qty,
                 f"{price:.2f}" if price is not None else "",
                 total,
-                f"{float(item.purchase_price_usd):.2f}" if item.purchase_price_usd is not None else "",
+                f"{float(item.purchase_price_usd):.2f}" if getattr(item, "purchase_price_usd", None) is not None else "",
                 (item.notes or "").replace("\n", " ").strip(),
                 item.created_at.date().isoformat() if item.created_at else "",
             ]
@@ -122,7 +129,13 @@ async def list_my_items(
             card_number=card.number,
             image_small=card.image_small,
             rarity=card.rarity,
-            market_price_usd=card.market_price_usd,
+            # Variant-aware: use the price for THIS user's specific
+            # variant of THIS card (reverseHolofoil Larvitar $34.67 vs
+            # normal $0.50). Falls back to card.market_price_usd if the
+            # tcgplayer_prices JSON doesn't have that variant.
+            market_price_usd=price_for_variant(
+                card.tcgplayer_prices, item.variant, card.market_price_usd
+            ),
             set_id=card.set_id,
             set_name=set_name,
         )
@@ -140,12 +153,14 @@ async def add_item(
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    # If an identical (user, card, variant) row exists, increment qty instead
+    # If an identical (user, card, variant, condition, grade) row
+    # exists, increment qty instead.
     existing = (
         await db.execute(
             select(CollectionItem).where(
                 CollectionItem.user_id == user.id,
                 CollectionItem.card_id == payload.card_id,
+                CollectionItem.variant == payload.variant,
                 CollectionItem.condition == payload.condition,
                 CollectionItem.is_graded == payload.is_graded,
                 CollectionItem.grade == payload.grade,
@@ -163,6 +178,7 @@ async def add_item(
         user_id=user.id,
         card_id=payload.card_id,
         qty=payload.qty,
+        variant=payload.variant,
         condition=payload.condition,
         is_graded=payload.is_graded,
         grade=payload.grade,
@@ -232,11 +248,15 @@ async def get_card_entries(
 @router.post("/cards/{card_id}/toggle", response_model=dict)
 async def toggle_card_owned(
     card_id: str,
+    variant: str = Query("normal", pattern=r"^(normal|holofoil|reverseHolofoil|1stEdition|1stEditionHolofoil|unlimited|unlimitedHolofoil)$"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """One-click toggle — adds a default NM entry if none exists, else removes
-    all entries for this (user, card). Used by the 'I have this' button."""
+    """One-click toggle — adds a default NM entry of `variant` (default
+    'normal') if none exists for that specific variant, else removes
+    all that variant's entries. Other variants of the same card stay
+    untouched, so toggling normal Larvitar doesn't delete the user's
+    reverseHolofoil Larvitar."""
     card = await db.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -246,6 +266,7 @@ async def toggle_card_owned(
             select(CollectionItem).where(
                 CollectionItem.user_id == user.id,
                 CollectionItem.card_id == card_id,
+                CollectionItem.variant == variant,
             )
         )
     ).scalars().all()
@@ -254,19 +275,20 @@ async def toggle_card_owned(
         for item in existing:
             await db.delete(item)
         await db.commit()
-        return {"owned": False}
+        return {"owned": False, "variant": variant}
 
     item = CollectionItem(
         user_id=user.id,
         card_id=card_id,
         qty=1,
+        variant=variant,
         condition="NM",
         is_graded=False,
         grade=None,
     )
     db.add(item)
     await db.commit()
-    return {"owned": True}
+    return {"owned": True, "variant": variant}
 
 
 @router.get("/owned-ids", response_model=list[str])
@@ -304,34 +326,41 @@ async def set_completion(
         await db.execute(select(func.count(Card.id)).where(Card.set_id == set_id))
     ).scalar_one()
 
-    stmt = (
-        select(
-            func.count(func.distinct(CollectionItem.card_id)).label("unique"),
-            func.coalesce(func.sum(CollectionItem.qty), 0).label("total_qty"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (Card.market_price_usd.is_not(None),
-                         CollectionItem.qty * Card.market_price_usd),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("value"),
+    # Variant-aware value: walk items in Python and look up each one's
+    # per-variant price from card.tcgplayer_prices. SQL can't easily
+    # index into the JSON for the right variant.
+    rows = (
+        await db.execute(
+            select(
+                CollectionItem.qty,
+                CollectionItem.variant,
+                Card.tcgplayer_prices,
+                Card.market_price_usd,
+                CollectionItem.card_id,
+            )
+            .join(Card, CollectionItem.card_id == Card.id)
+            .where(CollectionItem.user_id == user.id, Card.set_id == set_id)
         )
-        .join(Card, CollectionItem.card_id == Card.id)
-        .where(CollectionItem.user_id == user.id, Card.set_id == set_id)
-    )
-    row = (await db.execute(stmt)).one()
+    ).all()
+
+    unique_ids: set[str] = set()
+    total_qty = 0
+    value = 0.0
+    for qty, variant, prices, fallback, card_id in rows:
+        unique_ids.add(card_id)
+        total_qty += qty or 0
+        p = price_for_variant(prices, variant, fallback)
+        if p is not None:
+            value += (qty or 0) * p
 
     return SetCompletion(
         set_id=set_id,
         set_name=set_row.name,
         total_cards=total,
-        owned_unique=row.unique or 0,
-        owned_total_qty=row.total_qty or 0,
-        completion_pct=round((row.unique or 0) / total * 100, 1) if total else 0.0,
-        estimated_value_usd=round(float(row.value or 0), 2),
+        owned_unique=len(unique_ids),
+        owned_total_qty=total_qty,
+        completion_pct=round(len(unique_ids) / total * 100, 1) if total else 0.0,
+        estimated_value_usd=round(value, 2),
     )
 
 
@@ -397,32 +426,42 @@ async def my_summary(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """High-level stats for the user's whole collection."""
-    stmt = (
-        select(
-            func.count(CollectionItem.id).label("total_entries"),
-            func.count(func.distinct(CollectionItem.card_id)).label("unique_cards"),
-            func.coalesce(func.sum(CollectionItem.qty), 0).label("total_qty"),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (Card.market_price_usd.is_not(None),
-                         CollectionItem.qty * Card.market_price_usd),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("value"),
-            func.count(func.distinct(Card.set_id)).label("sets_touched"),
+    """High-level stats for the user's whole collection. Variant-aware
+    pricing means user with a reverseHolofoil Larvitar gets credit for
+    its $34.67 market while a normal Larvitar gets $0.50."""
+    rows = (
+        await db.execute(
+            select(
+                CollectionItem.qty,
+                CollectionItem.variant,
+                CollectionItem.card_id,
+                Card.set_id,
+                Card.tcgplayer_prices,
+                Card.market_price_usd,
+            )
+            .join(Card, CollectionItem.card_id == Card.id)
+            .where(CollectionItem.user_id == user.id)
         )
-        .join(Card, CollectionItem.card_id == Card.id)
-        .where(CollectionItem.user_id == user.id)
-    )
-    row = (await db.execute(stmt)).one()
+    ).all()
+
+    unique_ids: set[str] = set()
+    sets_touched: set[str] = set()
+    total_entries = 0
+    total_qty = 0
+    value = 0.0
+    for qty, variant, card_id, set_id, prices, fallback in rows:
+        total_entries += 1
+        unique_ids.add(card_id)
+        sets_touched.add(set_id)
+        total_qty += qty or 0
+        p = price_for_variant(prices, variant, fallback)
+        if p is not None:
+            value += (qty or 0) * p
+
     return {
-        "total_entries": row.total_entries or 0,
-        "unique_cards": row.unique_cards or 0,
-        "total_qty": int(row.total_qty or 0),
-        "sets_touched": row.sets_touched or 0,
-        "estimated_value_usd": round(float(row.value or 0), 2),
+        "total_entries": total_entries,
+        "unique_cards": len(unique_ids),
+        "total_qty": total_qty,
+        "sets_touched": len(sets_touched),
+        "estimated_value_usd": round(value, 2),
     }

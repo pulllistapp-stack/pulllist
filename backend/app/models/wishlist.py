@@ -24,7 +24,9 @@ class WishlistItem(Base):
 
     __tablename__ = "wishlist_items"
     __table_args__ = (
-        UniqueConstraint("user_id", "card_id", name="uq_user_wishlist_card"),
+        UniqueConstraint(
+            "user_id", "card_id", "variant", name="uq_user_wishlist_card"
+        ),
         Index("ix_wishlist_user_card", "user_id", "card_id"),
     )
 
@@ -36,6 +38,10 @@ class WishlistItem(Base):
     card_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("cards.id", ondelete="CASCADE"), index=True
     )
+
+    variant: Mapped[str] = mapped_column(String(32), default="normal", nullable=False)
+    """Print variant the user wants — see CollectionItem.variant for
+    valid keys. Price alerts fire against the per-variant market price."""
 
     priority: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     """1 (low) → 5 (must-have)."""

@@ -28,3 +28,10 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Logs (can grow huge — backfill_weekly.log hit 210MB and broke GitHub push)
+*.log
+backend/*.log
+
+# Scraped data dumps (transient build artifacts, not source)
+backend/data/scraped/
