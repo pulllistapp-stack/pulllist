@@ -120,7 +120,7 @@ export default function AboutPage() {
             (MIT)
           </li>
           <li>
-            <strong className="text-text-primary">JP set logos &amp; card images (gap-fill):</strong>{" "}
+            <strong className="text-text-primary">JP card images (gap-fill):</strong>{" "}
             <a
               href="https://limitlesstcg.com"
               target="_blank"
@@ -129,8 +129,19 @@ export default function AboutPage() {
             >
               Limitless TCG
             </a>{" "}
-            — set logos and card images for sets/promos where TCGdex has
-            metadata only
+            — card images for sets and promos where TCGdex has metadata only
+          </li>
+          <li>
+            <strong className="text-text-primary">JP set logos:</strong>{" "}
+            <a
+              href="https://bulbapedia.bulbagarden.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              Bulbapedia / Bulbagarden Archives
+            </a>{" "}
+            (CC BY-NC-SA 2.5)
           </li>
           <li>
             <strong className="text-text-primary">TCGplayer prices:</strong>{" "}

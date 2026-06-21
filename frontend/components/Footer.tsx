@@ -154,7 +154,8 @@ export function Footer() {
           </p>
           <p className="mb-3 leading-relaxed">
             Card data: pokemontcg.io (CC BY 4.0), TCGdex (MIT), Limitless TCG.
-            See <Link href="/about" className="underline hover:text-text-secondary">About</Link> for the full attributions.
+            JP set logos courtesy of Bulbapedia / Bulbagarden Archives
+            (CC BY-NC-SA 2.5). See <Link href="/about" className="underline hover:text-text-secondary">About</Link> for the full attributions.
           </p>
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
             <p className="max-w-2xl leading-relaxed">
