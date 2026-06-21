@@ -44,8 +44,13 @@ export function ImageMagnifier({
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [active, setActive] = useState(false);
-  // Cursor position relative to the image (in pixels). null = off-image.
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  // Cursor position. `local` is relative to the image (for background-position
+  // math), `viewport` is clientX/clientY (for `position: fixed` loupe placement
+  // so it escapes the card container's overflow-hidden box).
+  const [pos, setPos] = useState<
+    | { localX: number; localY: number; viewportX: number; viewportY: number }
+    | null
+  >(null);
 
   useEffect(() => {
     if (!active) return;
@@ -56,15 +61,21 @@ export function ImageMagnifier({
     return () => window.removeEventListener("keydown", onKey);
   }, [active]);
 
-  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!active) return;
+  const updatePos = (e: React.MouseEvent<HTMLDivElement>) => {
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     setPos({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      localX: e.clientX - rect.left,
+      localY: e.clientY - rect.top,
+      viewportX: e.clientX,
+      viewportY: e.clientY,
     });
+  };
+
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!active) return;
+    updatePos(e);
   };
 
   const onMouseLeave = () => {
@@ -75,29 +86,18 @@ export function ImageMagnifier({
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     setActive((prev) => !prev);
-    if (!active) {
-      // Seed initial position so the loupe shows immediately
-      const el = containerRef.current;
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        setPos({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        });
-      }
-    } else {
-      setPos(null);
-    }
+    if (!active) updatePos(e);
+    else setPos(null);
   };
 
-  // Loupe positioning math: we want the cursor to sit at the loupe's
-  // center, and the background image to be aligned so the same physical
-  // point on the card sits under the cursor at zoom×.
+  // Loupe positioning math: cursor sits at the loupe center, background
+  // image aligned so the same physical point on the card sits under the
+  // cursor at zoom×.
   const rect = containerRef.current?.getBoundingClientRect();
   const bgWidth = (rect?.width ?? 0) * zoom;
   const bgHeight = (rect?.height ?? 0) * zoom;
-  const bgX = pos ? -(pos.x * zoom - loupeSize / 2) : 0;
-  const bgY = pos ? -(pos.y * zoom - loupeSize / 2) : 0;
+  const bgX = pos ? -(pos.localX * zoom - loupeSize / 2) : 0;
+  const bgY = pos ? -(pos.localY * zoom - loupeSize / 2) : 0;
 
   return (
     <div
@@ -124,16 +124,20 @@ export function ImageMagnifier({
       />
       {children}
 
-      {/* Loupe */}
+      {/* Loupe — rendered with `position: fixed` (viewport-relative) so
+       *  it escapes the card container's overflow-hidden box. The
+       *  background-position math is still computed from cursor coords
+       *  relative to the image so the magnified focus point tracks the
+       *  pointer regardless of where on the page the card sits. */}
       {active && pos && (
         <div
           aria-hidden
-          className="pointer-events-none absolute z-30 rounded-full border-2 border-white shadow-[0_8px_24px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(0,0,0,0.4)] ring-2 ring-black/30"
+          className="pointer-events-none fixed z-50 rounded-full border-2 border-white shadow-[0_8px_24px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(0,0,0,0.4)] ring-2 ring-black/30"
           style={{
             width: loupeSize,
             height: loupeSize,
-            left: pos.x - loupeSize / 2,
-            top: pos.y - loupeSize / 2,
+            left: pos.viewportX - loupeSize / 2,
+            top: pos.viewportY - loupeSize / 2,
             backgroundImage: `url("${src}")`,
             backgroundRepeat: "no-repeat",
             backgroundSize: `${bgWidth}px ${bgHeight}px`,

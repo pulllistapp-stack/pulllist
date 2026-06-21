@@ -39,8 +39,13 @@ log = logging.getLogger("backfill_jp_rarity")
 BASE = "https://limitlesstcg.com"
 SEM = 8
 
-# Match the EN print link inside the JP detail page's Int. Prints table.
-# The first such link is the canonical EN equivalent.
+# Match EN print links inside the JP detail page's Int. Prints table.
+# We collect ALL of them — a JP secret rare typically has multiple EN
+# equivalents (base print + reverse + holo + ultra + SAR variants), and
+# the FIRST is the base (wrongly classifying SAR cards as Double Rare).
+# Picking the highest-tier rarity across all candidates gives the right
+# answer for both base prints (1 candidate, trivially correct) and
+# secret rares (multiple candidates, pick the rarest tier).
 _INT_PRINT_RE = re.compile(
     r'<a\s+[^>]*href="/cards/en/([A-Za-z0-9]+)/([A-Za-z0-9\-]+)"',
     re.IGNORECASE,
@@ -60,8 +65,30 @@ _RARITY_REMAP: dict[str, str] = {
     "Double rare": "Double Rare",
     "Illustration rare": "Illustration Rare",
     "Special illustration rare": "Special Illustration Rare",
+    "Special Art Rare": "Special Illustration Rare",  # Limitless uses "Art"
     "Shiny rare": "Shiny Rare",
     "Secret Rare": "Rare Secret",
+}
+
+# Rarity hierarchy — higher = rarer. When a JP card has multiple EN
+# equivalents (base + reverse + ultra + SAR), we pick the rarest.
+_RARITY_RANK: dict[str, int] = {
+    "Common": 1,
+    "Uncommon": 2,
+    "Rare": 3,
+    "Rare Holo": 4,
+    "Double Rare": 5,
+    "Triple Rare": 6,
+    "Ultra Rare": 7,
+    "Rare Ultra": 7,
+    "Illustration Rare": 8,
+    "Special Illustration Rare": 9,
+    "Rare Secret": 10,
+    "Shiny Rare": 10,
+    "Amazing Rare": 10,
+    "Radiant Rare": 10,
+    "Hyper Rare": 11,
+    "Mega Hyper Rare": 12,
 }
 
 
@@ -74,20 +101,26 @@ def _normalize(value: str | None) -> str | None:
     return _RARITY_REMAP.get(v, v)
 
 
-async def _extract_en_equivalent(
+async def _extract_en_equivalents(
     client: httpx.AsyncClient, jp_set: str, jp_num: str
-) -> tuple[str, str] | None:
+) -> list[tuple[str, str]]:
+    """Return all EN print equivalents (set_id, num) from the JP detail page."""
     url = f"{BASE}/cards/jp/{jp_set}/{jp_num}"
     try:
         r = await client.get(url, timeout=20)
     except httpx.HTTPError:
-        return None
+        return []
     if r.status_code != 200:
-        return None
-    m = _INT_PRINT_RE.search(r.text)
-    if not m:
-        return None
-    return m.group(1), m.group(2)
+        return []
+    # Dedupe while preserving order
+    seen: set[tuple[str, str]] = set()
+    out: list[tuple[str, str]] = []
+    for m in _INT_PRINT_RE.finditer(r.text):
+        key = (m.group(1), m.group(2))
+        if key not in seen:
+            seen.add(key)
+            out.append(key)
+    return out
 
 
 async def _extract_rarity(
@@ -106,32 +139,48 @@ async def _extract_rarity(
     return _normalize(m.group(1))
 
 
+def _rarest(candidates: list[str]) -> str | None:
+    """From a list of rarity strings, return the one ranked highest by
+    _RARITY_RANK. Unknown rarities get rank 0 (treated as least rare)."""
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda r: _RARITY_RANK.get(r, 0))
+    return best
+
+
 async def _lookup_one(
     client: httpx.AsyncClient,
     card_id: str,
     set_id: str,
     number: str,
 ) -> tuple[str, str | None, str]:
-    en = await _extract_en_equivalent(client, set_id, number)
-    if en is None:
+    en_prints = await _extract_en_equivalents(client, set_id, number)
+    if not en_prints:
         return card_id, None, "no EN equivalent on JP detail page"
-    rarity = await _extract_rarity(client, en[0], en[1])
-    if rarity is None:
-        return card_id, None, f"no rarity in EN detail (en={en[0]}/{en[1]})"
-    return card_id, rarity, "ok"
+    # Fetch all candidate rarities and pick the highest tier — a JP SAR
+    # variant typically has multiple EN prints listed (base, reverse,
+    # ultra, SAR) and the SAR is the one that matches.
+    rarities = await asyncio.gather(
+        *[_extract_rarity(client, s, n) for s, n in en_prints]
+    )
+    valid = [r for r in rarities if r]
+    if not valid:
+        return card_id, None, f"no rarity in any EN print ({len(en_prints)} tried)"
+    return card_id, _rarest(valid), "ok"
 
 
-async def run(only_set: str | None, dry: bool, limit: int | None) -> None:
+async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged: bool) -> None:
     await init_db()
 
     async with SessionLocal() as db:
         sql = """
             SELECT id, set_id, number FROM cards
             WHERE language='ja'
-              AND rarity IS NULL
               AND number IS NOT NULL
               AND image_small LIKE 'https://limitlesstcg%'
         """
+        if not include_tagged:
+            sql += " AND rarity IS NULL"
         params: dict = {}
         if only_set:
             sql += " AND set_id = :set_id"
@@ -207,11 +256,16 @@ def main() -> None:
     p.add_argument("--set", dest="only_set", help="One JP set id (e.g. M2a)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--limit", type=int, help="Cap total cards processed (testing)")
+    p.add_argument(
+        "--include-tagged",
+        action="store_true",
+        help="Also re-process cards that already have a rarity (use after improving the rarest-of-N picker to fix SAR variants previously stuck on the base print's rarity)",
+    )
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    asyncio.run(run(args.only_set, args.dry_run, args.limit))
+    asyncio.run(run(args.only_set, args.dry_run, args.limit, args.include_tagged))
 
 
 if __name__ == "__main__":
