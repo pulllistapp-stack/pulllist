@@ -19,6 +19,7 @@ import {
 
 import { CardPriceChart } from "@/components/card/CardPriceChart";
 import { CardPriceHero } from "@/components/card/CardPriceHero";
+import { ImageMagnifier } from "@/components/card/ImageMagnifier";
 import { LiveListings } from "@/components/card/LiveListings";
 import { MascotMark } from "@/components/card/Mascot";
 import { OwnedToggle } from "@/components/OwnedToggle";
@@ -214,14 +215,11 @@ export function PullListCardDetail({
               )}
             >
               {card.image_large ? (
-                <Image
+                <ImageMagnifier
                   src={card.image_large}
                   alt={`${card.name} ${card.number ?? ""}`}
-                  fill
-                  priority
-                  className="object-cover"
                   sizes="(max-width: 1024px) 320px, 360px"
-                  unoptimized
+                  className="absolute inset-0"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-gray-300 dark:text-zinc-700">
