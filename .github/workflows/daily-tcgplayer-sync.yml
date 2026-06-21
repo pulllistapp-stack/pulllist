@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run TCGplayer + Cardmarket price sync
+      - name: Cardmarket sync + base TCGplayer (pokemontcg.io)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           # Optional but recommended — bumps pokemontcg.io rate limit
@@ -38,3 +38,14 @@ jobs:
           POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
           LOG_LEVEL: INFO
         run: python -m scripts.sync_tcgplayer_prices
+
+      # Refresh TCGplayer prices from TCGCSV last so its fresher daily-
+      # cadence data wins on the cards.tcgplayer_prices JSON. pokemontcg.io
+      # updates TCGplayer roughly weekly; TCGCSV publishes a real daily
+      # snapshot at UTC 20:00. Snapshot rows for any (card, variant, date)
+      # already inserted by the pokemontcg.io step are skipped on conflict.
+      - name: Fresh TCGplayer overlay (TCGCSV)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: python -m scripts.sync_tcgcsv_daily
