@@ -53,6 +53,15 @@ SLUG_OVERRIDES: dict[str, tuple[str, str | None]] = {
     "S7D":  ("skyscraping_perfection", None),
     "S8b":  ("high_class_pack_vmax_climax", None),
     "S10b": ("pokemon_go", None),            # name_en is empty on this row
+    # SV era — mixed-case IDs (`sv2D` not `sv2d`) and trimmed slugs
+    "SV1S": ("scarlet_ex", "sv1S"),
+    "SV1V": ("violet_ex", "sv1V"),
+    "SV2D": ("clay_burst", "sv2D"),
+    "SV2P": ("snow_hazard", "sv2P"),
+    "SV2a": ("151", "sv2a"),                  # slug just "151", no "pokemon" prefix
+    "SV3":  ("ruler_black_flame", "sv3"),     # slug omits "of_the_"
+    "SV4K": ("ancient_roar", "sv4K"),
+    "SV4M": ("future_flash", "sv4M"),
 }
 
 
