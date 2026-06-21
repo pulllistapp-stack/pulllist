@@ -46,7 +46,7 @@ export function rarityTier(rarity: string): RarityTier {
     n.includes("shining")
   )
     return "ace";
-  if (/(ex|gx|\bv\b|vmax|vstar|ultra|double)/i.test(rarity)) return "ultra";
+  if (/(ex|gx|\bv\b|vmax|vstar|ultra|double|triple)/i.test(rarity)) return "ultra";
   if (n.includes("holo")) return "holo";
   return "other";
 }

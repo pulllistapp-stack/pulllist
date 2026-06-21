@@ -21,8 +21,9 @@ const RARITY_GROUPS: Record<string, string[]> = {
   Uncommon: ["Uncommon"],
   Rare: ["Rare"],
   "Rare Holo": ["Rare Holo", "Rare Holo 1st Edition"],
-  "Double / Ultra": [
+  "Double / Triple / Ultra": [
     "Double Rare",
+    "Triple Rare",
     "Ultra Rare",
     "Rare Ultra",
   ],
