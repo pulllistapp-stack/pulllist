@@ -251,10 +251,13 @@ function HeroArt() {
         className="absolute inset-0 rounded-full border-2 border-dashed border-teal-400/60 dark:border-teal-300/40 [animation:pl-slow-spin_32s_linear_infinite]"
       />
 
-      {/* Inner mascot disc — gently floats */}
+      {/* Inner mascot disc — gently floats. Uses the smooth duo illustration
+          (logo asset) here rather than the pixel idle APNG; pixel art lives
+          in the loading mascots only — at hero scale it fights the rest of
+          the modern UI. */}
       <div className="relative h-64 w-64 sm:h-72 sm:w-72 rounded-full bg-white flex items-center justify-center p-6 shadow-[0_22px_50px_-14px_rgba(0,0,0,0.32)] dark:shadow-[0_25px_60px_-12px_rgba(20,184,166,0.5)] [animation:pl-float_5s_ease-in-out_infinite]">
         <Image
-          src="/pullist-mascot.png"
+          src="/pullist-mascot-logo.png"
           alt=""
           width={240}
           height={240}
