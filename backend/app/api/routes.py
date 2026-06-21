@@ -233,18 +233,22 @@ async def _expand_query_to_dex_numbers(
 
 def _cards_match_predicate(pattern: str, dex_numbers: list[int]):
     """OR-predicate: card name matches OR its pokédex array contains any dex
-    in `dex_numbers`. Returns a single SQLAlchemy whereclause."""
+    in `dex_numbers`. Returns a single SQLAlchemy whereclause.
+
+    Uses JSONB containment (@>) rather than ?| because SQLAlchemy's text()
+    treats `?` as a positional bind placeholder and chokes on JSONB key-
+    exists operators. Dex numbers come from our own query (never user
+    input) so int-coercing them into the SQL string is safe from injection.
+    """
     if not dex_numbers:
         return Card.name.ilike(pattern)
-    # JSONB ?| operator: "does the jsonb array contain ANY of these strings"
-    # We cast the JSON column to jsonb at query time so we don't need an
-    # alembic migration to change the column type.
-    dex_strs = [str(n) for n in dex_numbers]
+    dex_sql = " OR ".join(
+        f"(national_pokedex_numbers::jsonb @> '[{int(n)}]'::jsonb)"
+        for n in dex_numbers
+    )
     return or_(
         Card.name.ilike(pattern),
-        text(
-            "(national_pokedex_numbers::jsonb) ?| :dex_strs"
-        ).bindparams(dex_strs=dex_strs),
+        text(f"({dex_sql})"),
     )
 
 
