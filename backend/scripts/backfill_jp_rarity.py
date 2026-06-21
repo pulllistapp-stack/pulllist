@@ -64,8 +64,9 @@ _RARITY_REMAP: dict[str, str] = {
     "Holo Rare": "Rare Holo",
     "Double rare": "Double Rare",
     "Illustration rare": "Illustration Rare",
+    "Art Rare": "Illustration Rare",                   # Limitless: AR tier
     "Special illustration rare": "Special Illustration Rare",
-    "Special Art Rare": "Special Illustration Rare",  # Limitless uses "Art"
+    "Special Art Rare": "Special Illustration Rare",   # Limitless: SAR tier
     "Shiny rare": "Shiny Rare",
     "Secret Rare": "Rare Secret",
 }
