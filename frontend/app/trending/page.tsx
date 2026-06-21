@@ -16,6 +16,7 @@ import {
 
 import { getTrending, type TrendingMover, type TrendingTier } from "@/lib/api";
 import { rarityChipClass } from "@/lib/rarity";
+import { MascotLoader } from "@/components/MascotLoader";
 
 const PERIODS = [
   { label: "1d", days: 1 },
@@ -268,7 +269,7 @@ export default function TrendingPage() {
       )}
 
       {loading ? (
-        <SkeletonList />
+        <MascotLoader size="lg" className="py-20" />
       ) : movers.length === 0 ? (
         <EmptyState periodDays={periodDays} />
       ) : (

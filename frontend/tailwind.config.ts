@@ -52,6 +52,24 @@ const config: Config = {
         btn: "8px",
         chip: "6px",
       },
+      keyframes: {
+        // Mascot bobs up + down with a slight squash. Slower than a typical
+        // bounce so it reads as 'breathing' rather than impatient.
+        "mascot-bounce": {
+          "0%, 100%": { transform: "translateY(0) scale(1)" },
+          "50%": { transform: "translateY(-8px) scale(1.02)" },
+        },
+        // Phrase fade-in when it rotates — re-keyed on the React side so
+        // each new phrase plays this once.
+        "mascot-fade": {
+          "0%": { opacity: "0", transform: "translateY(2px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+      },
+      animation: {
+        "mascot-bounce": "mascot-bounce 1.8s ease-in-out infinite",
+        "mascot-fade": "mascot-fade 0.35s ease-out",
+      },
     },
   },
   plugins: [],

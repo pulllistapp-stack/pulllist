@@ -7,6 +7,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { CardThumb } from "@/components/CardThumb";
 import { FilterSidebar } from "@/components/FilterSidebar";
+import { MascotLoader } from "@/components/MascotLoader";
 import { Pagination } from "@/components/Pagination";
 import {
   DEFAULT_PAGE_SIZE,
@@ -26,7 +27,7 @@ export default function BrowseCardsPage() {
 function PageLoading() {
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
-      <div className="text-text-tertiary py-12 text-center">Loading…</div>
+      <MascotLoader size="lg" className="py-12" />
     </main>
   );
 }
@@ -179,9 +180,7 @@ function BrowseCardsContent() {
             </div>
           )}
 
-          {loading && (
-            <div className="text-text-tertiary py-12 text-center">Loading…</div>
-          )}
+          {loading && <MascotLoader size="lg" className="py-12" />}
 
           {!loading && data && data.items.length === 0 && (
             <div className="rounded-card border border-border bg-bg-surface p-8 text-center">

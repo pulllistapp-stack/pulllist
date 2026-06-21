@@ -9,6 +9,7 @@ import { Download, Loader2, Share2 } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
+import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
 import { ShareModal } from "@/components/portfolio/ShareModal";
 import { PriceBadge } from "@/components/PriceBadge";
@@ -119,8 +120,8 @@ export default function PortfolioPage() {
 
   if (authLoading || !user) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-16 text-text-secondary">
-        Loading…
+      <main className="mx-auto max-w-7xl px-6 py-16">
+        <MascotLoader size="lg" />
       </main>
     );
   }
@@ -230,7 +231,7 @@ export default function PortfolioPage() {
           </div>
 
           {loading ? (
-            <div className="text-text-tertiary text-sm">Loading…</div>
+            <MascotLoader size="md" className="py-6" />
           ) : items.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-sm text-text-secondary mb-3">
