@@ -8,8 +8,15 @@ import { useEffect, useState } from "react";
  * skeletons on full-page loads (main, /sets, /trending, /cards, /portfolio)
  * so the wait reads as personality rather than dead air.
  *
- * Asset is /pullist-mascot.png today. When LO ships the pixel-art mascot,
- * swap the `src` here — every page picks it up automatically.
+ * Two animated APNG variants:
+ *   - idle: sitting + blinking + holding card (used when waiting for data
+ *           on the current page — trending fetch, browse pagination, etc.)
+ *   - fly:  flying diagonally + wings flapping (used by the global route-
+ *           transition loader so the mascot "goes somewhere" while the next
+ *           page streams in)
+ *
+ * The APNGs carry their own per-frame motion, so we deliberately skip the
+ * old CSS bounce keyframe — stacking the two looks twitchy.
  */
 
 type Phrase = { en: string; kr: string };
@@ -23,6 +30,7 @@ const PHRASES: Phrase[] = [
 const ROTATION_MS = 2400;
 
 type Size = "sm" | "md" | "lg";
+type Variant = "idle" | "fly";
 
 const SIZE_CFG: Record<Size, { px: number; text: string }> = {
   sm: { px: 56, text: "text-xs" },
@@ -30,11 +38,18 @@ const SIZE_CFG: Record<Size, { px: number; text: string }> = {
   lg: { px: 144, text: "text-base" },
 };
 
+const VARIANT_SRC: Record<Variant, string> = {
+  idle: "/pullist-mascot.png",
+  fly: "/pullist-mascot-fly.png",
+};
+
 export function MascotLoader({
   size = "md",
+  variant = "idle",
   className = "",
 }: {
   size?: Size;
+  variant?: Variant;
   className?: string;
 }) {
   const [idx, setIdx] = useState(0);
@@ -66,11 +81,11 @@ export function MascotLoader({
       aria-live="polite"
     >
       <div
-        className="relative animate-mascot-bounce"
+        className="relative"
         style={{ width: cfg.px, height: cfg.px }}
       >
         <Image
-          src="/pullist-mascot.png"
+          src={VARIANT_SRC[variant]}
           alt=""
           fill
           sizes={`${cfg.px}px`}

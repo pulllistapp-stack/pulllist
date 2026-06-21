@@ -4,8 +4,9 @@ import { MascotLoader } from "@/components/MascotLoader";
  * Global route-transition loader.
  *
  * Next.js renders this between route segments while server components
- * for the next page are streaming. Mascot + rotating phrase is a friendlier
- * idle than a grey skeleton grid for the brief route-switch window.
+ * for the next page are streaming. The 'fly' variant matches the moment
+ * — we're literally moving to a new page, so the mascot flying somewhere
+ * carries the right semantic. In-page data fetches use the idle variant.
  */
 export default function Loading() {
   return (
@@ -14,7 +15,7 @@ export default function Loading() {
       aria-busy="true"
       aria-live="polite"
     >
-      <MascotLoader size="lg" />
+      <MascotLoader size="lg" variant="fly" />
     </div>
   );
 }

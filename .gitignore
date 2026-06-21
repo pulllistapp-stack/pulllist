@@ -35,3 +35,7 @@ backend/*.log
 
 # Scraped data dumps (transient build artifacts, not source)
 backend/data/scraped/
+
+# LO's local mascot working copies (we use the renamed ones in code)
+frontend/public/*.apng
+frontend/public/pullist-mascot-*-backup.png
