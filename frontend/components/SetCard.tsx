@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 
-import { useLanguage } from "@/components/LanguageProvider";
 import type { SetWithCardCount } from "@/lib/api";
 
 type Props = {
@@ -28,8 +27,7 @@ function fmtValue(v: number | null): string | null {
 }
 
 export function SetCard({ set }: Props) {
-  const { setName } = useLanguage();
-  const displayName = setName(set);
+  const displayName = set.name;
   const releaseLabel = formatReleaseDate(set.release_date);
   const valueLabel = fmtValue(set.total_value_usd);
   const progress = set.owned_unique != null && set.card_count > 0

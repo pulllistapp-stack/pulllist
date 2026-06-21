@@ -4,7 +4,6 @@ import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import { CollectionProvider } from "@/components/CollectionProvider";
 import { CookieBanner } from "@/components/CookieBanner";
-import { LanguageProvider } from "@/components/LanguageProvider";
 import { Footer } from "@/components/Footer";
 import { PWARegister } from "@/components/PWARegister";
 import { ScanFAB } from "@/components/ScanFAB";
@@ -47,9 +46,9 @@ export const metadata: Metadata = {
     title: "PullList",
   },
   icons: {
-    icon: "/pullist-mascot.png",
-    apple: "/pullist-mascot.png",
-    shortcut: "/pullist-mascot.png",
+    icon: "/pullist-mascot-logo.png",
+    apple: "/pullist-mascot-logo.png",
+    shortcut: "/pullist-mascot-logo.png",
   },
   formatDetection: {
     telephone: false,
@@ -76,20 +75,18 @@ export default function RootLayout({
     >
       <body className="bg-bg text-text-primary min-h-screen">
         <ThemeProvider>
-          <LanguageProvider>
-            <AuthProvider>
-              <CollectionProvider>
-                <WishlistProvider>
-                  <PWARegister />
-                  <TopNav />
-                  {children}
-                  <Footer />
-                  <ScanFAB />
-                  <CookieBanner />
-                </WishlistProvider>
-              </CollectionProvider>
-            </AuthProvider>
-          </LanguageProvider>
+          <AuthProvider>
+            <CollectionProvider>
+              <WishlistProvider>
+                <PWARegister />
+                <TopNav />
+                {children}
+                <Footer />
+                <ScanFAB />
+                <CookieBanner />
+              </WishlistProvider>
+            </CollectionProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

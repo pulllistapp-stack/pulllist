@@ -7,7 +7,6 @@ import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "./AuthProvider";
-import { LanguageToggle } from "./LanguageToggle";
 import { SearchBar } from "./SearchBar";
 
 function ThemeToggle() {
@@ -62,7 +61,7 @@ export function TopNav() {
         >
           <span className="relative block h-10 w-[140px] sm:h-12 sm:w-[170px]">
             <Image
-              src="/pullist-mascot.png"
+              src="/pullist-mascot-logo.png"
               alt="PullList"
               fill
               className="object-contain object-left"
@@ -95,9 +94,8 @@ export function TopNav() {
           <SearchBar compact />
         </div>
 
-        {/* Language + theme toggles — always visible (desktop + mobile) */}
+        {/* Theme toggle — always visible (desktop + mobile) */}
         <div className="flex-shrink-0 flex items-center gap-1.5">
-          <LanguageToggle />
           <ThemeToggle />
         </div>
 

@@ -4,27 +4,22 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 /**
- * Centred mascot + rotating Korean/English status line. Replaces blank
- * skeletons on full-page loads (main, /sets, /trending, /cards, /portfolio)
- * so the wait reads as personality rather than dead air.
+ * Centred mascot + rotating status phrase. Replaces blank skeletons on
+ * full-page loads (main, /sets, /trending, /cards, /portfolio) so the
+ * wait reads as personality rather than dead air.
  *
  * Two animated APNG variants:
- *   - idle: sitting + blinking + holding card (used when waiting for data
- *           on the current page — trending fetch, browse pagination, etc.)
- *   - fly:  flying diagonally + wings flapping (used by the global route-
- *           transition loader so the mascot "goes somewhere" while the next
- *           page streams in)
+ *   - idle: sitting + blinking + holding card (current-page data fetches)
+ *   - fly:  flying diagonally + wings flapping (global route transitions)
  *
  * The APNGs carry their own per-frame motion, so we deliberately skip the
- * old CSS bounce keyframe — stacking the two looks twitchy.
+ * CSS bounce keyframe — stacking the two looks twitchy.
  */
 
-type Phrase = { en: string; kr: string };
-
-const PHRASES: Phrase[] = [
-  { en: "Counting your pulls...", kr: "카드 모으는 중..." },
-  { en: "Calling the trainer...", kr: "트레이너 부르는 중..." },
-  { en: "Checking the prices...", kr: "가격 확인하는 중..." },
+const PHRASES = [
+  "Counting your pulls...",
+  "Calling the trainer...",
+  "Checking the prices...",
 ];
 
 const ROTATION_MS = 2400;
@@ -53,16 +48,6 @@ export function MascotLoader({
   className?: string;
 }) {
   const [idx, setIdx] = useState(0);
-  const [lang, setLang] = useState<"kr" | "en">("kr");
-
-  useEffect(() => {
-    // Pick the user's preferred language once on mount. Browser locale-pref
-    // is good enough — we don't need a global store for a loading string.
-    if (typeof navigator !== "undefined") {
-      const top = (navigator.language || "").toLowerCase();
-      setLang(top.startsWith("ko") ? "kr" : "en");
-    }
-  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -72,7 +57,6 @@ export function MascotLoader({
   }, []);
 
   const cfg = SIZE_CFG[size];
-  const phrase = PHRASES[idx];
 
   return (
     <div
@@ -98,7 +82,7 @@ export function MascotLoader({
         key={idx}
         className={`${cfg.text} text-text-secondary font-medium animate-mascot-fade tabular-nums`}
       >
-        {phrase[lang]}
+        {PHRASES[idx]}
       </p>
     </div>
   );
