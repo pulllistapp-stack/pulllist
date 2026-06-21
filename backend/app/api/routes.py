@@ -15,6 +15,34 @@ from app.services.listing_match import filter_listings, is_suspicious, seller_tr
 router = APIRouter()
 
 
+# Trending rarity buckets. The boundary is Double Rare — a Common can move
+# +50% on a hype cycle and a SIR can move +50% on a single grading bump, but
+# collectors look for those two things in entirely different ways. Splitting
+# the trending feeds lets each audience see what they care about.
+#
+# JP rarity codes (C, U, R, RR, etc.) live alongside the English names so a
+# single set of strings filters both catalogs.
+RARITY_BULK = {
+    "Common", "Uncommon", "Rare", "Rare Holo", "Double Rare",
+    # JP
+    "C", "U", "R", "RR",
+}
+RARITY_CHASE = {
+    # Modern EN
+    "Ultra Rare", "Hyper Rare", "Illustration Rare",
+    "Special Illustration Rare", "Rare Secret", "Rare Rainbow",
+    "Radiant Rare", "Amazing Rare", "Rare Shiny", "Rare Shiny GX",
+    "ACE SPEC Rare", "Rare BREAK", "Rare Prism Star", "Rare Holo Star",
+    "Rare Holo EX", "Rare Holo GX", "Rare Holo V", "Rare Holo VMAX",
+    "Rare Holo VSTAR", "Rare Holo LV.X", "Rare Shining", "Rare Prime",
+    "Rare Promo", "Promo", "Legend", "Classic Collection",
+    "Trainer Gallery Rare Holo", "Rare Ace",
+    # JP
+    "RRR", "AR", "SR", "SAR", "UR", "HR", "CSR", "CHR",
+    "MR", "MUR", "SSR",
+}
+
+
 def _median(values: list[float | None]) -> float | None:
     """Median of non-null prices; returns None if the list is all-null/empty."""
     clean = sorted(float(v) for v in values if v is not None)
@@ -538,6 +566,15 @@ async def get_trending(
             "outlier sale sitting on top of a $30 flat history."
         ),
     ),
+    tier: str = Query(
+        "all",
+        description=(
+            "Rarity tier filter. 'bulk' = Common through Double Rare "
+            "(pack-pull market). 'chase' = Ultra Rare and above plus "
+            "promos (hunt cards). 'all' = no rarity filter."
+        ),
+        pattern="^(all|bulk|chase)$",
+    ),
 ) -> dict:
     """Top movers — cards with the biggest %change over the last `period_days`.
 
@@ -573,25 +610,42 @@ async def get_trending(
     # the per-group price array already sorted by date; we only need to
     # slice the head/tail for the tercile medians. Cuts memory + wall
     # time enough to fit a 90d query into Render's 30s + 512MB envelope.
-    from sqlalchemy import text  # local import - rarely-used helper
+    tier_filter_sql = ""
+    params: dict = {
+        "source": source,
+        "cutoff": cutoff,
+        "min_snapshots": effective_min_snapshots,
+    }
+    if tier == "bulk":
+        tier_filter_sql = "AND c.rarity = ANY(:tier_rarities)"
+        params["tier_rarities"] = list(RARITY_BULK)
+    elif tier == "chase":
+        tier_filter_sql = "AND c.rarity = ANY(:tier_rarities)"
+        params["tier_rarities"] = list(RARITY_CHASE)
+
+    # Only JOIN cards when we actually need rarity — saves a planner pass
+    # on the much hotter tier='all' default path.
+    from_sql = (
+        "FROM card_price_snapshots s JOIN cards c ON c.id = s.card_id"
+        if tier_filter_sql
+        else "FROM card_price_snapshots s"
+    )
     agg_stmt = text(
-        """
-        SELECT card_id, variant,
-               array_agg(market_price_usd ORDER BY snapshot_date) AS prices
-        FROM card_price_snapshots
-        WHERE source = :source
-          AND snapshot_date >= :cutoff
-          AND market_price_usd IS NOT NULL
-        GROUP BY card_id, variant
+        f"""
+        SELECT s.card_id, s.variant,
+               array_agg(s.market_price_usd ORDER BY s.snapshot_date) AS prices
+        {from_sql}
+        WHERE s.source = :source
+          AND s.snapshot_date >= :cutoff
+          AND s.market_price_usd IS NOT NULL
+          {tier_filter_sql}
+        GROUP BY s.card_id, s.variant
         HAVING count(*) >= :min_snapshots
         """
     )
     by_card_variant: dict[tuple[str, str], list[float]] = {}
     for card_id, variant, prices in (
-        await db.execute(
-            agg_stmt,
-            {"source": source, "cutoff": cutoff, "min_snapshots": effective_min_snapshots},
-        )
+        await db.execute(agg_stmt, params)
     ).all():
         by_card_variant[(card_id, variant)] = [float(p) for p in prices]
 

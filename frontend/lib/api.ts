@@ -368,6 +368,8 @@ export type TrendingResponse = {
   total_eligible: number;
 };
 
+export type TrendingTier = "all" | "bulk" | "chase";
+
 export async function getTrending(opts: {
   periodDays?: number;
   source?: string;
@@ -375,6 +377,7 @@ export async function getTrending(opts: {
   limit?: number;
   minPriceUsd?: number;
   minAbsChangeUsd?: number;
+  tier?: TrendingTier;
 } = {}): Promise<TrendingResponse> {
   const qs = new URLSearchParams();
   if (opts.periodDays != null) qs.set("period_days", String(opts.periodDays));
@@ -384,6 +387,7 @@ export async function getTrending(opts: {
   if (opts.minPriceUsd != null) qs.set("min_price_usd", String(opts.minPriceUsd));
   if (opts.minAbsChangeUsd != null)
     qs.set("min_abs_change_usd", String(opts.minAbsChangeUsd));
+  if (opts.tier && opts.tier !== "all") qs.set("tier", opts.tier);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<TrendingResponse>(`/cards/trending${suffix}`);
 }

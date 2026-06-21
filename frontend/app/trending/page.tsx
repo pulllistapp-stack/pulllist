@@ -14,7 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import { getTrending, type TrendingMover } from "@/lib/api";
+import { getTrending, type TrendingMover, type TrendingTier } from "@/lib/api";
 import { rarityChipClass } from "@/lib/rarity";
 
 const PERIODS = [
@@ -38,12 +38,32 @@ const PRICE_TIERS = [
   { label: "$50+", value: 50 },
 ] as const;
 
+// Rarity tier — separates pack-pull market from chase-card market. Bulk
+// covers Common through Double Rare; Chase covers Ultra Rare and above
+// plus all promo categories. Mixing them makes a $5 Common +50% mover
+// drown in a $500 SIR +50% mover noise so the toggle's the right primitive.
+const TIERS: { key: TrendingTier; label: string; sub: string }[] = [
+  { key: "all", label: "All", sub: "Every rarity" },
+  { key: "bulk", label: "Bulk", sub: "Common — Double Rare" },
+  { key: "chase", label: "Chase", sub: "Ultra Rare & up + promos" },
+];
+
+// Tier defaults — bulk cards trade at much lower price points, so the
+// shared $5 floor would empty the bulk view. Pick a sensible starting
+// minimum per tier; users can override via the price pill row.
+const TIER_DEFAULT_MIN_PRICE: Record<TrendingTier, number> = {
+  all: 5,
+  bulk: 1,
+  chase: 10,
+};
+
 type Direction = "up" | "down";
 
 export default function TrendingPage() {
   const [periodDays, setPeriodDays] = useState(7);
   const [source, setSource] = useState<(typeof SOURCES)[number]["key"]>("ebay");
   const [direction, setDirection] = useState<Direction>("up");
+  const [tier, setTier] = useState<TrendingTier>("all");
   // Default $5 floor — surfaces real chase-card movement, hides bulk noise.
   // Users can drop to $1 if they actually want to scan everything.
   const [minPrice, setMinPrice] = useState<number>(5);
@@ -51,6 +71,14 @@ export default function TrendingPage() {
   const [eligible, setEligible] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+
+  // Switching tier resets the price floor to a tier-appropriate default —
+  // a $5 floor on Bulk empties the page; a $1 floor on Chase shows nothing
+  // worth looking at.
+  function switchTier(next: TrendingTier) {
+    setTier(next);
+    setMinPrice(TIER_DEFAULT_MIN_PRICE[next]);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +90,7 @@ export default function TrendingPage() {
       direction,
       limit: 25,
       minPriceUsd: minPrice,
+      tier,
     })
       .then((r) => {
         if (cancelled) return;
@@ -77,7 +106,7 @@ export default function TrendingPage() {
     return () => {
       cancelled = true;
     };
-  }, [periodDays, source, direction, minPrice]);
+  }, [periodDays, source, direction, minPrice, tier]);
 
   const top3 = movers.slice(0, 3);
   const rest = movers.slice(3);
@@ -120,8 +149,26 @@ export default function TrendingPage() {
           </div>
         </div>
 
+        {/* Tier toggle — most decision-shaping filter, lives on its own row */}
+        <div className="mt-5 inline-flex rounded-full border border-border bg-bg-surface p-1">
+          {TIERS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => switchTier(t.key)}
+              title={t.sub}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                tier === t.key
+                  ? "bg-accent-yellow text-gray-900 shadow-sm shadow-accent-yellow/30"
+                  : "text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Filter row */}
-        <div className="mt-6 flex flex-wrap items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           {/* Direction tabs */}
           <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
             <DirectionPill
@@ -202,6 +249,14 @@ export default function TrendingPage() {
             shown · {eligible.toLocaleString()} eligible · {periodDays}d window ·{" "}
             {source === "ebay" ? "eBay" : "TCGplayer"} ·{" "}
             <span className="text-accent-green font-semibold">${minPrice}+</span>
+            {tier !== "all" && (
+              <>
+                {" "}·{" "}
+                <span className="text-accent-yellow font-semibold">
+                  {tier === "bulk" ? "Bulk tier" : "Chase tier"}
+                </span>
+              </>
+            )}
           </span>
         </div>
       </div>
