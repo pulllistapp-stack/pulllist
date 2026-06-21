@@ -7,6 +7,7 @@ import { Heart } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { useWishlist } from "./WishlistProvider";
 import { cn } from "@/lib/utils";
+import type { CardVariant } from "@/lib/auth";
 
 type Props = {
   cardId: string;
@@ -15,6 +16,8 @@ type Props = {
    * "inline" = standalone button for the card detail page CTA row.
    */
   variant?: "corner" | "inline";
+  /** Print variant the wishlist heart targets. Default 'normal'. */
+  printVariant?: CardVariant;
 };
 
 /**
@@ -22,7 +25,11 @@ type Props = {
  * propagation so it works inside an outer <Link> (CardThumb wraps the whole
  * tile in a card-detail link).
  */
-export function WishlistHeart({ cardId, variant = "corner" }: Props) {
+export function WishlistHeart({
+  cardId,
+  variant = "corner",
+  printVariant = "normal",
+}: Props) {
   const { user } = useAuth();
   const { has, toggle } = useWishlist();
   const [pending, setPending] = useState(false);
@@ -62,7 +69,7 @@ export function WishlistHeart({ cardId, variant = "corner" }: Props) {
     if (pending) return;
     setPending(true);
     try {
-      await toggle(cardId);
+      await toggle(cardId, printVariant);
     } finally {
       setPending(false);
     }

@@ -5,14 +5,22 @@ import { useState } from "react";
 
 import { useAuth } from "./AuthProvider";
 import { useCollection } from "./CollectionProvider";
+import type { CardVariant } from "@/lib/auth";
 
 type Props = {
   cardId: string;
   size?: "sm" | "md";
   variant?: "default" | "hero";
+  /** Print variant the toggle adds/removes. Default 'normal'. */
+  printVariant?: CardVariant;
 };
 
-export function OwnedToggle({ cardId, size = "md", variant = "default" }: Props) {
+export function OwnedToggle({
+  cardId,
+  size = "md",
+  variant = "default",
+  printVariant = "normal",
+}: Props) {
   const { user } = useAuth();
   const { has, toggle } = useCollection();
   const [pending, setPending] = useState(false);
@@ -46,7 +54,7 @@ export function OwnedToggle({ cardId, size = "md", variant = "default" }: Props)
     if (pending) return;
     setPending(true);
     try {
-      await toggle(cardId);
+      await toggle(cardId, printVariant);
     } finally {
       setPending(false);
     }

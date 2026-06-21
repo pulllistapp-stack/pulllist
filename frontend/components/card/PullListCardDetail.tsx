@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +22,12 @@ import { CardPriceHero } from "@/components/card/CardPriceHero";
 import { ImageMagnifier } from "@/components/card/ImageMagnifier";
 import { LiveListings } from "@/components/card/LiveListings";
 import { MascotMark } from "@/components/card/Mascot";
+import { VariantTabs } from "@/components/card/VariantTabs";
+import type { CardVariant } from "@/lib/auth";
+import {
+  availableVariants,
+  priceForVariant,
+} from "@/lib/variant";
 import { OwnedToggle } from "@/components/OwnedToggle";
 import { RarityChip } from "@/components/RarityChip";
 import { WishlistHeart } from "@/components/WishlistHeart";
@@ -116,15 +122,32 @@ export function PullListCardDetail({
     return candidates.sort((a, b) => a.price - b.price)[0];
   }, [card, initialEbayMedian]);
 
-  const tcgMid = useMemo(() => {
-    if (!card.tcgplayer_prices) return null;
-    const variants = Object.values(card.tcgplayer_prices);
-    for (const v of variants) {
-      if (typeof v?.market === "number") return v.market;
-      if (typeof v?.mid === "number") return v.mid;
-    }
-    return null;
-  }, [card]);
+  // Which TCGplayer print variants does this card actually have data
+  // for? Modern SV commons usually ship {normal, reverseHolofoil};
+  // vintage WotC ships {holofoil} or {1stEditionHolofoil, unlimited}.
+  // The variant tabs only show the ones we have, so the user never
+  // sees a "1st Edition" tab on a SV-era release.
+  const variants: CardVariant[] = useMemo(
+    () => availableVariants(card.tcgplayer_prices),
+    [card.tcgplayer_prices],
+  );
+  const [selectedVariant, setSelectedVariant] = useState<CardVariant>(
+    variants[0] ?? "normal",
+  );
+
+  // tcgMid for the selected variant. Hero updates when the user clicks
+  // a different tab. Falls back to the card-level denormalized price
+  // if the variant has no data (e.g. JP cards where we only ever store
+  // one price).
+  const tcgMid = useMemo(
+    () =>
+      priceForVariant(
+        card.tcgplayer_prices,
+        selectedVariant,
+        card.market_price_usd,
+      ),
+    [card.tcgplayer_prices, selectedVariant, card.market_price_usd],
+  );
 
   const types = card.types ?? [];
 
@@ -302,12 +325,34 @@ export function PullListCardDetail({
               ))}
             </div>
 
+            {variants.length > 1 && (
+              <div className="mb-3">
+                <VariantTabs
+                  variants={variants}
+                  selected={selectedVariant}
+                  onChange={setSelectedVariant}
+                />
+              </div>
+            )}
+
             <CardPriceHero
               card={card}
               tcgMarket={tcgMid}
               ebayMedian={initialEbayMedian}
-              ownedToggle={<OwnedToggle cardId={card.id} variant="hero" />}
-              wishlistButton={<WishlistHeart cardId={card.id} variant="inline" />}
+              ownedToggle={
+                <OwnedToggle
+                  cardId={card.id}
+                  variant="hero"
+                  printVariant={selectedVariant}
+                />
+              }
+              wishlistButton={
+                <WishlistHeart
+                  cardId={card.id}
+                  variant="inline"
+                  printVariant={selectedVariant}
+                />
+              }
             />
           </div>
         </div>

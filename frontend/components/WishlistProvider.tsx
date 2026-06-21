@@ -11,7 +11,11 @@ import {
 
 import { useAuth } from "./AuthProvider";
 import { invalidateApiCache } from "@/lib/api";
-import { wishlistIds as fetchWishlistIds, toggleWishlist } from "@/lib/auth";
+import {
+  wishlistIds as fetchWishlistIds,
+  toggleWishlist,
+  type CardVariant,
+} from "@/lib/auth";
 
 /**
  * Mirror of CollectionProvider for wishlist state. Same shape so the heart
@@ -21,8 +25,10 @@ import { wishlistIds as fetchWishlistIds, toggleWishlist } from "@/lib/auth";
 type WishlistContextValue = {
   wishlistedSet: Set<string>;
   loading: boolean;
+  /** True if user wishlists any variant of this card. */
   has: (cardId: string) => boolean;
-  toggle: (cardId: string) => Promise<boolean>;
+  /** Toggle a specific variant. Default 'normal'. */
+  toggle: (cardId: string, variant?: CardVariant) => Promise<boolean>;
   refresh: () => Promise<void>;
 };
 
@@ -59,19 +65,23 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   );
 
   const toggle = useCallback(
-    async (cardId: string): Promise<boolean> => {
+    async (
+      cardId: string,
+      variant: CardVariant = "normal",
+    ): Promise<boolean> => {
       if (!user) return false;
-      const result = await toggleWishlist(cardId);
+      const result = await toggleWishlist(cardId, variant);
       setWishlistedSet((prev) => {
         const next = new Set(prev);
         if (result.wishlisted) next.add(cardId);
         else next.delete(cardId);
         return next;
       });
+      if (!result.wishlisted) void refresh();
       invalidateApiCache("/wishlist");
       return result.wishlisted;
     },
-    [user],
+    [user, refresh],
   );
 
   return (

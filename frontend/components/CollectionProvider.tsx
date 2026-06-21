@@ -11,13 +11,20 @@ import {
 
 import { useAuth } from "./AuthProvider";
 import { invalidateApiCache } from "@/lib/api";
-import { ownedIds as fetchOwnedIds, toggleOwned } from "@/lib/auth";
+import {
+  ownedIds as fetchOwnedIds,
+  toggleOwned,
+  type CardVariant,
+} from "@/lib/auth";
 
 type CollectionContextValue = {
   ownedSet: Set<string>;
   loading: boolean;
+  /** True if user owns ANY variant of this card. card-id grain — for
+   *  detail-page variant-precise checks, call the API directly. */
   has: (cardId: string) => boolean;
-  toggle: (cardId: string) => Promise<boolean>;
+  /** Toggle ownership of a specific variant. Default 'normal'. */
+  toggle: (cardId: string, variant?: CardVariant) => Promise<boolean>;
   refresh: () => Promise<void>;
 };
 
@@ -54,20 +61,32 @@ export function CollectionProvider({ children }: { children: ReactNode }) {
   );
 
   const toggle = useCallback(
-    async (cardId: string): Promise<boolean> => {
+    async (
+      cardId: string,
+      variant: CardVariant = "normal",
+    ): Promise<boolean> => {
       if (!user) return false;
-      const result = await toggleOwned(cardId);
+      const result = await toggleOwned(cardId, variant);
       setOwnedSet((prev) => {
         const next = new Set(prev);
         if (result.owned) next.add(cardId);
-        else next.delete(cardId);
+        else {
+          // Card-id grain — only remove the indicator if the user
+          // truly owns no variants. We don't know without a refetch,
+          // so optimistically remove and refresh once.
+          next.delete(cardId);
+        }
         return next;
       });
+      if (!result.owned) {
+        // Re-sync in case other variants remain owned.
+        void refresh();
+      }
       // Drop browse/owned caches so collection-filtered lists pick this up.
       invalidateApiCache("/cards/browse");
       return result.owned;
     },
-    [user],
+    [user, refresh],
   );
 
   return (

@@ -120,10 +120,23 @@ export type SetCompletion = {
   estimated_value_usd: number;
 };
 
+/** Print variants matching TCGplayer's keys. 'normal' is the standard
+ *  print, the others are reverse-holo / 1st-edition / holo / vintage
+ *  patterns. Each variant has its own market price. */
+export type CardVariant =
+  | "normal"
+  | "holofoil"
+  | "reverseHolofoil"
+  | "1stEdition"
+  | "1stEditionHolofoil"
+  | "unlimited"
+  | "unlimitedHolofoil";
+
 export type CollectionItemDetail = {
   id: number;
   card_id: string;
   qty: number;
+  variant: CardVariant;
   condition: string;
   is_graded: boolean;
   grade: string | null;
@@ -139,10 +152,14 @@ export type CollectionItemDetail = {
   set_name: string;
 };
 
-export async function toggleOwned(cardId: string): Promise<{ owned: boolean }> {
-  return authFetch<{ owned: boolean }>(`/collection/cards/${cardId}/toggle`, {
-    method: "POST",
-  });
+export async function toggleOwned(
+  cardId: string,
+  variant: CardVariant = "normal",
+): Promise<{ owned: boolean; variant: CardVariant }> {
+  return authFetch<{ owned: boolean; variant: CardVariant }>(
+    `/collection/cards/${cardId}/toggle?variant=${variant}`,
+    { method: "POST" },
+  );
 }
 
 export async function ownedIds(setId?: string): Promise<string[]> {
@@ -176,6 +193,7 @@ export type WishlistSummary = {
 export type WishlistItemDetail = {
   id: number;
   card_id: string;
+  variant: CardVariant;
   priority: number;
   max_price_usd: number | null;
   notes: string | null;
@@ -193,9 +211,10 @@ export type WishlistItemDetail = {
 
 export async function toggleWishlist(
   cardId: string,
-): Promise<{ wishlisted: boolean }> {
-  return authFetch<{ wishlisted: boolean }>(
-    `/wishlist/cards/${cardId}/toggle`,
+  variant: CardVariant = "normal",
+): Promise<{ wishlisted: boolean; variant: CardVariant }> {
+  return authFetch<{ wishlisted: boolean; variant: CardVariant }>(
+    `/wishlist/cards/${cardId}/toggle?variant=${variant}`,
     { method: "POST" },
   );
 }
