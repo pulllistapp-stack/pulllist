@@ -228,13 +228,19 @@ async def _expand_query_to_dex_numbers(
     rows = (await db.execute(stmt)).all()
     dex_set: set[int] = set()
     for (dex_list,) in rows:
-        if not dex_list:
+        # Only expand from single-Pokémon cards. Tag-team cards like
+        # "Reshiram & Charizard-GX" have dex_numbers = [6, 643] — if we
+        # add 643 to the expansion set, a "Charizard" search drags every
+        # solo Reshiram card into the results. Skipping multi-entry lists
+        # eliminates that contamination at the cost of not cross-language-
+        # matching pure tag-team names (rare case, handled by direct name
+        # match for tag teams that share English nomenclature).
+        if not dex_list or len(dex_list) != 1:
             continue
-        for n in dex_list:
-            try:
-                dex_set.add(int(n))
-            except (TypeError, ValueError):
-                continue
+        try:
+            dex_set.add(int(dex_list[0]))
+        except (TypeError, ValueError):
+            continue
     return sorted(dex_set)
 
 
