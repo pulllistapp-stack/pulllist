@@ -149,11 +149,30 @@ def _rarest(candidates: list[str]) -> str | None:
     return best
 
 
+def _en_num_int(s: str) -> int | None:
+    """`'284'` -> 284. Returns None on non-numeric (e.g. 'TG01')."""
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+# JP cards past this fraction of their set's total are "secret rare"
+# territory (SIR / Ultra Rare / Hyper Rare variants live in the upper
+# slice of the numbered range). Below this, treat as base print and
+# pick the lowest-numbered EN equivalent (the base, lowest-rank
+# rarity). Empirically 0.85 separates M2a's base prints from its SAR
+# section; varies a bit set-to-set but holds for all the high-volume
+# modern JP releases.
+_SECRET_RARE_THRESHOLD = 0.85
+
+
 async def _lookup_one(
     client: httpx.AsyncClient,
     card_id: str,
     set_id: str,
     number: str,
+    set_total: int | None,
 ) -> tuple[str, str | None, str]:
     en_prints = await _extract_en_equivalents(client, set_id, number)
     if not en_prints:
@@ -161,25 +180,45 @@ async def _lookup_one(
 
     # Picker priority:
     #
-    # 1) EXACT NUMBER MATCH — if any EN equivalent has the same card
-    #    number as our JP card, prefer it. Same-number prints are
-    #    almost always the same variant (base prints align across
-    #    regions in modern sets, so JP M2a/1 ↔ DRI/1 is the base for
-    #    both, JP M2a/100 ↔ DRI/100 is also the base, etc.). This
-    #    prevents the "JP base print over-classified as the EN
-    #    SAR variant in a different print" bug.
+    # 1) EXACT NUMBER MATCH — JP and EN sets occasionally agree on
+    #    card numbering for the base prints (M2a/1 ↔ DRI/1). When they
+    #    do, that's an unambiguous map — pick it.
     #
-    # 2) RAREST FALLBACK — when no number matches (typical for JP
-    #    secret rares like M2a/240 whose EN equivalents are all at
-    #    different numbers like PFL/56, ASC/284), the SAR/SIR variant
-    #    is the highest-numbered last entry in Limitless's prints
-    #    table. Pick the rarest by tier rank.
+    # 2) JP POSITION HEURISTIC — when no exact number matches, look at
+    #    where the JP card sits in its own set:
+    #       - First 85% of set: base print. Use the LOWEST-numbered EN
+    #         candidate (also a base print rarity — Uncommon, Rare,
+    #         Double Rare, etc).
+    #       - Last 15% of set: secret rare section. Use the HIGHEST-
+    #         numbered EN candidate (SIR / UR / Hyper).
+    #
+    #    Why number-position-sorting beats rarity-rank-sorting:
+    #    Limitless's prints table orders by EN set then by EN number.
+    #    Higher EN numbers in modern EN sets ARE the SARs. Sorting by
+    #    rank instead would pick "Rare Secret" (rank 10) over the
+    #    actual SAR (rank 9) when both appear as candidates.
+    #
+    # 3) RAREST FALLBACK — last resort, when set_total is unknown.
+    jp_num = _en_num_int(number)
     same_num = [(s, n) for (s, n) in en_prints if n == number]
     if same_num:
         r = await _extract_rarity(client, same_num[0][0], same_num[0][1])
         if r:
             return card_id, r, "ok (number match)"
 
+    # Position-based picker — sort candidates by EN number ascending.
+    candidates = sorted(en_prints, key=lambda p: (_en_num_int(p[1]) or 99999))
+    if jp_num is not None and set_total and set_total > 0:
+        is_secret = jp_num > _SECRET_RARE_THRESHOLD * set_total
+        pick = candidates[-1 if is_secret else 0]
+        r = await _extract_rarity(client, pick[0], pick[1])
+        if r:
+            return card_id, r, (
+                f"ok ({'secret/last' if is_secret else 'base/first'})"
+            )
+
+    # Fallback when we can't compute position (set_total unknown) —
+    # use the rarest-of-N picker.
     rarities = await asyncio.gather(
         *[_extract_rarity(client, s, n) for s, n in en_prints]
     )
@@ -194,18 +233,20 @@ async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged
 
     async with SessionLocal() as db:
         sql = """
-            SELECT id, set_id, number FROM cards
-            WHERE language='ja'
-              AND number IS NOT NULL
-              AND image_small LIKE 'https://limitlesstcg%'
+            SELECT c.id, c.set_id, c.number, COALESCE(s.total, s.printed_total) AS set_total
+            FROM cards c
+            JOIN sets s ON s.id = c.set_id
+            WHERE c.language='ja'
+              AND c.number IS NOT NULL
+              AND c.image_small LIKE 'https://limitlesstcg%'
         """
         if not include_tagged:
-            sql += " AND rarity IS NULL"
+            sql += " AND c.rarity IS NULL"
         params: dict = {}
         if only_set:
-            sql += " AND set_id = :set_id"
+            sql += " AND c.set_id = :set_id"
             params["set_id"] = only_set
-        sql += " ORDER BY set_id, number_int NULLS LAST, number"
+        sql += " ORDER BY c.set_id, c.number_int NULLS LAST, c.number"
         if limit:
             sql += f" LIMIT {int(limit)}"
         rows = (await db.execute(text(sql), params)).all()
@@ -230,7 +271,7 @@ async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged
         for i in range(0, len(rows), CHUNK):
             chunk = rows[i : i + CHUNK]
             results = await asyncio.gather(
-                *[bounded(client, r[0], r[1], r[2]) for r in chunk]
+                *[bounded(client, r[0], r[1], r[2], r[3]) for r in chunk]
             )
             async with SessionLocal() as db:
                 for cid, rarity, reason in results:
