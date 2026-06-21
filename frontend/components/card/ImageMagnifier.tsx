@@ -14,8 +14,8 @@ type Props = {
   children?: React.ReactNode;
   /** Multiplier for the loupe view. 2.5x feels right for trading cards. */
   zoom?: number;
-  /** Pixel diameter of the loupe circle. */
-  loupeSize?: number;
+  /** Width of the loupe in pixels. Height is derived from card aspect (5:7). */
+  loupeWidth?: number;
   /** Optional className for the outer wrapper (slot in tilt/shadow styling). */
   className?: string;
   /** Image sizes attribute, passed through to next/image. */
@@ -44,10 +44,13 @@ export function ImageMagnifier({
   alt,
   children,
   zoom = 2.5,
-  loupeSize = 130,
+  loupeWidth = 180,
   className,
   sizes,
 }: Props) {
+  // Card aspect 5:7 — matches the Pokemon TCG card shape so the loupe
+  // looks like a mini-version of what it's magnifying.
+  const loupeHeight = Math.round(loupeWidth * (7 / 5));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [active, setActive] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -104,14 +107,15 @@ export function ImageMagnifier({
     else setPos(null);
   };
 
-  // Loupe positioning math: cursor sits at the loupe center, background
-  // image aligned so the same physical point on the card sits under the
-  // cursor at zoom×.
+  // Loupe positioning math: the LOUPE-INTERNAL focus point sits at
+  // (loupeWidth/2, loupeHeight/2) — the geometric center of the
+  // rectangle. Align the background so the cursor's image-relative
+  // coords land at the loupe center under zoom×.
   const rect = containerRef.current?.getBoundingClientRect();
   const bgWidth = (rect?.width ?? 0) * zoom;
   const bgHeight = (rect?.height ?? 0) * zoom;
-  const bgX = pos ? -(pos.localX * zoom - loupeSize / 2) : 0;
-  const bgY = pos ? -(pos.localY * zoom - loupeSize / 2) : 0;
+  const bgX = pos ? -(pos.localX * zoom - loupeWidth / 2) : 0;
+  const bgY = pos ? -(pos.localY * zoom - loupeHeight / 2) : 0;
 
   return (
     <div
@@ -152,20 +156,20 @@ export function ImageMagnifier({
         createPortal(
           <div
             aria-hidden
-            className="pointer-events-none fixed z-[9999] rounded-full border-2 border-white shadow-[0_8px_24px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(0,0,0,0.4)] ring-2 ring-black/30"
+            className="pointer-events-none fixed z-[9999] rounded-xl border-2 border-white shadow-[0_12px_32px_rgba(0,0,0,0.55),inset_0_0_0_1px_rgba(0,0,0,0.4)] ring-2 ring-black/30"
             style={{
-              width: loupeSize,
-              height: loupeSize,
+              width: loupeWidth,
+              height: loupeHeight,
               left: Math.max(
                 8,
                 Math.min(
-                  window.innerWidth - loupeSize - 8,
-                  pos.viewportX - loupeSize / 2,
+                  window.innerWidth - loupeWidth - 8,
+                  pos.viewportX - loupeWidth / 2,
                 ),
               ),
               top: Math.max(
                 8,
-                pos.viewportY - loupeSize - CURSOR_GAP_PX,
+                pos.viewportY - loupeHeight - CURSOR_GAP_PX,
               ),
               backgroundImage: `url("${src}")`,
               backgroundRepeat: "no-repeat",
