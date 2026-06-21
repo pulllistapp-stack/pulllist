@@ -84,7 +84,7 @@ export default async function HomePage() {
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-yellow/15 text-accent-yellow border border-accent-yellow/30 px-3 py-1 text-xs font-mono uppercase tracking-wider mb-6">
               <Sparkles className="h-3 w-3 fill-amber-400" aria-hidden />
-              Now indexing Mega Evolution
+              EN · JP · KR catalogs
             </span>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.03] text-text-primary">
@@ -97,16 +97,16 @@ export default async function HomePage() {
 
             <p className="mt-6 text-lg text-text-secondary max-w-xl leading-relaxed">
               The Pokémon TCG collection tracker for serious pullers. Live eBay
-              and TCGplayer prices, daily history, every Mega Evolution set
-              indexed.
+              and TCGplayer prices, daily history, English / Japanese / Korean
+              catalogs — search any card in any language.
             </p>
 
             <HeroCTA />
 
             {/* Stats strip */}
             <dl className="mt-10 flex flex-wrap items-end gap-x-10 gap-y-4">
-              <Stat value="12,000+" label="cards indexed" />
-              <Stat value="29" label="sets covered" />
+              <Stat value="31,000+" label="cards indexed" />
+              <Stat value="340+" label="sets covered" />
               <Stat value="Daily" label="price snapshots" />
             </dl>
           </div>
@@ -192,7 +192,7 @@ export default async function HomePage() {
             iconBg="bg-accent-yellow/15"
             icon={<Library className="h-6 w-6 text-accent-yellow" />}
             title="Every card indexed"
-            body="12,000+ Pokémon TCG cards across 29 sets — Base Set through the newest Mega Evolution drops."
+            body="31,000+ cards across 340+ sets in English, Japanese, and Korean — Base Set through the latest Mega Evolution drops."
             href="/cards"
           />
           <FeatureCard

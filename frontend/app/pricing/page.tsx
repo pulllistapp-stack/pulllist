@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 };
 
 const FREE_FEATURES = [
-  "Track every pull across 12,000+ indexed cards",
-  "Live prices from TCGplayer, eBay, and Cardmarket",
+  "Track every pull across 31,000+ indexed cards in EN / JP / KR",
+  "Live prices from TCGplayer and eBay",
   "1-year price history with weekly density",
   "Wishlist with price targets",
   "Public portfolio sharing with one-click OG card",

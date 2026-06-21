@@ -110,8 +110,8 @@ export default function SignupPage() {
               Build the vault you&apos;ll show off.
             </p>
             <p className="mt-2 text-sm text-text-secondary max-w-xs mx-auto">
-              Free forever. Track every pull, watch prices in real time, and chase
-              completion across every Mega Evolution set.
+              Free forever. Track every pull across English, Japanese, and Korean
+              catalogs — and watch the market every day.
             </p>
           </div>
 
@@ -119,7 +119,7 @@ export default function SignupPage() {
           <ul className="grid grid-cols-1 gap-2 text-left w-full max-w-xs">
             <ValuePill
               icon={<Library className="h-4 w-4 text-accent-yellow" />}
-              label="12,000+ cards indexed"
+              label="31,000+ cards in EN · JP · KR"
             />
             <ValuePill
               icon={<TrendingUp className="h-4 w-4 text-accent-green" />}

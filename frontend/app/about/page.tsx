@@ -13,7 +13,7 @@ const FEATURES = [
   {
     icon: Database,
     title: "Every set indexed",
-    body: "12,000+ cards across every Pokémon TCG set, live prices from TCGplayer, eBay, and Cardmarket.",
+    body: "31,000+ cards across 340+ Pokémon TCG sets in EN / JP / KR, live prices from TCGplayer and eBay.",
   },
   {
     icon: Search,
