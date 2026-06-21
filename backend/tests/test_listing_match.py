@@ -199,16 +199,26 @@ class TestIsSuspicious:
         assert is_suspicious(400.0, 854.65, TRUST_TRUSTED) is False
         assert is_suspicious(400.0, 854.65, TRUST_OK) is False
 
-    def test_trusted_ultra_low_still_flagged(self):
-        # Even trusted sellers don't legitimately sell $854 cards for $74.
-        # That's a typo, an accessory, or a Buy-It-Now decoy — flag it.
-        assert is_suspicious(74.52, 854.65, TRUST_TRUSTED) is True
+    def test_trusted_ultra_low_NOT_flagged(self):
+        # Trusted sellers are never flagged. The Dragon Slabs case
+        # gets caught by is_accessory_listing (title keyword), and
+        # legitimate trusted-seller deals (clearance, damaged, typo
+        # to be edited later) shouldn't blink red.
+        assert is_suspicious(74.52, 854.65, TRUST_TRUSTED) is False
+        assert is_suspicious(12.00, 854.65, TRUST_TRUSTED) is False
 
-    def test_dragon_slabs_case_pattern(self):
-        # The real case: trusted seller (6938 feedback) asking $12 on
-        # a $854 SIR. Title keyword filter catches this first, but the
-        # ultra-low rule is a backstop if the title isn't obvious.
-        assert is_suspicious(12.00, 854.65, TRUST_TRUSTED) is True
+    def test_ok_seller_extreme_low_flagged(self):
+        # OK seller (10-99 feedback) listing at <10% is still suspicious
+        # — they don't have the trust history to justify a 90% discount.
+        assert is_suspicious(74.52, 854.65, TRUST_OK) is True
+        # But 50% off from OK is fine
+        assert is_suspicious(400.0, 854.65, TRUST_OK) is False
+
+    def test_sensei_finds_larvitar_not_flagged(self):
+        # Real false-positive from the LO screenshot: $1.99 listing on
+        # a $12.39 Larvitar from Sensei Finds (1410 feedback, 99.5%).
+        # That's TRUSTED tier and a low-value card — must not flag.
+        assert is_suspicious(1.99, 12.39, TRUST_TRUSTED) is False
 
     def test_new_seller_market_price_not_suspicious(self):
         # New seller asking close to market — could be legit beginner

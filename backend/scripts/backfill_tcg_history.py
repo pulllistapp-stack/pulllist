@@ -379,6 +379,19 @@ async def _process_one_card(
             # Apply the same band-clip the daily sync uses so backfill
             # rows are usable on first write without a cleanup pass.
             low, high = _clip_tcg_band(market, low, high, card.rarity)
+            qty_sold = int(_f(b.get("quantitySold")) or 0) or None
+            # Skip days where a single sale spiked the market price. With
+            # only one transaction on a thin-liquidity card, a 3x outlier
+            # can stick on the chart for the entire month. Two sales is
+            # the soft "this price is real" threshold — matches the eBay
+            # snapshot's chase-card min_required.
+            if qty_sold is not None and qty_sold < 2:
+                # Still let pre-set / no-sale days through (qty=None means
+                # "no signal", qty=0 happens when TCG hasn't tracked yet);
+                # only suppress the 1-sale spike case.
+                if qty_sold == 1:
+                    stats["dropped_single_sale"] = stats.get("dropped_single_sale", 0) + 1
+                    continue
             rows_batch.append(
                 {
                     "card_id": card.id,
@@ -388,7 +401,7 @@ async def _process_one_card(
                     "low_price_usd": low,
                     "mid_price_usd": market,
                     "high_price_usd": high,
-                    "sales_count": int(_f(b.get("quantitySold")) or 0) or None,
+                    "sales_count": qty_sold,
                     "snapshot_at": datetime.utcnow(),
                     "snapshot_date": date_str,
                 }

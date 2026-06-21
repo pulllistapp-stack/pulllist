@@ -157,16 +157,35 @@ async def _lookup_one(
     en_prints = await _extract_en_equivalents(client, set_id, number)
     if not en_prints:
         return card_id, None, "no EN equivalent on JP detail page"
-    # Fetch all candidate rarities and pick the highest tier — a JP SAR
-    # variant typically has multiple EN prints listed (base, reverse,
-    # ultra, SAR) and the SAR is the one that matches.
+
+    # Picker priority:
+    #
+    # 1) EXACT NUMBER MATCH — if any EN equivalent has the same card
+    #    number as our JP card, prefer it. Same-number prints are
+    #    almost always the same variant (base prints align across
+    #    regions in modern sets, so JP M2a/1 ↔ DRI/1 is the base for
+    #    both, JP M2a/100 ↔ DRI/100 is also the base, etc.). This
+    #    prevents the "JP base print over-classified as the EN
+    #    SAR variant in a different print" bug.
+    #
+    # 2) RAREST FALLBACK — when no number matches (typical for JP
+    #    secret rares like M2a/240 whose EN equivalents are all at
+    #    different numbers like PFL/56, ASC/284), the SAR/SIR variant
+    #    is the highest-numbered last entry in Limitless's prints
+    #    table. Pick the rarest by tier rank.
+    same_num = [(s, n) for (s, n) in en_prints if n == number]
+    if same_num:
+        r = await _extract_rarity(client, same_num[0][0], same_num[0][1])
+        if r:
+            return card_id, r, "ok (number match)"
+
     rarities = await asyncio.gather(
         *[_extract_rarity(client, s, n) for s, n in en_prints]
     )
     valid = [r for r in rarities if r]
     if not valid:
         return card_id, None, f"no rarity in any EN print ({len(en_prints)} tried)"
-    return card_id, _rarest(valid), "ok"
+    return card_id, _rarest(valid), "ok (rarest fallback)"
 
 
 async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged: bool) -> None:

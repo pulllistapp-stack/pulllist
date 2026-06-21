@@ -227,28 +227,40 @@ def is_suspicious(
     market_median: float | None,
     trust_tier: str,
 ) -> bool:
-    """A listing is suspicious when EITHER
+    """A listing is suspicious based on seller trust × price-vs-market.
 
-    1. low-trust seller + below 40% of market (the bri_769542 scam
-       pattern: 0-feedback seller at 9% of market), OR
-    2. ANY seller + below 10% of market on a >$30 card — even trusted
-       sellers don't legitimately sell $854 cards for $12. That's
-       either an accessory we missed (Dragon Slabs cases), a price
-       typo, or a Buy-It-Now decoy. Worth a warning regardless of who.
+    Tiered rules:
 
-    Otherwise we don't flag: trusted sellers can list 50% below market
-    for damage / clearance / fast-sale reasons without it being a scam,
-    and new sellers can list at full market without being scammers.
+    - TRUSTED seller (≥100 feedback, ≥99% positive): never suspicious.
+      They've earned the benefit of the doubt — a trusted seller
+      pricing 90% below market is a deal, a typo, or an accessory we
+      should have caught via the keyword denylist. Not a scam.
+
+    - OK seller (10-99 feedback or trusted-pct but lower volume):
+      suspicious only when price is *extremely* low (under 10% of a
+      market-priced card). Catches the rare "looks legit but isn't"
+      case while sparing legitimate undercutters.
+
+    - NEW / LOW / POOR seller: suspicious when below 40% of market.
+      This is the bri_769542 scam pattern — 0-feedback account asking
+      $74 on an $854 card.
+
+    Cards with no market data ($market_median is None) can't be
+    evaluated and are never flagged.
     """
     if market_median is None or market_median <= 0:
         return False
 
-    # Rule 2 — ultra-low ratio, trust-agnostic. Skips low-value cards
-    # ($30 floor) where small absolute prices are normal.
-    if market_median >= 30 and total_price < market_median * 0.10:
-        return True
+    if trust_tier == TRUST_TRUSTED:
+        return False
 
-    # Rule 1 — bad-seller + below 40%
+    if trust_tier == TRUST_OK:
+        # OK sellers get one extra-strict rule: only flag at <10% of
+        # a meaningfully-priced card. Skip low-value cards where small
+        # absolute prices are normal.
+        return market_median >= 30 and total_price < market_median * 0.10
+
+    # NEW / LOW / POOR — the bad-seller path.
     if trust_tier in (TRUST_NEW, TRUST_LOW, TRUST_POOR):
         return total_price < market_median * PRICE_ANOMALY_THRESHOLD
 
