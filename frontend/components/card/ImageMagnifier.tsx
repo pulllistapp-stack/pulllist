@@ -43,8 +43,8 @@ export function ImageMagnifier({
   src,
   alt,
   children,
-  zoom = 2.5,
-  loupeWidth = 180,
+  zoom = 2.0,
+  loupeWidth = 220,
   className,
   sizes,
 }: Props) {
