@@ -232,13 +232,20 @@ async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged
     await init_db()
 
     async with SessionLocal() as db:
+        # Note: no image-source filter anymore. Earlier versions only
+        # processed Limitless-sourced cards because that's where the
+        # gap was; turned out TCGdex-sourced cards (SV9 Battle Partners,
+        # SV4a Shiny Treasure ex, S12a VSTAR Universe etc.) also have
+        # incomplete rarity from TCGdex's /ja API. Limitless's EN-
+        # equivalent picker works on ANY JP card with set_id+number,
+        # so widening the filter picks them up too.
         sql = """
             SELECT c.id, c.set_id, c.number, COALESCE(s.total, s.printed_total) AS set_total
             FROM cards c
             JOIN sets s ON s.id = c.set_id
             WHERE c.language='ja'
               AND c.number IS NOT NULL
-              AND c.image_small LIKE 'https://limitlesstcg%'
+              AND s.id NOT LIKE 'JPP-%'
         """
         if not include_tagged:
             sql += " AND c.rarity IS NULL"
