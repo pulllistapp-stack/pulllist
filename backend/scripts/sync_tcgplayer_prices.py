@@ -297,6 +297,7 @@ async def sync(
     dry_run: bool,
     skip_snapshots: bool,
     snapshot_date: str,
+    cardmarket_only: bool = False,
 ) -> None:
     await init_db()
 
@@ -350,30 +351,35 @@ async def sync(
                         continue
 
                     if not dry_run:
-                        existing.tcgplayer_url = (
-                            tcgplayer.get("url") or existing.tcgplayer_url
-                        )
-                        existing.tcgplayer_prices = tcg_prices
+                        # When cardmarket_only is set, leave every TCGplayer
+                        # field alone — sync_tcgcsv_daily owns those now and
+                        # we'd just be racing it with stale pokemontcg.io data.
+                        if not cardmarket_only:
+                            existing.tcgplayer_url = (
+                                tcgplayer.get("url") or existing.tcgplayer_url
+                            )
+                            existing.tcgplayer_prices = tcg_prices
+                            if market is not None:
+                                existing.market_price_usd = market
                         existing.cardmarket_url = (
                             cardmarket.get("url") or existing.cardmarket_url
                         )
                         existing.cardmarket_prices = cm_prices
-                        # Only freshen market_price_usd when we got a non-null reading,
-                        # so cards without TCGplayer pricing keep whatever they had.
-                        if market is not None:
-                            existing.market_price_usd = market
 
                     stats["cards_refreshed"] += 1
 
                     if not skip_snapshots:
-                        snapshot_batch.extend(
-                            collect_tcgplayer_snapshots(
-                                card_id,
-                                tcg_prices,
-                                snapshot_date,
-                                rarity=existing.rarity,
+                        if not cardmarket_only:
+                            snapshot_batch.extend(
+                                collect_tcgplayer_snapshots(
+                                    card_id,
+                                    tcg_prices,
+                                    snapshot_date,
+                                    rarity=existing.rarity,
+                                )
                             )
-                            + collect_cardmarket_snapshots(card_id, cm_prices, snapshot_date)
+                        snapshot_batch.extend(
+                            collect_cardmarket_snapshots(card_id, cm_prices, snapshot_date)
                         )
 
                 if not dry_run:
@@ -420,6 +426,16 @@ def main() -> None:
         help="Refresh card price fields but don't write snapshots.",
     )
     parser.add_argument(
+        "--cardmarket-only",
+        action="store_true",
+        help=(
+            "Refresh only Cardmarket fields + snapshots; leave TCGplayer "
+            "fields untouched. Use this when sync_tcgcsv_daily is handling "
+            "TCGplayer and you don't want pokemontcg.io's older snapshots "
+            "racing it."
+        ),
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Debug logs."
     )
     args = parser.parse_args()
@@ -436,7 +452,15 @@ def main() -> None:
     )
     snapshot_date = args.snapshot_date or date.today().isoformat()
 
-    asyncio.run(sync(set_ids, args.dry_run, args.skip_snapshots, snapshot_date))
+    asyncio.run(
+        sync(
+            set_ids,
+            args.dry_run,
+            args.skip_snapshots,
+            snapshot_date,
+            cardmarket_only=args.cardmarket_only,
+        )
+    )
 
 
 if __name__ == "__main__":
