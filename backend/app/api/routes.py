@@ -213,22 +213,29 @@ async def _expand_query_to_dex_numbers(
     all languages. This is how cross-language search works: a user types
     "Charizard" → we find dex #6 from the EN cards → the second query
     pulls every JP/KR card that shares that dex id, even though their
-    own `name` column is "リザードン" or "리자몽"."""
-    dex_stmt = text(
-        """
-        SELECT DISTINCT (elem)::int AS dex
-        FROM cards,
-             jsonb_array_elements_text(
-               CASE
-                 WHEN national_pokedex_numbers IS NULL THEN '[]'::jsonb
-                 ELSE national_pokedex_numbers::jsonb
-               END
-             ) AS elem
-        WHERE name ILIKE :pattern
-        """
+    own `name` column is "リザードン" or "리자몽".
+
+    Done in Python rather than SQL: the result set is bounded by the
+    name match (rarely more than a few hundred cards) so the extra row
+    transfer is cheap, and we avoid JSONB casting edge cases that bite
+    when a card's national_pokedex_numbers happens to contain non-int
+    entries from a flaky import.
+    """
+    stmt = select(Card.national_pokedex_numbers).where(
+        Card.name.ilike(pattern),
+        Card.national_pokedex_numbers.isnot(None),
     )
-    rows = (await db.execute(dex_stmt, {"pattern": pattern})).all()
-    return [r[0] for r in rows if r[0] is not None]
+    rows = (await db.execute(stmt)).all()
+    dex_set: set[int] = set()
+    for (dex_list,) in rows:
+        if not dex_list:
+            continue
+        for n in dex_list:
+            try:
+                dex_set.add(int(n))
+            except (TypeError, ValueError):
+                continue
+    return sorted(dex_set)
 
 
 def _cards_match_predicate(pattern: str, dex_numbers: list[int]):
