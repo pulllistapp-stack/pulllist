@@ -550,9 +550,12 @@ async def get_trending(
     # only end up "trending" because the TCGplayer market-price algorithm
     # cooked one outlier listing into the public price. Requiring real
     # density flushes them out.
+    # TCGplayer prices update ~weekly via pokemontcg.io, so even an active
+    # card maxes out at ~8 snapshots in 30 days. 25% coverage works in
+    # practice: 5 / 7 / 22 for 7d / 30d / 90d windows.
     effective_min_snapshots = (
         min_snapshots if min_snapshots is not None
-        else max(5, int(period_days * 0.4))
+        else max(5, int(period_days * 0.25))
     )
 
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
@@ -625,10 +628,11 @@ async def get_trending(
             span = latest - oldest
             if abs(span) >= 0.01:
                 # Fraction of the move that happened by the middle tercile.
-                # Below 0.4 means the move is still tail-loaded — real
-                # trending should be more than half-baked by mid-window.
+                # Below 0.3 means the spike is tail-loaded enough to look
+                # like a step function; a real trend has 30%+ of the move
+                # already happened by mid-window.
                 progress = (middle - oldest) / span
-                if progress < 0.4:
+                if progress < 0.3:
                     continue
         # Quality floors - both endpoints must clear the price floor AND the
         # absolute change must be meaningful.
