@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 
 import { cn } from "@/lib/utils";
@@ -33,6 +34,11 @@ type Props = {
  * under the cursor. Cheaper than a portal and stays inside the card
  * bounding box so we don't fight overflow rules.
  */
+/** Vertical gap between cursor and the loupe's nearest edge.
+ *  Keeps the cursor visible just below the loupe so users always see
+ *  what they're pointing at. */
+const CURSOR_GAP_PX = 12;
+
 export function ImageMagnifier({
   src,
   alt,
@@ -44,6 +50,14 @@ export function ImageMagnifier({
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [active, setActive] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // React portal targets need to exist before render; SSR'd HTML can't
+  // include them. Toggle a flag on mount so the portal only renders
+  // client-side after document.body is available.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   // Cursor position. `local` is relative to the image (for background-position
   // math), `viewport` is clientX/clientY (for `position: fixed` loupe placement
   // so it escapes the card container's overflow-hidden box).
@@ -124,27 +138,43 @@ export function ImageMagnifier({
       />
       {children}
 
-      {/* Loupe — rendered with `position: fixed` (viewport-relative) so
-       *  it escapes the card container's overflow-hidden box. The
-       *  background-position math is still computed from cursor coords
-       *  relative to the image so the magnified focus point tracks the
-       *  pointer regardless of where on the page the card sits. */}
-      {active && pos && (
-        <div
-          aria-hidden
-          className="pointer-events-none fixed z-50 rounded-full border-2 border-white shadow-[0_8px_24px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(0,0,0,0.4)] ring-2 ring-black/30"
-          style={{
-            width: loupeSize,
-            height: loupeSize,
-            left: pos.viewportX - loupeSize / 2,
-            top: pos.viewportY - loupeSize / 2,
-            backgroundImage: `url("${src}")`,
-            backgroundRepeat: "no-repeat",
-            backgroundSize: `${bgWidth}px ${bgHeight}px`,
-            backgroundPosition: `${bgX}px ${bgY}px`,
-          }}
-        />
-      )}
+      {/* Loupe — rendered via portal directly under document.body so
+       *  it escapes any parent's overflow-hidden box AND any parent's
+       *  transform (the card hero applies a hover tilt, which would
+       *  otherwise scope `position: fixed` to that transformed
+       *  ancestor and re-introduce clipping).
+       *
+       *  Positioned ABOVE the cursor with a small gap so the user
+       *  always sees what they're pointing at — the magnified content
+       *  sits like a tooltip just above the pointer. Clamped against
+       *  the viewport edges so it never goes off-screen near the top. */}
+      {active && pos && mounted &&
+        createPortal(
+          <div
+            aria-hidden
+            className="pointer-events-none fixed z-[9999] rounded-full border-2 border-white shadow-[0_8px_24px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(0,0,0,0.4)] ring-2 ring-black/30"
+            style={{
+              width: loupeSize,
+              height: loupeSize,
+              left: Math.max(
+                8,
+                Math.min(
+                  window.innerWidth - loupeSize - 8,
+                  pos.viewportX - loupeSize / 2,
+                ),
+              ),
+              top: Math.max(
+                8,
+                pos.viewportY - loupeSize - CURSOR_GAP_PX,
+              ),
+              backgroundImage: `url("${src}")`,
+              backgroundRepeat: "no-repeat",
+              backgroundSize: `${bgWidth}px ${bgHeight}px`,
+              backgroundPosition: `${bgX}px ${bgY}px`,
+            }}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
