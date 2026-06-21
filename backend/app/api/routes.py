@@ -504,6 +504,7 @@ async def get_trending(
         third = max(1, len(prices) // 3)
         oldest_window = prices[:third]
         latest_window = prices[-third:]
+        middle_window = prices[third:-third] if len(prices) >= 3 * third else prices[third:third + max(1, third)]
         # Bubble guard 2 — single-point spike inside the latest tercile.
         # Median is robust to one outlier in a tercile of 5+, but for the
         # 3- or 4-point terciles we get from a one-week window, a lone
@@ -512,8 +513,24 @@ async def get_trending(
             continue
         oldest = _median(oldest_window)
         latest = _median(latest_window)
+        middle = _median(middle_window) if middle_window else None
         if oldest is None or latest is None or oldest <= 0:
             continue
+        # Bubble guard 3 — step function detector. A real trending card
+        # transitions gradually: middle tercile lands somewhere between
+        # oldest and latest. A bubble is "flat for months → sudden spike
+        # at the end" — middle stays close to oldest while latest jumps.
+        # TCGplayer's market-price algorithm is sticky after one outlier
+        # sale, so it sits at the inflated level for many snapshots and
+        # tricks tercile-median into reporting the move as legitimate.
+        if middle is not None and len(prices) >= 6:
+            span = latest - oldest
+            if abs(span) >= 0.01:
+                # Fraction of the move that happened by the middle tercile.
+                # Below 0.2 means the spike is essentially all in the tail.
+                progress = (middle - oldest) / span
+                if progress < 0.2:
+                    continue
         # Quality floors - both endpoints must clear the price floor AND the
         # absolute change must be meaningful.
         if float(oldest) < min_price_usd or float(latest) < min_price_usd:
