@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_optional
@@ -206,34 +206,100 @@ async def list_cards_in_set(
     )
 
 
+async def _expand_query_to_dex_numbers(
+    db: AsyncSession, pattern: str
+) -> list[int]:
+    """Look up Pokédex numbers for any card name matching `pattern`, across
+    all languages. This is how cross-language search works: a user types
+    "Charizard" → we find dex #6 from the EN cards → the second query
+    pulls every JP/KR card that shares that dex id, even though their
+    own `name` column is "リザードン" or "리자몽"."""
+    dex_stmt = text(
+        """
+        SELECT DISTINCT (elem)::int AS dex
+        FROM cards,
+             jsonb_array_elements_text(
+               CASE
+                 WHEN national_pokedex_numbers IS NULL THEN '[]'::jsonb
+                 ELSE national_pokedex_numbers::jsonb
+               END
+             ) AS elem
+        WHERE name ILIKE :pattern
+        """
+    )
+    rows = (await db.execute(dex_stmt, {"pattern": pattern})).all()
+    return [r[0] for r in rows if r[0] is not None]
+
+
+def _cards_match_predicate(pattern: str, dex_numbers: list[int]):
+    """OR-predicate: card name matches OR its pokédex array contains any dex
+    in `dex_numbers`. Returns a single SQLAlchemy whereclause."""
+    if not dex_numbers:
+        return Card.name.ilike(pattern)
+    # JSONB ?| operator: "does the jsonb array contain ANY of these strings"
+    # We cast the JSON column to jsonb at query time so we don't need an
+    # alembic migration to change the column type.
+    dex_strs = [str(n) for n in dex_numbers]
+    return or_(
+        Card.name.ilike(pattern),
+        text(
+            "(national_pokedex_numbers::jsonb) ?| :dex_strs"
+        ).bindparams(dex_strs=dex_strs),
+    )
+
+
 @router.get("/cards/search", response_model=CardList)
 async def search_cards(
     q: str = Query(..., min_length=1, description="Search query"),
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    language: str = Query(
-        "en",
-        description="Card catalog language: en / ja / ko.",
+    language: str | None = Query(
+        None,
+        description=(
+            "Filter to one catalog language (en/ja/ko). Omit to search "
+            "across all languages — cross-language matches use Pokédex "
+            "number expansion so e.g. 'Charizard' surfaces リザードン too."
+        ),
         pattern="^(en|ja|ko)$",
+    ),
+    cross_language: bool = Query(
+        True,
+        description=(
+            "When true, expand the name match to other-language cards "
+            "sharing a National Pokédex number (Pokémon cards only)."
+        ),
     ),
 ) -> CardList:
     offset = (page - 1) * page_size
     pattern = f"%{q}%"
 
-    total_stmt = (
-        select(func.count(Card.id))
-        .where(Card.name.ilike(pattern))
-        .where(Card.language == language)
-    )
+    dex_numbers: list[int] = []
+    if cross_language:
+        dex_numbers = await _expand_query_to_dex_numbers(db, pattern)
+    where = _cards_match_predicate(pattern, dex_numbers)
+
+    base_q = select(Card).where(where)
+    if language is not None:
+        base_q = base_q.where(Card.language == language)
+
+    total_stmt = select(func.count()).select_from(base_q.subquery())
     total = (await db.execute(total_stmt)).scalar_one()
 
     stmt = (
         select(Card, Set.name, Set.printed_total, Set.ptcgo_code)
         .join(Set, Card.set_id == Set.id)
-        .where(Card.name.ilike(pattern))
-        .where(Card.language == language)
+        .where(where)
+    )
+    if language is not None:
+        stmt = stmt.where(Card.language == language)
+    stmt = (
+        stmt
+        # Prefer exact name hits over dex-only cross-language matches so a
+        # user searching "Charizard" still sees the EN cards first; JP cards
+        # with the same dex number follow.
         .order_by(
+            Card.name.ilike(pattern).desc(),
             Card.market_price_usd.desc().nullslast(),
             Card.name,
         )
@@ -258,16 +324,26 @@ async def suggest_cards(
     q: str = Query(..., min_length=1, description="Autocomplete query"),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(8, ge=1, le=20),
+    cross_language: bool = Query(
+        True,
+        description="Expand suggestions to other-language cards via Pokédex number.",
+    ),
 ) -> list[dict]:
     pattern = f"{q}%"
     pattern_contains = f"%{q}%"
 
+    dex_numbers: list[int] = []
+    if cross_language:
+        dex_numbers = await _expand_query_to_dex_numbers(db, pattern_contains)
+    where = _cards_match_predicate(pattern_contains, dex_numbers)
+
     stmt = (
         select(Card, Set.name)
         .join(Set, Card.set_id == Set.id)
-        .where(Card.name.ilike(pattern_contains))
+        .where(where)
         .order_by(
             Card.name.ilike(pattern).desc(),
+            Card.name.ilike(pattern_contains).desc(),
             Card.market_price_usd.desc().nullslast(),
             Card.name,
         )
