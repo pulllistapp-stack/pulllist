@@ -39,6 +39,11 @@ class NewsItem(BaseModel):
     # draft's thumbnail_url. Sources that don't expose images leave it
     # None and the draft renders with no image.
     hero_image_url: str | None = Field(default=None, max_length=512)
+    # Body images from the source article — passed to the generator so
+    # Claude can embed them inline at thematically appropriate spots.
+    # Each entry: {"url": str, "caption": str}. Capped per source to
+    # avoid bloating prompts or producing image-spam articles.
+    inline_images: list[dict[str, str]] = Field(default_factory=list)
 
 
 # Type alias for source crawler signatures.

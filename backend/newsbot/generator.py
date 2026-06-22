@@ -79,6 +79,25 @@ pricing trends, set context, collectibility angle.]
 Target length: **350-500 words**. Shorter is better than longer.
 Always end with a Sources section linking the original article.
 
+# Reference images
+
+If the user prompt includes a "Reference images" list, embed each
+relevant one with markdown — `![caption](url)` — at the point in the
+body where it's most contextually useful (e.g. right after the
+paragraph that describes the card / set / product it shows).
+
+Rules:
+
+- Use the provided URLs **verbatim**. Never modify, abbreviate, or
+  invent a URL.
+- If the image has a caption, use it. If empty, write a short
+  descriptive one (under 60 chars) based on context.
+- Weave images inline near their relevant paragraph — do NOT dump
+  them all at the end in a gallery.
+- It's fine to skip an image that wouldn't add value (e.g. a banner
+  that's redundant with the hero).
+- Don't repeat the hero image (it already renders above the article).
+
 Output a single JSON object — no prose around it, no markdown fence:
 
 {
@@ -96,13 +115,21 @@ def _build_user_prompt(item: NewsItem) -> str:
     # Truncate aggressively — long articles blow up token cost without
     # adding much beyond the first ~6k tokens (~24k chars).
     body = body[:24000]
-    return (
-        f"Source: {item.source_name}\n"
-        f"URL: {item.url}\n"
-        f"Original title: {item.title}\n"
-        f"Original publish date: {item.published_at or 'unknown'}\n\n"
-        f"Body:\n{body}\n"
-    )
+    parts = [
+        f"Source: {item.source_name}",
+        f"URL: {item.url}",
+        f"Original title: {item.title}",
+        f"Original publish date: {item.published_at or 'unknown'}",
+        "",
+        f"Body:\n{body}",
+    ]
+    if item.inline_images:
+        lines = ["", "Reference images (use exact URLs if embedding):"]
+        for i, img in enumerate(item.inline_images, 1):
+            cap = img.get("caption") or "(no caption)"
+            lines.append(f"{i}. {img['url']} — {cap}")
+        parts.append("\n".join(lines))
+    return "\n".join(parts) + "\n"
 
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)

@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 from scrapling.fetchers import AsyncStealthySession
 
@@ -49,6 +50,20 @@ SEL_BODY = "div.entry-content, div.post-content, article div.entry"
 # then the first descendant img inside the article body as a fallback.
 SEL_OG_IMAGE = "meta[property='og:image']::attr(content)"
 SEL_FIRST_BODY_IMG = "div.entry-content img::attr(src), article img::attr(src)"
+
+# Body images — each <figure class="gallery-item"> wraps an image.
+# a.js-lbImage is PokeBeach's lightbox anchor and points at the
+# full-size original (200x113 etc. suffixes appear only on the inner
+# <img src>). Caption sits in <figcaption>, sometimes empty.
+SEL_FIGURE = "figure"
+SEL_FIG_FULL_URL = "a.js-lbImage::attr(href)"
+SEL_FIG_FALLBACK_SRC = "img::attr(src)"
+SEL_FIG_CAPTION = "figcaption"
+MAX_INLINE_IMAGES = 5  # cap so prompts + articles don't bloat
+# WP appends -WxH before the extension on resized thumbnails. Strip
+# to get the full-size original (used as the fallback when js-lbImage
+# isn't present).
+_WP_THUMB_SUFFIX = re.compile(r"-\d+x\d+(?=\.\w+$)")
 
 
 # Lazy module-level session — opened on first call, reused across the
@@ -120,10 +135,11 @@ async def crawl() -> list[NewsItem]:
 
 @register_enricher("pokebeach")
 async def enrich(item: NewsItem) -> NewsItem:
-    """Fetch the article page; fill raw_text + hero_image_url.
+    """Fetch the article page; fill raw_text + hero_image_url + inline_images.
 
-    Returns a new NewsItem with whatever extraction succeeded — body
-    and image are independent, a missing image doesn't drop the body.
+    Body, hero, and inline images are independent — a missing one
+    doesn't drop the others. inline_images is capped + deduped against
+    the hero so the same picture isn't sent twice.
     """
     await asyncio.sleep(INTER_REQUEST_DELAY)
     page = await _fetch(item.url)
@@ -141,4 +157,40 @@ async def enrich(item: NewsItem) -> NewsItem:
     hero = page.css(SEL_OG_IMAGE).get() or page.css(SEL_FIRST_BODY_IMG).get()
     hero = (hero or "").strip()[:512] or None
 
-    return item.model_copy(update={"raw_text": body, "hero_image_url": hero})
+    inline_images: list[dict[str, str]] = []
+    seen: set[str] = set()
+    if hero:
+        seen.add(hero)
+    figures = body_matches[0].css(SEL_FIGURE) if body_matches else []
+    for fig in figures:
+        if len(inline_images) >= MAX_INLINE_IMAGES:
+            break
+        # PokeBeach lightbox anchor → full-size original; else strip the
+        # -WxH WP thumbnail suffix off the inner img src.
+        url = fig.css(SEL_FIG_FULL_URL).get()
+        if not url:
+            src = fig.css(SEL_FIG_FALLBACK_SRC).get() or ""
+            url = _WP_THUMB_SUFFIX.sub("", src.strip())
+        url = (url or "").strip()
+        if not url.startswith(("http://", "https://")):
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        cap_el = fig.css(SEL_FIG_CAPTION)
+        caption = ""
+        if cap_el:
+            caption = cap_el[0].get_all_text(separator=" ", strip=True)[:200]
+        inline_images.append({"url": url[:512], "caption": caption})
+    log.info(
+        "pokebeach enrich: %d body images extracted (hero=%s, body=%d chars)",
+        len(inline_images), bool(hero), len(body),
+    )
+
+    return item.model_copy(
+        update={
+            "raw_text": body,
+            "hero_image_url": hero,
+            "inline_images": inline_images,
+        }
+    )

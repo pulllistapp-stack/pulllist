@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import sys
 import urllib.parse
 from datetime import datetime, timezone
@@ -39,6 +40,10 @@ def _today_iso() -> str:
 
 
 _WESERV = "https://images.weserv.nl/?url={}"
+# Anything matching one of these hosts in an image URL bypasses the
+# weserv wrap — already proxied, or hosted on a domain we trust to
+# allow cross-origin loads (our own frontend, Vercel preview deploys).
+_TRUSTED_IMAGE_HOSTS = ("images.weserv.nl", "pulllist.org", "vercel.app")
 
 
 def _proxy_image(url: str | None) -> str | None:
@@ -48,17 +53,38 @@ def _proxy_image(url: str | None) -> str | None:
     PokeBeach (and most WordPress + Cloudflare setups) return 403 when
     the request's Referer header points at a different domain. weserv
     is a free, fast image CDN that strips the Referer and caches the
-    result. Already-proxied URLs pass through unchanged so a re-run
-    doesn't double-wrap them. Caps at 480 chars to fit
-    NewsPost.thumbnail_url's 512-char column with margin for the
-    proxy prefix.
+    result. Already-proxied or PullList-hosted URLs pass through so a
+    re-run doesn't double-wrap. Caps at 480 chars to fit
+    NewsPost.thumbnail_url's 512-char column with margin for the prefix.
     """
     if not url:
         return None
-    if "images.weserv.nl" in url:
+    if any(h in url for h in _TRUSTED_IMAGE_HOSTS):
         return url
     stripped = url.split("://", 1)[-1]
     return _WESERV.format(urllib.parse.quote(stripped, safe="/.-_~"))[:480]
+
+
+# Matches markdown image syntax — captures the prefix `![alt](`, the
+# URL, and the closing `)` (possibly with an optional title). Multiline
+# bodies are scanned with re.MULTILINE-equivalent default behaviour.
+_MARKDOWN_IMG_RE = re.compile(r"(!\[[^\]]*\]\()\s*(\S+?)(\s+\"[^\"]*\")?(\s*\))")
+
+
+def _proxy_inline_images(markdown: str) -> str:
+    """Walk every `![alt](url)` in the markdown body and wrap external
+    URLs through weserv — same hot-link bypass as thumbnail_url.
+
+    Skips non-http URLs (relative paths, anchors, mailto: etc) and
+    leaves trusted hosts alone. Idempotent on already-wrapped URLs.
+    """
+    def _wrap(m: re.Match) -> str:
+        prefix, url, title, suffix = m.group(1), m.group(2), m.group(3) or "", m.group(4)
+        if not url.startswith(("http://", "https://")):
+            return m.group(0)
+        wrapped = _proxy_image(url) or url
+        return f"{prefix}{wrapped}{title}{suffix}"
+    return _MARKDOWN_IMG_RE.sub(_wrap, markdown)
 
 
 def _build_post_payload(
@@ -67,7 +93,7 @@ def _build_post_payload(
     return {
         "slug": slugify(article.title),
         "title": article.title,
-        "body": article.body_markdown,
+        "body": _proxy_inline_images(article.body_markdown),
         "excerpt": article.excerpt,
         "region": "all",
         "category": category,
