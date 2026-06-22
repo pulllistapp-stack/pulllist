@@ -69,10 +69,14 @@ export async function signup(
   email: string,
   password: string,
   name?: string,
+  /** Honeypot — frontend renders a hidden field; humans leave it empty,
+   *  bots auto-filling every input populate it. Always send what we have
+   *  so the backend can decide. */
+  website?: string,
 ): Promise<TokenResponse> {
   return authFetch<TokenResponse>("/auth/signup", {
     method: "POST",
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ email, password, name, website }),
   });
 }
 

@@ -2,7 +2,7 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from sqlalchemy import select
@@ -24,14 +24,29 @@ from app.schemas.auth import (
     TokenResponse,
     UserRead,
 )
+from app.services.anti_spam import (
+    check_email_domain,
+    check_honeypot,
+    check_rate_limit,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/signup", response_model=TokenResponse)
 async def signup(
-    payload: SignupRequest, db: AsyncSession = Depends(get_db)
+    payload: SignupRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
+    # Anti-spam stack — runs before any DB write so bot traffic costs
+    # us nothing beyond the request handshake. Order is cheapest first:
+    # honeypot (instant rejection), rate limit (in-memory check),
+    # disposable email (set lookup).
+    check_honeypot(payload.website)
+    check_rate_limit(request)
+    check_email_domain(payload.email)
+
     existing = (
         await db.execute(select(User).where(User.email == payload.email))
     ).scalar_one_or_none()

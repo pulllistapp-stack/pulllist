@@ -27,6 +27,9 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Honeypot: rendered hidden so humans never touch it. Bots that
+  // brute-fill every form field populate this and the backend rejects.
+  const [website, setWebsite] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +43,7 @@ export default function SignupPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await signup(email, password, name || undefined);
+      await signup(email, password, name || undefined, website || undefined);
       router.push("/portfolio");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
@@ -158,6 +161,33 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">
+            {/* Honeypot — visually hidden from humans (off-screen,
+                aria-hidden, tabIndex=-1, autocomplete=off) but
+                still in the DOM for form-fill bots to populate.
+                Backend rejects on non-empty value. */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                left: "-9999px",
+                width: "1px",
+                height: "1px",
+                overflow: "hidden",
+              }}
+            >
+              <label>
+                Website (leave empty)
+                <input
+                  type="text"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
+              </label>
+            </div>
+
             <label className="block">
               <span className="block text-xs font-mono uppercase tracking-wider text-text-tertiary mb-1.5">
                 Display name <span className="lowercase text-text-tertiary/70">(optional)</span>

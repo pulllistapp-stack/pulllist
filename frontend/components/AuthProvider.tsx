@@ -23,7 +23,7 @@ import {
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
-  signup: (email: string, password: string, name?: string) => Promise<void>;
+  signup: (email: string, password: string, name?: string, website?: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => void;
@@ -58,8 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signup = useCallback(
-    async (email: string, password: string, name?: string) => {
-      const res = await apiSignup(email, password, name);
+    async (email: string, password: string, name?: string, website?: string) => {
+      const res = await apiSignup(email, password, name, website);
       saveToken(res.access_token);
       setUser(res.user);
     },

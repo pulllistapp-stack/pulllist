@@ -7,6 +7,10 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     name: str | None = Field(default=None, max_length=100)
+    # Honeypot — frontend renders a hidden input named `website` and
+    # bots that auto-fill every form input will trip this. Humans never
+    # see it, so it should always come through empty.
+    website: str | None = Field(default=None, max_length=200)
 
 
 class LoginRequest(BaseModel):
