@@ -1,0 +1,54 @@
+name: Daily news bot
+
+# Phase 1 = manual trigger only. The schedule: block stays commented
+# out until LO has watched 3 clean dry-runs + 1 clean live run end to
+# end. See backend/newsbot/SPEC.md → Phase 3 for the cron flip.
+#
+# schedule:
+#   - cron: "0 12 * * *"  # 12:00 UTC = 21:00 KST (after eBay/TCGplayer)
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (1 = crawl + generate + log only; 0 = publish drafts)'
+        required: true
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '0'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Generation per item is ~30-60s of Claude latency plus crawl +
+    # fact-check. 30m is plenty even with the daily_post_limit ceiling.
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/newsbot/requirements.txt
+
+      - name: Install newsbot deps
+        run: pip install -r newsbot/requirements.txt
+
+      - name: Run newsbot
+        env:
+          # API target — override via the optional repo secret to point at staging.
+          PULLLIST_API_BASE: ${{ secrets.PULLLIST_API_BASE || 'https://api.pulllist.org/api/v1' }}
+          NEWSBOT_ADMIN_EMAIL: ${{ secrets.NEWSBOT_ADMIN_EMAIL }}
+          NEWSBOT_ADMIN_PASSWORD: ${{ secrets.NEWSBOT_ADMIN_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          DAILY_POST_LIMIT: ${{ secrets.DAILY_POST_LIMIT || '2' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          LOG_LEVEL: INFO
+        run: python -m newsbot.main
