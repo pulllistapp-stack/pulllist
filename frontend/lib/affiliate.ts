@@ -22,8 +22,14 @@
  *     Defaults to "711-53200-19255-0" (US site).
  */
 
+// Default TCGplayer Impact direct-link params for the pulllist account
+// (irpid 7410135). Public values — they appear on every outbound click —
+// so committing them here is fine. Vercel env can still override for a
+// staging/preview environment with a different campaign.
+const TCGPLAYER_PARAMS_DEFAULT =
+  "irpid=7410135&irgwc=1&afsrc=1&utm_source=impact&utm_medium=affiliate&utm_campaign=pulllist";
 const TCGPLAYER_PARAMS =
-  process.env.NEXT_PUBLIC_TCGPLAYER_AFFILIATE_PARAMS ?? "";
+  process.env.NEXT_PUBLIC_TCGPLAYER_AFFILIATE_PARAMS ?? TCGPLAYER_PARAMS_DEFAULT;
 const EBAY_CAMPAIGN_ID = process.env.NEXT_PUBLIC_EBAY_CAMPAIGN_ID ?? "";
 const EBAY_MKRID =
   process.env.NEXT_PUBLIC_EBAY_MKRID ?? "711-53200-19255-0";
