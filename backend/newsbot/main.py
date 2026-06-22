@@ -24,7 +24,7 @@ from .dedupe import filter_unseen
 from .factcheck import verify_claims
 from .generator import generate_article
 from .publisher import PublisherError, login, publish_draft
-from .sources import NewsItem, crawl_all
+from .sources import NewsItem, crawl_all, enrich_item
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +62,15 @@ async def _process_item(
     """Returns a summary dict on success, None on reject."""
     category = classify(item)
     log.info("classify %r → %s", item.title, category)
+
+    # Crawlers that hand back URL-only cards (e.g. PokeBeach) fill
+    # raw_text here. No-op for sources that already populate it.
+    item = await enrich_item(item)
+    if not item.raw_text:
+        log.info(
+            "enrich produced no body for %s — generator will work off title+summary",
+            item.url,
+        )
 
     try:
         article = await generate_article(item)

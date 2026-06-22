@@ -1,93 +1,96 @@
-"""PokeBeach RSS source.
+"""PokeBeach source — scrapes the WordPress homepage.
 
-PokeBeach exposes a standard WordPress RSS feed at /news/feed with
-<title>/<link>/<description>/<pubDate>/<content:encoded> per item.
-We parse it with stdlib ElementTree — no JS, no HTML quirks at this
-endpoint, so Scrapling-grade selectors are overkill until Phase 2
-when sources need adaptive HTML scraping.
+Why not RSS? The on-site /feed endpoint is 500 upstream and /news/feed
+404s — those are PokeBeach bugs we can't fix. The homepage HTML
+renders fine and uses standard WP `article.post` markup.
+
+Why curl_cffi? PokeBeach sits behind Cloudflare which JA3-fingerprints
+plain httpx and returns 403. curl_cffi impersonates Chrome's TLS
+fingerprint and gets through without needing a real browser.
+
+Two-stage fetch:
+  1. crawl()  → homepage HTML → 16 NewsItems (url + title only)
+  2. enrich() → per-item article-page fetch → fills raw_text
+
+main.py only calls enrich() for items that survive dedupe + the daily
+limit, so a typical run hits PokeBeach 1 + daily_post_limit times
+(3 total at the default limit of 2).
 """
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree as ET
-from datetime import datetime
-from email.utils import parsedate_to_datetime
 
-import httpx
+from curl_cffi.requests import AsyncSession
+from selectolax.parser import HTMLParser
 
-from . import NewsItem, register
+from . import NewsItem, register, register_enricher
 
 log = logging.getLogger("newsbot.sources.pokebeach")
 
-FEED_URL = "https://www.pokebeach.com/news/feed"
+INDEX_URL = "https://www.pokebeach.com/"
+IMPERSONATE = "chrome120"
+REQUEST_TIMEOUT = 30
+MAX_ITEMS = 16  # one homepage = 16 articles; matches WP's default page size
 
-# WordPress / RSS 2.0 namespace map used by content:encoded.
-NS = {"content": "http://purl.org/rss/1.0/modules/content/"}
-
-# Identify ourselves so PokeBeach can rate-limit us cleanly if needed.
-USER_AGENT = (
-    "PullListNewsBot/1.0 (+https://pulllist.org; "
-    "contact: hi@pulllist.org)"
-)
-
-REQUEST_TIMEOUT = 30.0
-MAX_ITEMS = 30
+# CSS selectors — pinned to current PokeBeach markup as of 2026-06.
+# If PokeBeach restructures, the source layer is the only thing that
+# needs to change. See README for the canary CSS query to re-derive.
+SEL_CARD = "article.post"
+SEL_CARD_TITLE = "h2.entry-title a"
+SEL_CARD_EXCERPT = ".entry-content, .entry-summary"
+SEL_BODY = "div.entry-content, div.post-content, article div.entry"
 
 
-def _parse_pubdate(raw: str | None) -> str | None:
-    if not raw:
-        return None
-    try:
-        # RFC 822 (e.g. "Thu, 19 Jun 2026 14:23:00 +0000")
-        dt = parsedate_to_datetime(raw)
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(dt, datetime):
-        return None
-    return dt.date().isoformat()
+async def _fetch(url: str) -> str:
+    async with AsyncSession(impersonate=IMPERSONATE, timeout=REQUEST_TIMEOUT) as s:
+        r = await s.get(url, allow_redirects=True)
+        if r.status_code != 200:
+            raise RuntimeError(
+                f"pokebeach fetch {url} → {r.status_code}"
+            )
+        return r.text
 
 
 @register("pokebeach")
 async def crawl() -> list[NewsItem]:
-    async with httpx.AsyncClient(
-        headers={"User-Agent": USER_AGENT},
-        timeout=REQUEST_TIMEOUT,
-        follow_redirects=True,
-    ) as client:
-        r = await client.get(FEED_URL)
-        r.raise_for_status()
-        xml_text = r.text
-
-    try:
-        root = ET.fromstring(xml_text)
-    except ET.ParseError as exc:
-        log.error("pokebeach feed parse error: %s", exc)
-        return []
-
-    channel = root.find("channel")
-    if channel is None:
-        log.warning("pokebeach feed missing <channel>")
-        return []
+    html = await _fetch(INDEX_URL)
+    tree = HTMLParser(html)
+    cards = tree.css(SEL_CARD)
+    log.info("pokebeach index: %d article cards on homepage", len(cards))
 
     items: list[NewsItem] = []
-    for raw in channel.findall("item")[:MAX_ITEMS]:
-        link = (raw.findtext("link") or "").strip()
-        title = (raw.findtext("title") or "").strip()
-        if not link or not title:
+    for card in cards[:MAX_ITEMS]:
+        link = card.css_first(SEL_CARD_TITLE)
+        if not link:
             continue
-        body_el = raw.find("content:encoded", NS)
-        body = (body_el.text or "").strip() if body_el is not None else ""
-        summary = (raw.findtext("description") or "").strip()
-        pub = _parse_pubdate(raw.findtext("pubDate"))
+        url = (link.attributes.get("href") or "").strip()
+        title = link.text(strip=True)
+        if not url or not title:
+            continue
+        excerpt_el = card.css_first(SEL_CARD_EXCERPT)
+        excerpt = excerpt_el.text(strip=True)[:480] if excerpt_el else ""
         items.append(
             NewsItem(
-                url=link[:512],
+                url=url[:512],
                 title=title[:512],
-                summary=summary,
-                raw_text=body,
+                summary=excerpt,
                 source_name="PokeBeach",
                 source_lang="en",
-                published_at=pub,
             )
         )
     return items
+
+
+@register_enricher("pokebeach")
+async def enrich(item: NewsItem) -> NewsItem:
+    """Fetch the article page and pull the body text. Returns a new
+    NewsItem with raw_text populated; leaves the original untouched on
+    failure so the generator can still fall back to title + summary."""
+    html = await _fetch(item.url)
+    tree = HTMLParser(html)
+    body_el = tree.css_first(SEL_BODY)
+    if not body_el:
+        log.warning("pokebeach enrich: no body element at %s", item.url)
+        return item
+    body = body_el.text(strip=False).strip()
+    return item.model_copy(update={"raw_text": body})
