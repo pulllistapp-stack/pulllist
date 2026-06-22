@@ -15,6 +15,7 @@ import {
   TrendingDown,
 } from "lucide-react";
 
+import { MascotLoader } from "@/components/MascotLoader";
 import { RarityChip } from "@/components/RarityChip";
 import { useAuth } from "@/components/AuthProvider";
 import { useWishlist } from "@/components/WishlistProvider";
@@ -91,7 +92,7 @@ export default function WishlistPage() {
   if (authLoading || !user) {
     return (
       <main className="mx-auto max-w-5xl px-4 py-16">
-        <p className="text-text-tertiary text-sm">Checking session…</p>
+        <MascotLoader size="lg" />
       </main>
     );
   }
@@ -173,7 +174,7 @@ export default function WishlistPage() {
         </div>
       )}
 
-      {loading && <Skeleton />}
+      {loading && <MascotLoader size="lg" className="py-8" />}
 
       {!loading && items && items.length === 0 && <EmptyState />}
 

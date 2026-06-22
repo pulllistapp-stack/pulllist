@@ -7,11 +7,10 @@ import { useEffect, useState } from "react";
  * Centred mascot + rotating status phrase. Replaces blank skeletons on
  * full-page loads so the wait reads as personality rather than dead air.
  *
- * Four animated APNG variants:
- *   - idle: sitting + blinking + holding card (default for in-page data)
- *   - fly:  flying diagonally + wings flapping (route transitions)
- *   - pack: opening a booster pack (trending/drops — fresh-data vibes)
- *   - sleep: lying curled with floating z's (long-running work, big lists)
+ * Four animated APNG variants are pooled and picked at random per mount —
+ * each load surfaces a different mascot which keeps the experience fresh
+ * across repeated visits. Pass an explicit `variant` to force a specific
+ * one (useful for marketing pages or screenshots).
  *
  * The APNGs carry their own per-frame motion, so we deliberately skip the
  * CSS bounce keyframe — stacking the two looks twitchy.
@@ -28,6 +27,8 @@ const ROTATION_MS = 2400;
 type Size = "sm" | "md" | "lg";
 type Variant = "idle" | "fly" | "pack" | "sleep";
 
+const VARIANT_POOL: Variant[] = ["idle", "fly", "pack", "sleep"];
+
 const SIZE_CFG: Record<Size, { px: number; text: string }> = {
   sm: { px: 56, text: "text-xs" },
   md: { px: 96, text: "text-sm" },
@@ -43,7 +44,7 @@ const VARIANT_SRC: Record<Variant, string> = {
 
 export function MascotLoader({
   size = "md",
-  variant = "idle",
+  variant,
   className = "",
 }: {
   size?: Size;
@@ -51,6 +52,18 @@ export function MascotLoader({
   className?: string;
 }) {
   const [idx, setIdx] = useState(0);
+  // Random variant pick happens client-side only — using Math.random() in
+  // initial state would mismatch between SSR and hydration. Render the
+  // first frame (idle) on the server, swap to the random pick after mount.
+  const [resolvedVariant, setResolvedVariant] = useState<Variant>(
+    variant ?? "idle",
+  );
+
+  useEffect(() => {
+    if (variant) return;
+    const pick = VARIANT_POOL[Math.floor(Math.random() * VARIANT_POOL.length)];
+    setResolvedVariant(pick);
+  }, [variant]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -72,7 +85,7 @@ export function MascotLoader({
         style={{ width: cfg.px, height: cfg.px }}
       >
         <Image
-          src={VARIANT_SRC[variant]}
+          src={VARIANT_SRC[resolvedVariant]}
           alt=""
           fill
           sizes={`${cfg.px}px`}

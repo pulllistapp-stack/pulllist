@@ -269,7 +269,7 @@ export default function TrendingPage() {
       )}
 
       {loading ? (
-        <MascotLoader size="lg" variant="pack" className="py-20" />
+        <MascotLoader size="lg" className="py-20" />
       ) : movers.length === 0 ? (
         <EmptyState periodDays={periodDays} />
       ) : (
