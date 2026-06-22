@@ -66,7 +66,9 @@ async def get_current_user(
         )
     user_id = decode_token(creds.credentials)
     user = await db.get(User, user_id)
-    if not user:
+    if not user or user.deleted_at is not None:
+        # Reject deleted users the same way as missing — same 401, so a
+        # soft-deleted user can't fingerprint by error message.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
@@ -83,7 +85,10 @@ async def get_current_user_optional(
         user_id = decode_token(creds.credentials)
     except HTTPException:
         return None
-    return await db.get(User, user_id)
+    user = await db.get(User, user_id)
+    if user and user.deleted_at is not None:
+        return None
+    return user
 
 
 async def get_current_admin(

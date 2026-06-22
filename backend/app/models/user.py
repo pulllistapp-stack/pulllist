@@ -50,11 +50,18 @@ class User(Base):
         Boolean, default=False, nullable=False
     )
 
-    # CMS access — gates the /admin/news editor. Granted manually via SQL
-    # for now (no signup-time admin promotion); long-term we'd add a
-    # roles table.
+    # CMS access — gates the /admin/* surfaces. Granted manually by an
+    # existing admin via PATCH /admin/users/{id}/admin; never assignable
+    # at signup.
     is_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default="false"
+    )
+
+    # Soft delete — set when an admin removes the user. The row stays so
+    # foreign keys (collection items, wishlist, etc.) don't break, but
+    # auth flows reject the user as if it didn't exist.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

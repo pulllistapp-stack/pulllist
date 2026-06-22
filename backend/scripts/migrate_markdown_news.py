@@ -30,11 +30,15 @@ from app.models import NewsPost, User  # noqa: E402
 
 
 async def ensure_is_admin_column() -> None:
-    """init_db only runs CREATE TABLE IF NOT EXISTS. The is_admin column
-    was added to an existing users table, so we patch it in explicitly."""
+    """init_db only runs CREATE TABLE IF NOT EXISTS. The is_admin /
+    deleted_at columns were added to an existing users table, so we
+    patch them in explicitly."""
     async with engine.begin() as conn:
         await conn.execute(text(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL"
         ))
 
 engine.echo = False
