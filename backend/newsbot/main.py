@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import urllib.parse
 from datetime import datetime, timezone
 
 from .classify import classify, slugify
@@ -37,6 +38,29 @@ def _today_iso() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+_WESERV = "https://images.weserv.nl/?url={}"
+
+
+def _proxy_image(url: str | None) -> str | None:
+    """Wrap external images through images.weserv.nl so cross-origin
+    browser loads aren't blocked by hot-link-protected sources.
+
+    PokeBeach (and most WordPress + Cloudflare setups) return 403 when
+    the request's Referer header points at a different domain. weserv
+    is a free, fast image CDN that strips the Referer and caches the
+    result. Already-proxied URLs pass through unchanged so a re-run
+    doesn't double-wrap them. Caps at 480 chars to fit
+    NewsPost.thumbnail_url's 512-char column with margin for the
+    proxy prefix.
+    """
+    if not url:
+        return None
+    if "images.weserv.nl" in url:
+        return url
+    stripped = url.split("://", 1)[-1]
+    return _WESERV.format(urllib.parse.quote(stripped, safe="/.-_~"))[:480]
+
+
 def _build_post_payload(
     item: NewsItem, article, category: str
 ) -> dict:
@@ -47,7 +71,7 @@ def _build_post_payload(
         "excerpt": article.excerpt,
         "region": "all",
         "category": category,
-        "thumbnail_url": item.hero_image_url,
+        "thumbnail_url": _proxy_image(item.hero_image_url),
         "author": settings.bot_author_name,
         "published_at": item.published_at or _today_iso(),
         "reading_time": article.reading_time,
