@@ -47,7 +47,7 @@ def _build_post_payload(
         "excerpt": article.excerpt,
         "region": "all",
         "category": category,
-        "thumbnail_url": None,
+        "thumbnail_url": item.hero_image_url,
         "author": settings.bot_author_name,
         "published_at": item.published_at or _today_iso(),
         "reading_time": article.reading_time,

@@ -45,6 +45,10 @@ SEL_CARD = "article.post"
 SEL_CARD_TITLE = "h2.entry-title a"
 SEL_CARD_EXCERPT = ".entry-content, .entry-summary"
 SEL_BODY = "div.entry-content, div.post-content, article div.entry"
+# Hero image — try the og:image meta tag first (most reliable on WP),
+# then the first descendant img inside the article body as a fallback.
+SEL_OG_IMAGE = "meta[property='og:image']::attr(content)"
+SEL_FIRST_BODY_IMG = "div.entry-content img::attr(src), article img::attr(src)"
 
 
 # Lazy module-level session — opened on first call, reused across the
@@ -116,14 +120,25 @@ async def crawl() -> list[NewsItem]:
 
 @register_enricher("pokebeach")
 async def enrich(item: NewsItem) -> NewsItem:
-    """Fetch the article page and pull the body text. Returns a new
-    NewsItem with raw_text populated; leaves the original untouched on
-    failure so the generator can still fall back to title + summary."""
+    """Fetch the article page; fill raw_text + hero_image_url.
+
+    Returns a new NewsItem with whatever extraction succeeded — body
+    and image are independent, a missing image doesn't drop the body.
+    """
     await asyncio.sleep(INTER_REQUEST_DELAY)
     page = await _fetch(item.url)
+
+    body = ""
     body_matches = page.css(SEL_BODY)
-    if not body_matches:
+    if body_matches:
+        body = body_matches[0].get_all_text(separator="\n", strip=True)
+    else:
         log.warning("pokebeach enrich: no body element at %s", item.url)
-        return item
-    body = body_matches[0].get_all_text(separator="\n", strip=True)
-    return item.model_copy(update={"raw_text": body})
+
+    # og:image is the standard WordPress / Yoast hero image; falls back
+    # to the first article img if the meta tag is missing. Trim to fit
+    # NewsPost.thumbnail_url's 512-char column.
+    hero = page.css(SEL_OG_IMAGE).get() or page.css(SEL_FIRST_BODY_IMG).get()
+    hero = (hero or "").strip()[:512] or None
+
+    return item.model_copy(update={"raw_text": body, "hero_image_url": hero})

@@ -43,9 +43,21 @@ You will be given a source article. Your job:
 2. Extract 1-3 specific factual claims a checker should verify
    (prices, dates, set names, official quotes — not opinion).
 
-Body format (Markdown):
+# Readability rules (these matter — readers scan, they don't read)
 
-[Lead paragraph — 2-3 sentences. The actual news.]
+- **Short paragraphs.** 1-3 sentences each. Never longer.
+- **Blank line between every paragraph.** No walls of text.
+- **One idea per paragraph.** If you switch topics, start a new one.
+- **Concrete over abstract.** "Surging Sparks Pikachu hit $180 last
+  week" beats "the card has seen significant price movement."
+- **Use sub-headings liberally.** A 400-word post should have 2-4 H2s.
+- **Lists for parallel items.** Three facts? Bulleted list, not prose.
+
+# Body format (Markdown)
+
+[Lead paragraph — 1-2 sentences. The single most important fact.]
+
+[Optional second short paragraph — context, 1-2 sentences.]
 
 ## What happened
 
@@ -55,15 +67,17 @@ Body format (Markdown):
 
 ## Why it matters for collectors
 
-[1-2 paragraph analysis tied to PullList's data: pricing trends, set
-context, collectibility angle.]
+[Short paragraph — 2-3 sentences max — tied to PullList's data:
+pricing trends, set context, collectibility angle.]
+
+[Optional second paragraph if there's a distinct second angle.]
 
 ## Sources
 
 - [Source name](https://...)
 
-Target length: 400-700 words. Always end with a Sources section that
-links the original article you were given.
+Target length: **350-500 words**. Shorter is better than longer.
+Always end with a Sources section linking the original article.
 
 Output a single JSON object — no prose around it, no markdown fence:
 

@@ -35,6 +35,10 @@ class NewsItem(BaseModel):
     # Full article body. Empty after crawl() for sources that defer
     # body fetching to enrich(); filled in once the pipeline asks.
     raw_text: str = ""
+    # Hero image extracted by enrich() — gets stamped onto the published
+    # draft's thumbnail_url. Sources that don't expose images leave it
+    # None and the draft renders with no image.
+    hero_image_url: str | None = Field(default=None, max_length=512)
 
 
 # Type alias for source crawler signatures.

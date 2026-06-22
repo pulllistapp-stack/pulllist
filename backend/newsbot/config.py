@@ -31,14 +31,16 @@ class Settings(BaseSettings):
 
     # ── Anthropic / Claude ──
     anthropic_api_key: str = ""
-    # Quality matters for SEO/AdSense; volume is ~2 posts/day so Opus
-    # is fine on cost (~$6/mo per SPEC).
-    claude_model: str = "claude-opus-4-8"
+    # Cost-optimised default: Sonnet 4.6 at medium effort. News
+    # rewriting is well within Sonnet's range; Opus's extra capability
+    # mostly buys nothing for 400-word summaries. Empirically:
+    #   claude-sonnet-4-6 / medium → ~$0.012 per article (~$0.70/mo)
+    #   claude-opus-4-8   / high   → ~$0.075 per article (~$4.50/mo)
+    # Override via env (CLAUDE_MODEL / CLAUDE_EFFORT) when an article
+    # turns out worse than expected — Opus high is the fallback ceiling.
+    claude_model: str = "claude-sonnet-4-6"
     # Adaptive thinking effort level (low | medium | high | xhigh | max).
-    # 'high' is the sweet spot for content generation — model thinks
-    # enough to produce well-structured articles without overspending.
-    # Opus 4.8 requires adaptive-only; budget_tokens API was removed.
-    claude_effort: str = "high"
+    claude_effort: str = "medium"
 
     # ── Tavily ──
     tavily_api_key: str = ""
