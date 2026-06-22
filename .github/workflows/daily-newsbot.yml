@@ -1,8 +1,8 @@
 name: Daily news bot
 
 # Phase 1 = manual trigger only. The schedule: block stays commented
-# out until LO has watched 3 clean dry-runs + 1 clean live run end to
-# end. See backend/newsbot/SPEC.md → Phase 3 for the cron flip.
+# out until we've had 3 clean dry-runs + 1 clean live run end to end.
+# See backend/newsbot/SPEC.md → Phase 3 for the cron flip.
 #
 # schedule:
 #   - cron: "0 12 * * *"  # 12:00 UTC = 21:00 KST (after eBay/TCGplayer)
