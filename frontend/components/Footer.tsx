@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,16 +18,13 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <Link href="/" className="inline-block">
-              <span className="relative block h-10 w-[140px]">
-                <Image
-                  src="/pullist-mascot.png"
-                  alt="PullList"
-                  fill
-                  className="object-contain object-left"
-                  sizes="140px"
-                  unoptimized
-                />
+            <Link
+              href="/"
+              className="inline-block text-2xl font-extrabold tracking-tight"
+            >
+              <span className="text-text-primary">Pull</span>
+              <span className="bg-gradient-to-r from-accent-yellow via-amber-400 to-teal-400 bg-clip-text text-transparent">
+                List
               </span>
             </Link>
             <p className="mt-3 max-w-sm text-sm text-text-secondary">
