@@ -13,7 +13,10 @@ import httpx
 
 log = logging.getLogger("newsbot.publisher")
 
-REQUEST_TIMEOUT = 30.0
+# Render free tier sleeps after 15 min of idle and takes up to ~50s to
+# wake. The bot runs once a day, so login is almost always the cold-
+# start hit. 90s gives the backend room to boot before httpx times out.
+REQUEST_TIMEOUT = 90.0
 
 
 class PublisherError(RuntimeError):
