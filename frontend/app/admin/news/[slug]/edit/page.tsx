@@ -36,24 +36,24 @@ function EditPostContent({ slug }: { slug: string }) {
           className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
-          뉴스 관리
+          Manage news
         </Link>
       </nav>
 
       {post === undefined ? (
-        <p className="py-12 text-center text-sm text-text-tertiary">로딩 중...</p>
+        <p className="py-12 text-center text-sm text-text-tertiary">Loading...</p>
       ) : post === null ? (
         <p className="py-12 text-center text-sm text-text-tertiary">
-          글을 찾을 수 없습니다.
+          Post not found.
         </p>
       ) : (
         <>
           <header className="mb-8">
             <h1 className="text-3xl font-extrabold tracking-tight text-text-primary">
-              글 수정
+              Edit post
             </h1>
             <p className="mt-2 text-sm text-text-secondary">
-              저장하면 변경 사항이 즉시 /news/{slug}에 반영됩니다.
+              Changes go live immediately at /news/{slug}.
             </p>
           </header>
           <PostForm mode="edit" initial={post} />

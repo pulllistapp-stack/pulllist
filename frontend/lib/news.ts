@@ -1,18 +1,29 @@
 /**
- * News posts now live in the DB and are managed via /admin/news.
- * This module is the typed client + a small label helper shared between
- * the public /news pages and the admin UI.
+ * News posts live in the DB and are managed via /admin/news. This
+ * module is the typed client + label helpers shared between the
+ * public /news pages and the admin UI.
+ *
+ * Category replaces the old region (KR/JP/US) dimension — the audience
+ * cares more about WHAT a post is about (drop, market, guide…) than
+ * which catalog it covers. Region stays on the DB row for forward
+ * flexibility but isn't surfaced in the UI right now.
  */
 
-export type NewsRegion = "all" | "kr" | "ja" | "us";
+export type NewsCategory =
+  | "drops"
+  | "market"
+  | "tcg"
+  | "center"
+  | "guide"
+  | "news";
 
 export type NewsPost = {
   slug: string;
   title: string;
   body: string;
   excerpt: string | null;
-  region: NewsRegion;
-  category: string | null;
+  region: string;
+  category: NewsCategory | string | null;
   thumbnail_url: string | null;
   author: string | null;
   published_at: string; // YYYY-MM-DD
@@ -22,8 +33,10 @@ export type NewsPost = {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
 
-export async function fetchPosts(region?: NewsRegion): Promise<NewsPost[]> {
-  const qs = region && region !== "all" ? `?region=${region}` : "";
+export async function fetchPosts(
+  category?: NewsCategory | "all",
+): Promise<NewsPost[]> {
+  const qs = category && category !== "all" ? `?category=${category}` : "";
   try {
     const r = await fetch(`${API_BASE}/news/posts${qs}`, {
       cache: "no-store",
@@ -47,17 +60,21 @@ export async function fetchPost(slug: string): Promise<NewsPost | null> {
   }
 }
 
-const REGION_LABELS: Record<NewsRegion, { kr: string; chip: string }> = {
-  all: { kr: "전체", chip: "🌐 전체" },
-  kr: { kr: "한국", chip: "🇰🇷 한국" },
-  ja: { kr: "일본", chip: "🇯🇵 일본" },
-  us: { kr: "미국", chip: "🇺🇸 미국" },
-};
+export const CATEGORIES: { key: NewsCategory | "all"; label: string; hint?: string }[] = [
+  { key: "all", label: "All" },
+  { key: "drops", label: "Drops", hint: "New set releases & schedules" },
+  { key: "market", label: "Market", hint: "Prices, trends, analysis" },
+  { key: "tcg", label: "Pokémon TCG", hint: "Card lore, artists, history" },
+  { key: "center", label: "Pokémon Center", hint: "Official store events & merch" },
+  { key: "guide", label: "Guide", hint: "Grading, sleeving, beginner tips" },
+  { key: "news", label: "News", hint: "General announcements" },
+];
 
-export function regionLabel(region: NewsRegion): string {
-  return REGION_LABELS[region]?.kr ?? region;
-}
+const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.key, c.label]),
+);
 
-export function regionChipLabel(region: NewsRegion): string {
-  return REGION_LABELS[region]?.chip ?? region;
+export function categoryLabel(category: string | null | undefined): string {
+  if (!category) return "News";
+  return CATEGORY_LABEL[category] ?? category;
 }

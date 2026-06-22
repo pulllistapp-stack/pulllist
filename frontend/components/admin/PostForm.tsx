@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { getToken } from "@/lib/auth";
-import { NewsPost, NewsRegion } from "@/lib/news";
+import { CATEGORIES, NewsCategory, NewsPost } from "@/lib/news";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
@@ -29,8 +29,9 @@ export function PostForm({ mode, initial }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [excerpt, setExcerpt] = useState(initial?.excerpt ?? "");
   const [body, setBody] = useState(initial?.body ?? "");
-  const [region, setRegion] = useState<NewsRegion>(initial?.region ?? "all");
-  const [category, setCategory] = useState(initial?.category ?? "");
+  const [category, setCategory] = useState<NewsCategory | "all">(
+    (initial?.category as NewsCategory | undefined) ?? "news",
+  );
   const [thumbnail, setThumbnail] = useState(initial?.thumbnail_url ?? "");
   const [author, setAuthor] = useState(initial?.author ?? "");
   const [publishedAt, setPublishedAt] = useState(
@@ -72,8 +73,8 @@ export function PostForm({ mode, initial }: Props) {
         title,
         body,
         excerpt: excerpt || null,
-        region,
-        category: category || null,
+        region: "all",
+        category: category === "all" ? "news" : category,
         thumbnail_url: thumbnail || null,
         author: author || null,
         published_at: publishedAt,
@@ -107,7 +108,7 @@ export function PostForm({ mode, initial }: Props) {
 
   async function onDelete() {
     if (mode !== "edit") return;
-    if (!confirm(`정말 "${title}" 글을 삭제할까?`)) return;
+    if (!confirm(`Delete "${title}"? This can't be undone.`)) return;
     setSaving(true);
     try {
       const token = getToken();
@@ -128,20 +129,20 @@ export function PostForm({ mode, initial }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <Field label="제목" required>
+      <Field label="Title" required>
         <input
           type="text"
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           required
           className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-base font-bold text-text-primary focus:border-accent-yellow focus:outline-none"
-          placeholder="일판 메가에볼루션 SR/SAR 시세 정리"
+          placeholder="Mega Evolution tier list — SR & SAR market"
         />
       </Field>
 
       <Field
-        label="Slug (URL 경로)"
-        hint="자동 생성 — 그대로 두거나 짧고 명확하게 수정"
+        label="Slug (URL path)"
+        hint="Auto-generated from the title. Keep it short."
         required
       >
         <input
@@ -155,41 +156,32 @@ export function PostForm({ mode, initial }: Props) {
         />
       </Field>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="지역">
-          <select
-            value={region}
-            onChange={(e) => setRegion(e.target.value as NewsRegion)}
-            className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm text-text-primary focus:border-accent-yellow focus:outline-none"
-          >
-            <option value="all">전체</option>
-            <option value="kr">한국</option>
-            <option value="ja">일본</option>
-            <option value="us">미국</option>
-          </select>
-        </Field>
-        <Field label="카테고리" hint="자유 텍스트 — 소개 / 가이드 / 시세 등">
-          <input
-            type="text"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm text-text-primary focus:border-accent-yellow focus:outline-none"
-            placeholder="소개"
-          />
-        </Field>
-      </div>
+      <Field label="Category" hint="What kind of post this is.">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as NewsCategory | "all")}
+          className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm text-text-primary focus:border-accent-yellow focus:outline-none"
+        >
+          {CATEGORIES.filter((c) => c.key !== "all").map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.label}
+              {c.hint ? ` — ${c.hint}` : ""}
+            </option>
+          ))}
+        </select>
+      </Field>
 
-      <Field label="요약 (Excerpt)" hint="리스트 카드에 보이는 한두 줄">
+      <Field label="Excerpt" hint="The one or two lines shown on the listing card.">
         <textarea
           value={excerpt}
           onChange={(e) => setExcerpt(e.target.value)}
           rows={2}
           className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm text-text-primary focus:border-accent-yellow focus:outline-none"
-          placeholder="한 줄 요약..."
+          placeholder="Short summary..."
         />
       </Field>
 
-      <Field label="썸네일 URL" hint="외부 이미지 주소를 붙여넣기 (선택)">
+      <Field label="Thumbnail URL" hint="Paste an external image URL (optional).">
         <input
           type="url"
           value={thumbnail}
@@ -199,19 +191,19 @@ export function PostForm({ mode, initial }: Props) {
         />
       </Field>
 
-      <Field label="본문 (Markdown)" required>
+      <Field label="Body (Markdown)" required>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           required
           rows={20}
           className="w-full rounded-btn border border-border bg-bg px-3 py-3 font-mono text-sm text-text-primary leading-relaxed focus:border-accent-yellow focus:outline-none"
-          placeholder="# 제목&#10;&#10;본문 마크다운...&#10;&#10;## 섹션&#10;&#10;![](https://...) 이미지도 됨"
+          placeholder="# Heading&#10;&#10;Body markdown...&#10;&#10;## Section&#10;&#10;![](https://...) images work too"
         />
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-3">
-        <Field label="작성자" hint="기본: 본인 이름">
+        <Field label="Author" hint="Defaults to your name.">
           <input
             type="text"
             value={author}
@@ -220,7 +212,7 @@ export function PostForm({ mode, initial }: Props) {
             placeholder="LO"
           />
         </Field>
-        <Field label="게시일 (YYYY-MM-DD)" required>
+        <Field label="Published date" required>
           <input
             type="date"
             value={publishedAt}
@@ -229,7 +221,7 @@ export function PostForm({ mode, initial }: Props) {
             className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm text-text-primary focus:border-accent-yellow focus:outline-none"
           />
         </Field>
-        <Field label="읽기 시간 (분)">
+        <Field label="Reading time (min)">
           <input
             type="number"
             min="1"
@@ -255,14 +247,14 @@ export function PostForm({ mode, initial }: Props) {
             disabled={saving}
             className="rounded-btn bg-accent-yellow px-5 py-2.5 text-sm font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110 disabled:opacity-60"
           >
-            {saving ? "저장 중..." : mode === "create" ? "게시" : "수정 저장"}
+            {saving ? "Saving..." : mode === "create" ? "Publish" : "Save changes"}
           </button>
           <button
             type="button"
             onClick={() => router.push("/admin/news")}
             className="rounded-btn border border-border bg-bg-surface px-4 py-2.5 text-sm font-semibold text-text-secondary hover:text-text-primary"
           >
-            취소
+            Cancel
           </button>
         </div>
         {mode === "edit" && (
@@ -272,7 +264,7 @@ export function PostForm({ mode, initial }: Props) {
             disabled={saving}
             className="rounded-btn border border-accent-red/40 bg-accent-red/10 px-4 py-2.5 text-sm font-semibold text-accent-red hover:bg-accent-red/20 disabled:opacity-60"
           >
-            삭제
+            Delete
           </button>
         )}
       </div>

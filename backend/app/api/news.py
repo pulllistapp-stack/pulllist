@@ -95,12 +95,18 @@ def _post_to_dict(p: NewsPost) -> dict:
 
 @router.get("/posts")
 async def list_posts(
-    region: str | None = None, db: AsyncSession = Depends(get_db)
+    category: str | None = None,
+    region: str | None = None,
+    db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     stmt = select(NewsPost).order_by(NewsPost.published_at.desc())
+    if category and category != "all":
+        # category filter is the primary axis the UI exposes — drops /
+        # market / tcg / center / guide / news.
+        stmt = stmt.where(NewsPost.category == category)
     if region and region != "all":
-        # 'all'-region posts surface in every region tab; specific-region
-        # posts surface only in that tab.
+        # Region kept for forward flexibility (e.g. region-specific
+        # event posts later). Not currently in the UI.
         stmt = stmt.where(NewsPost.region.in_([region, "all"]))
     rows = (await db.execute(stmt)).scalars().all()
     return [_post_to_dict(p) for p in rows]

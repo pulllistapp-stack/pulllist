@@ -3,7 +3,13 @@ import Link from "next/link";
 import { Metadata } from "next";
 import { Calendar, Eye } from "lucide-react";
 
-import { fetchPosts, NewsPost, NewsRegion, regionLabel } from "@/lib/news";
+import {
+  CATEGORIES,
+  categoryLabel,
+  fetchPosts,
+  NewsCategory,
+  NewsPost,
+} from "@/lib/news";
 
 export const metadata: Metadata = {
   title: "News · PullList",
@@ -12,13 +18,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-const REGIONS: { key: NewsRegion; label: string }[] = [
-  { key: "all", label: "전체" },
-  { key: "kr", label: "🇰🇷 한국" },
-  { key: "ja", label: "🇯🇵 일본" },
-  { key: "us", label: "🇺🇸 미국" },
-];
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
@@ -33,19 +32,22 @@ async function fetchViewCounts(): Promise<Record<string, number>> {
   }
 }
 
+function isCategory(v: string | undefined): v is NewsCategory | "all" {
+  return CATEGORIES.some((c) => c.key === v);
+}
+
 export default async function NewsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ region?: string }>;
+  searchParams: Promise<{ category?: string }>;
 }) {
   const params = await searchParams;
-  const region: NewsRegion =
-    params.region === "kr" || params.region === "ja" || params.region === "us"
-      ? params.region
-      : "all";
+  const category: NewsCategory | "all" = isCategory(params.category)
+    ? (params.category as NewsCategory | "all")
+    : "all";
 
   const [posts, views] = await Promise.all([
-    fetchPosts(region),
+    fetchPosts(category),
     fetchViewCounts(),
   ]);
 
@@ -63,26 +65,27 @@ export default async function NewsPage({
           News
         </p>
         <h1 className="mt-1 text-3xl sm:text-4xl font-extrabold tracking-tight text-text-primary">
-          최신 카드
+          Latest from PullList
         </h1>
         <p className="mt-2 text-sm text-text-secondary">
-          공식 사이트 최신 소식을 한눈에
+          Drops, market updates, and guides for serious collectors.
         </p>
       </header>
 
-      {/* Region tabs */}
+      {/* Category tabs */}
       <div className="mb-8 flex flex-wrap gap-2">
-        {REGIONS.map((r) => (
+        {CATEGORIES.map((c) => (
           <Link
-            key={r.key}
-            href={r.key === "all" ? "/news" : `/news?region=${r.key}`}
+            key={c.key}
+            href={c.key === "all" ? "/news" : `/news?category=${c.key}`}
+            title={c.hint}
             className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-              region === r.key
+              category === c.key
                 ? "border-accent-yellow/40 bg-accent-yellow/15 text-accent-yellow"
                 : "border-border bg-bg-surface text-text-secondary hover:text-text-primary"
             }`}
           >
-            {r.label}
+            {c.label}
           </Link>
         ))}
       </div>
@@ -94,7 +97,7 @@ export default async function NewsPage({
           {Object.entries(groups).map(([date, dayPosts]) => (
             <section key={date}>
               <h2 className="mb-3 text-sm font-bold text-text-secondary">
-                {formatKoreanDate(date)}
+                {formatDate(date)}
               </h2>
               <div className="space-y-3">
                 {dayPosts.map((p) => (
@@ -127,12 +130,9 @@ function ArticleCard({
     >
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-center gap-2 text-xs">
-          <span className="rounded-full bg-accent-yellow/15 px-2 py-0.5 font-semibold text-accent-yellow">
-            {regionLabel(post.region)}
-          </span>
           {post.category && (
-            <span className="rounded-full border border-border bg-bg px-2 py-0.5 font-mono text-text-tertiary">
-              {post.category}
+            <span className="rounded-full bg-accent-yellow/15 px-2 py-0.5 font-semibold text-accent-yellow">
+              {categoryLabel(post.category)}
             </span>
           )}
         </div>
@@ -176,19 +176,31 @@ function ArticleCard({
 function EmptyState() {
   return (
     <div className="rounded-2xl border-2 border-dashed border-border bg-bg-surface/50 p-12 text-center">
-      <p className="text-lg font-bold text-text-primary">
-        아직 작성된 글이 없어요
-      </p>
+      <p className="text-lg font-bold text-text-primary">No posts yet</p>
       <p className="mt-2 text-sm text-text-secondary">
-        곧 첫 글이 올라옵니다. 다시 들러주세요.
+        New articles drop here regularly. Check back soon.
       </p>
     </div>
   );
 }
 
-function formatKoreanDate(isoDate: string): string {
+function formatDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-");
-  return `${y}년 ${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return `${months[parseInt(m, 10) - 1]} ${parseInt(d, 10)}, ${y}`;
 }
 
 function formatShortDate(isoDate: string): string {

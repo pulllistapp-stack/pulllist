@@ -6,7 +6,7 @@ import { Metadata } from "next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { fetchPost, regionLabel } from "@/lib/news";
+import { categoryLabel, fetchPost } from "@/lib/news";
 import { ViewBumper } from "./view-bumper";
 
 const API_BASE =
@@ -69,18 +69,15 @@ export default async function NewsArticlePage({
           className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
-          뉴스 목록
+          Back to news
         </Link>
       </nav>
 
       <header className="mb-6">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
-          <span className="rounded-full bg-accent-yellow/15 px-2.5 py-0.5 font-semibold text-accent-yellow">
-            {regionLabel(post.region)}
-          </span>
           {post.category && (
-            <span className="rounded-full border border-border bg-bg-surface px-2.5 py-0.5 font-mono text-text-tertiary">
-              {post.category}
+            <span className="rounded-full bg-accent-yellow/15 px-2.5 py-0.5 font-semibold text-accent-yellow">
+              {categoryLabel(post.category)}
             </span>
           )}
         </div>
@@ -96,7 +93,7 @@ export default async function NewsArticlePage({
         <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs font-mono text-text-tertiary">
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
-            {formatKoreanDate(post.published_at)}
+            {formatDate(post.published_at)}
           </span>
           {post.author && (
             <span className="inline-flex items-center gap-1">
@@ -197,14 +194,28 @@ export default async function NewsArticlePage({
           className="inline-flex items-center gap-1 hover:text-text-primary"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
-          뉴스 목록으로 돌아가기
+          Back to news
         </Link>
       </div>
     </main>
   );
 }
 
-function formatKoreanDate(isoDate: string): string {
+function formatDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-");
-  return `${y}년 ${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return `${months[parseInt(m, 10) - 1]} ${parseInt(d, 10)}, ${y}`;
 }
