@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Edit2, Plus, Send } from "lucide-react";
+import { Edit2, Plus, Send, Trash2 } from "lucide-react";
 
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import { getToken } from "@/lib/auth";
@@ -23,6 +23,7 @@ function AdminNewsListContent() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = getToken();
@@ -77,6 +78,33 @@ function AdminNewsListContent() {
       );
     } finally {
       setPublishing(null);
+    }
+  }
+
+  async function deleteNow(post: NewsPost) {
+    if (!confirm(`Delete "${post.title}"? This can't be undone.`)) return;
+    const token = getToken();
+    if (!token) return;
+    setDeleting(post.slug);
+    try {
+      const res = await fetch(
+        `${API_BASE}/news/posts/${encodeURIComponent(post.slug)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail ?? `HTTP ${res.status}`);
+      }
+      await load();
+    } catch (e) {
+      alert(
+        `Couldn't delete: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -176,7 +204,13 @@ function AdminNewsListContent() {
                       </button>
                     )}
                     <Link
-                      href={`/news/${p.slug}`}
+                      // Drafts 404 on the public /news/{slug} route — route
+                      // admins through the auth-aware preview page instead.
+                      href={
+                        isDraft
+                          ? `/admin/news/${p.slug}/preview`
+                          : `/news/${p.slug}`
+                      }
                       className="rounded-btn border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary"
                     >
                       View
@@ -188,6 +222,16 @@ function AdminNewsListContent() {
                       <Edit2 className="h-3 w-3" />
                       Edit
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => deleteNow(p)}
+                      disabled={deleting === p.slug}
+                      title={`Delete "${p.title}"`}
+                      className="inline-flex items-center gap-1 rounded-btn border border-accent-red/40 bg-accent-red/10 px-3 py-1.5 text-xs font-semibold text-accent-red hover:bg-accent-red/20 disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      {deleting === p.slug ? "..." : ""}
+                    </button>
                   </div>
                 </div>
               </li>

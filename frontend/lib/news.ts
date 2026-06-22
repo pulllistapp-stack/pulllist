@@ -73,10 +73,17 @@ export async function fetchPostsAdmin(token: string): Promise<NewsPost[]> {
   }
 }
 
-export async function fetchPost(slug: string): Promise<NewsPost | null> {
+export async function fetchPost(
+  slug: string,
+  token?: string,
+): Promise<NewsPost | null> {
+  // Pass token when present so admin callers can preview drafts —
+  // the public /news/{slug} page never has one (server component, no
+  // browser localStorage), so it stays on the published-only path.
   try {
     const r = await fetch(`${API_BASE}/news/posts/${encodeURIComponent(slug)}`, {
       cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     if (!r.ok) return null;
     return (await r.json()) as NewsPost;
