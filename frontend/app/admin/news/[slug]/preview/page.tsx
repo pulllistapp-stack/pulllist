@@ -230,10 +230,12 @@ function PreviewContent({ slug }: { slug: string }) {
             ),
             img: ({ src, alt }) => (
               // eslint-disable-next-line @next/next/no-img-element
+              // Match the public detail page — card/product shots get
+              // max-h cap + centered so portrait cards don't blow up.
               <img
                 src={src as string}
                 alt={alt ?? ""}
-                className="my-6 rounded-2xl border border-border w-full"
+                className="my-6 mx-auto block max-h-80 w-auto max-w-full rounded-2xl border border-border"
               />
             ),
           }}

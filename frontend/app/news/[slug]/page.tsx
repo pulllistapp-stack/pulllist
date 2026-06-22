@@ -162,10 +162,14 @@ export default async function NewsArticlePage({
             ),
             img: ({ src, alt }) => (
               // eslint-disable-next-line @next/next/no-img-element
+              // Bot-embedded card / product shots come in tall portrait
+              // (~1200×1500). w-full made them dominate the article;
+              // max-h caps them at a comfortable size, max-w stops them
+              // overflowing, mx-auto + block centers horizontally.
               <img
                 src={src as string}
                 alt={alt ?? ""}
-                className="my-6 rounded-2xl border border-border w-full"
+                className="my-6 mx-auto block max-h-80 w-auto max-w-full rounded-2xl border border-border"
               />
             ),
             code: ({ inline, className, children, ...props }: {
