@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import Script from "next/script";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import { CollectionProvider } from "@/components/CollectionProvider";
@@ -73,6 +74,17 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${dmSans.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        {/* Google AdSense site verification + ad serving. Published with
+            'afterInteractive' so it never blocks first paint — ad slots
+            still hydrate before users typically scroll. */}
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9440218369165896"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className="bg-bg text-text-primary min-h-screen">
         <ThemeProvider>
           <AuthProvider>
