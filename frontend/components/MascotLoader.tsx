@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 
 /**
  * Centred mascot + rotating status phrase. Replaces blank skeletons on
- * full-page loads (main, /sets, /trending, /cards, /portfolio) so the
- * wait reads as personality rather than dead air.
+ * full-page loads so the wait reads as personality rather than dead air.
  *
- * Two animated APNG variants:
- *   - idle: sitting + blinking + holding card (current-page data fetches)
- *   - fly:  flying diagonally + wings flapping (global route transitions)
+ * Four animated APNG variants:
+ *   - idle: sitting + blinking + holding card (default for in-page data)
+ *   - fly:  flying diagonally + wings flapping (route transitions)
+ *   - pack: opening a booster pack (trending/drops — fresh-data vibes)
+ *   - sleep: lying curled with floating z's (long-running work, big lists)
  *
  * The APNGs carry their own per-frame motion, so we deliberately skip the
  * CSS bounce keyframe — stacking the two looks twitchy.
@@ -25,7 +26,7 @@ const PHRASES = [
 const ROTATION_MS = 2400;
 
 type Size = "sm" | "md" | "lg";
-type Variant = "idle" | "fly";
+type Variant = "idle" | "fly" | "pack" | "sleep";
 
 const SIZE_CFG: Record<Size, { px: number; text: string }> = {
   sm: { px: 56, text: "text-xs" },
@@ -36,6 +37,8 @@ const SIZE_CFG: Record<Size, { px: number; text: string }> = {
 const VARIANT_SRC: Record<Variant, string> = {
   idle: "/pullist-mascot.png",
   fly: "/pullist-mascot-fly.png",
+  pack: "/pullist-mascot-pack.png",
+  sleep: "/pullist-mascot-sleep.png",
 };
 
 export function MascotLoader({

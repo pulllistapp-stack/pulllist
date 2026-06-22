@@ -39,3 +39,8 @@ backend/data/scraped/
 # LO's local mascot working copies (we use the renamed ones in code)
 frontend/public/*.apng
 frontend/public/pullist-mascot-*-backup.png
+
+frontend/public/pull.apng
+frontend/public/sleeping.apng
+frontend/public/normal.apng
+frontend/public/fly.apng
