@@ -21,7 +21,10 @@ const nextConfig = {
       // pokemon.com static CDN — promo/collection cards that neither
       // pokemontcg.io nor Limitless index (e.g. First Partner Illustration
       // Collection). weserv can't proxy these (blocked by policy), so
-      // next/image fetches them server-side directly.
+      // next/image fetches them server-side directly. Both hostnames serve
+      // the same /static-assets/ tree; whitelist both so seed scripts can
+      // standardise on either.
+      { protocol: "https", hostname: "www.pokemon.com" },
       { protocol: "https", hostname: "assets.pokemon.com" },
     ],
   },

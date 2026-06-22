@@ -9,11 +9,17 @@ source.
 Set-id convention `fpic-s{N}` won't collide with pokemontcg.io's
 lowercase single-token style (`svp`, `sv8`, etc.), so if they ever
 index these, the future canonical rows live alongside ours and we
-migrate manually. Card images come straight from pokemon.com's CDN —
-the host serves these PNGs cross-origin without hot-link protection,
-and weserv's free proxy blocks pokemon.com by policy so we can't
-launder them through there. assets.pokemon.com is whitelisted in the
-frontend's next.config.mjs remotePatterns.
+migrate manually.
+
+Card numbers match the printed "MEP EN ###" tag on each card — Series 1
+runs 037–045, Series 2 runs 046–054, ordered Grass → Fire → Water
+within each region (Kanto / Sinnoh / Alola for Series 1; Johto /
+Unova / Galar for Series 2).
+
+Card images come straight from www.pokemon.com's CDN — the host serves
+these PNGs cross-origin without hot-link protection. weserv's free
+proxy blocks pokemon.com by policy so we can't launder them through
+there. www.pokemon.com is whitelisted in next.config.mjs.
 
 Run:
     python -m scripts.seed_first_partner_illustration
@@ -31,7 +37,7 @@ from app.database import SessionLocal, init_db
 from app.models import Card, Set
 
 _POKEMON_CDN = (
-    "https://assets.pokemon.com/static-assets/content-assets/"
+    "https://www.pokemon.com/static-assets/content-assets/"
     "cms2/img/cards/full/MEP/MEP_EN_{mep:02d}.png"
 )
 
@@ -60,38 +66,57 @@ SETS = [
 ]
 
 
-# (set_id, card_number, MEP image index, name, types, hp)
-# Card numbers go 1/9 .. 9/9 per series. MEP index is the pokemon.com
-# CDN filename — sequential 37..45 (Series 1), 46..54 (Series 2).
-# HP values for Series 1 read off LO's screenshot of the 9 cards; for
-# Series 2 we don't have a card image yet so HP stays NULL — the page
-# still renders the name + image + type, only the HP chip is hidden.
+# (set_id, mep_num, name, types, hp, artist)
+# mep_num drives BOTH the printed card number ("037") and the
+# pokemon.com CDN filename (MEP_EN_037.png). HPs for cards verified
+# against LO's card photos; unknown HPs (Series 2 mid-stages we
+# haven't seen yet) stay None — site hides the HP chip when null.
+# Artist filled where the "Illus. Saboteri" signature was visible.
 CARDS = [
-    # Series 1 — Kanto / Sinnoh / Alola starters
-    ("fpic-s1", 1, 37, "Bulbasaur",  ["Grass"], 80),
-    ("fpic-s1", 2, 38, "Charmander", ["Fire"],  80),
-    ("fpic-s1", 3, 39, "Squirtle",   ["Water"], 80),
-    ("fpic-s1", 4, 40, "Turtwig",    ["Grass"], 90),
-    ("fpic-s1", 5, 41, "Chimchar",   ["Fire"],  60),
-    ("fpic-s1", 6, 42, "Piplup",     ["Water"], 70),
-    ("fpic-s1", 7, 43, "Rowlet",     ["Grass"], 70),
-    ("fpic-s1", 8, 44, "Litten",     ["Fire"],  70),
-    ("fpic-s1", 9, 45, "Popplio",    ["Water"], 70),
-    # Series 2 — Johto / Unova / Galar starters
-    ("fpic-s2", 1, 46, "Cyndaquil",  ["Fire"],  None),
-    ("fpic-s2", 2, 47, "Totodile",   ["Water"], None),
-    ("fpic-s2", 3, 48, "Chikorita",  ["Grass"], None),
-    ("fpic-s2", 4, 49, "Snivy",      ["Grass"], None),
-    ("fpic-s2", 5, 50, "Tepig",      ["Fire"],  None),
-    ("fpic-s2", 6, 51, "Oshawott",   ["Water"], None),
-    ("fpic-s2", 7, 52, "Grookey",    ["Grass"], None),
-    ("fpic-s2", 8, 53, "Scorbunny",  ["Fire"],  None),
-    ("fpic-s2", 9, 54, "Sobble",     ["Water"], None),
+    # Series 1 — Kanto / Sinnoh / Alola starters (037–045)
+    ("fpic-s1", 37, "Bulbasaur",  ["Grass"], 80, "Saboteri"),
+    ("fpic-s1", 38, "Charmander", ["Fire"],  80, "Saboteri"),
+    ("fpic-s1", 39, "Squirtle",   ["Water"], 80, "Saboteri"),
+    ("fpic-s1", 40, "Turtwig",    ["Grass"], 90, "Saboteri"),
+    ("fpic-s1", 41, "Chimchar",   ["Fire"],  60, "Saboteri"),
+    ("fpic-s1", 42, "Piplup",     ["Water"], 70, "Saboteri"),
+    ("fpic-s1", 43, "Rowlet",     ["Grass"], 70, "Saboteri"),
+    ("fpic-s1", 44, "Litten",     ["Fire"],  70, "Saboteri"),
+    ("fpic-s1", 45, "Popplio",    ["Water"], 70, "Saboteri"),
+    # Series 2 — Johto / Unova / Galar starters (046–054)
+    ("fpic-s2", 46, "Chikorita",  ["Grass"], None, None),
+    ("fpic-s2", 47, "Cyndaquil",  ["Fire"],  None, None),
+    ("fpic-s2", 48, "Totodile",   ["Water"], 80,   "Saboteri"),
+    ("fpic-s2", 49, "Snivy",      ["Grass"], 60,   "Saboteri"),
+    ("fpic-s2", 50, "Tepig",      ["Fire"],  80,   "Saboteri"),
+    ("fpic-s2", 51, "Oshawott",   ["Water"], None, None),
+    ("fpic-s2", 52, "Grookey",    ["Grass"], None, None),
+    ("fpic-s2", 53, "Scorbunny",  ["Fire"],  70,   "Saboteri"),
+    ("fpic-s2", 54, "Sobble",     ["Water"], None, None),
 ]
 
 
 async def seed() -> None:
     await init_db()
+
+    # Defensive cleanup: an earlier version of this script numbered
+    # cards 1..9 per series. The current schema uses the printed MEP
+    # number (037..054) so card ids shift; without an explicit delete
+    # the old rows linger as orphans. No-op if the placeholder ids
+    # were never written (fresh installs skip this branch entirely).
+    placeholder_ids = [f"fpic-s1-{i}" for i in range(1, 10)] + [
+        f"fpic-s2-{i}" for i in range(1, 10)
+    ]
+    async with SessionLocal() as db:
+        wiped = 0
+        for old_id in placeholder_ids:
+            row = await db.get(Card, old_id)
+            if row is not None:
+                await db.delete(row)
+                wiped += 1
+        if wiped:
+            await db.commit()
+            print(f"Cleaned {wiped} stale rows from prior numbering scheme.")
 
     async with SessionLocal() as db:
         for s in SETS:
@@ -108,8 +133,11 @@ async def seed() -> None:
         print(f"Upserted {len(SETS)} sets.")
 
     async with SessionLocal() as db:
-        for set_id, number, mep_num, name, types, hp in CARDS:
-            card_id = f"{set_id}-{number}"
+        for set_id, mep_num, name, types, hp, artist in CARDS:
+            # Card id keyed on MEP number so re-running this script is a
+            # pure upsert and never duplicates rows even if we re-shuffle
+            # the metadata.
+            card_id = f"{set_id}-{mep_num:03d}"
             row = await db.get(Card, card_id)
             if row is None:
                 row = Card(id=card_id)
@@ -121,8 +149,9 @@ async def seed() -> None:
             row.hp = str(hp) if hp is not None else None
             row.hp_int = hp
             row.rarity = "Illustration Rare"
-            row.number = f"{number}/9"
-            row.number_int = number
+            row.number = f"{mep_num:03d}"
+            row.number_int = mep_num
+            row.artist = artist
             row.image_small = _image(mep_num)
             row.image_large = _image(mep_num)
             row.set_id = set_id
