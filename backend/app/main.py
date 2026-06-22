@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth import router as auth_router
 from app.api.collection import router as collection_router
 from app.api.filters import router as filters_router
+from app.api.news import router as news_router
 from app.api.routes import router as api_router
 from app.api.scan import router as scan_router
 from app.api.sharing import router as sharing_router
@@ -42,6 +43,7 @@ app.include_router(collection_router, prefix="/api/v1")
 app.include_router(wishlist_router, prefix="/api/v1")
 app.include_router(scan_router, prefix="/api/v1")
 app.include_router(sharing_router, prefix="/api/v1")
+app.include_router(news_router, prefix="/api/v1")
 
 
 @app.get("/")

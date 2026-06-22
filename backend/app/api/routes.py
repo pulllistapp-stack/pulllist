@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_optional
 from app.database import get_db
-from app.models import Card, CardPriceSnapshot, CollectionItem, Set, User
+from app.models import Card, CardPriceSnapshot, CollectionItem, NewsView, Set, User
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
 from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
@@ -904,3 +904,4 @@ async def get_card(card_id: str, db: AsyncSession = Depends(get_db)) -> CardRead
         raise HTTPException(status_code=404, detail="Card not found")
     card, set_name, set_printed_total, set_ptcgo_code = row
     return _card_to_read(card, set_name, set_printed_total, set_ptcgo_code)
+

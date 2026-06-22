@@ -85,6 +85,9 @@ export function TopNav() {
           <Link href="/drops" className="hover:text-text-primary">
             Drops
           </Link>
+          <Link href="/news" className="hover:text-text-primary">
+            News
+          </Link>
           <Link href="/pricing" className="hover:text-text-primary">
             Pricing
           </Link>
