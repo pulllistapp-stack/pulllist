@@ -103,3 +103,16 @@ async def get_current_admin(
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
         )
     return user
+
+
+async def get_current_admin_optional(
+    user: Annotated[User | None, Depends(get_current_user_optional)],
+) -> User | None:
+    """Like get_current_admin but never raises — returns None for
+    unauthenticated or non-admin requests. Lets endpoints branch on
+    'is this an admin?' without forcing every public caller to send a
+    token (e.g. GET /news/posts hides drafts from anon traffic but
+    surfaces them when an admin opts in)."""
+    if user is None or not user.is_admin:
+        return None
+    return user
