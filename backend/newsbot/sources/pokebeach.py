@@ -8,6 +8,12 @@ Why curl_cffi? PokeBeach sits behind Cloudflare which JA3-fingerprints
 plain httpx and returns 403. curl_cffi impersonates Chrome's TLS
 fingerprint and gets through without needing a real browser.
 
+Why a persistent session? Cloudflare sets a clearance cookie on the
+first request — subsequent calls that throw it away by opening a
+fresh AsyncSession look unauthenticated and get 403'd, even though
+the index fetch succeeded. A single module-level session reused
+across crawl + every enrich keeps the cookie alive for the run.
+
 Two-stage fetch:
   1. crawl()  → homepage HTML → 16 NewsItems (url + title only)
   2. enrich() → per-item article-page fetch → fills raw_text
@@ -18,6 +24,7 @@ limit, so a typical run hits PokeBeach 1 + daily_post_limit times
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from curl_cffi.requests import AsyncSession
@@ -31,6 +38,8 @@ INDEX_URL = "https://www.pokebeach.com/"
 IMPERSONATE = "chrome120"
 REQUEST_TIMEOUT = 30
 MAX_ITEMS = 16  # one homepage = 16 articles; matches WP's default page size
+INTER_REQUEST_DELAY = 1.5  # seconds — be polite, also helps with CF throttling
+RETRY_DELAYS = (2.0, 5.0)  # on 403/429: try again after these gaps
 
 # CSS selectors — pinned to current PokeBeach markup as of 2026-06.
 # If PokeBeach restructures, the source layer is the only thing that
@@ -41,14 +50,46 @@ SEL_CARD_EXCERPT = ".entry-content, .entry-summary"
 SEL_BODY = "div.entry-content, div.post-content, article div.entry"
 
 
-async def _fetch(url: str) -> str:
-    async with AsyncSession(impersonate=IMPERSONATE, timeout=REQUEST_TIMEOUT) as s:
-        r = await s.get(url, allow_redirects=True)
-        if r.status_code != 200:
-            raise RuntimeError(
-                f"pokebeach fetch {url} → {r.status_code}"
+# Module-level session — lazily initialised on first use, reused for
+# the lifetime of the process. curl_cffi's AsyncSession is reentrant
+# and persists cookies between calls.
+_session: AsyncSession | None = None
+_session_lock = asyncio.Lock()
+
+
+async def _get_session() -> AsyncSession:
+    global _session
+    async with _session_lock:
+        if _session is None:
+            _session = AsyncSession(
+                impersonate=IMPERSONATE,
+                timeout=REQUEST_TIMEOUT,
             )
-        return r.text
+        return _session
+
+
+async def _fetch(url: str) -> str:
+    session = await _get_session()
+    last_status: int | None = None
+    last_text: str = ""
+    for attempt in range(len(RETRY_DELAYS) + 1):
+        r = await session.get(url, allow_redirects=True)
+        if r.status_code == 200:
+            return r.text
+        last_status = r.status_code
+        last_text = r.text[:200]
+        if r.status_code in (403, 429) and attempt < len(RETRY_DELAYS):
+            delay = RETRY_DELAYS[attempt]
+            log.warning(
+                "pokebeach fetch %s → %d; retrying in %.1fs (attempt %d)",
+                url, r.status_code, delay, attempt + 1,
+            )
+            await asyncio.sleep(delay)
+            continue
+        break
+    raise RuntimeError(
+        f"pokebeach fetch {url} → {last_status} {last_text!r}"
+    )
 
 
 @register("pokebeach")
@@ -86,6 +127,9 @@ async def enrich(item: NewsItem) -> NewsItem:
     """Fetch the article page and pull the body text. Returns a new
     NewsItem with raw_text populated; leaves the original untouched on
     failure so the generator can still fall back to title + summary."""
+    # Be polite — small delay before per-article fetches reduces
+    # Cloudflare's bot-score for sustained traffic from one IP.
+    await asyncio.sleep(INTER_REQUEST_DELAY)
     html = await _fetch(item.url)
     tree = HTMLParser(html)
     body_el = tree.css_first(SEL_BODY)

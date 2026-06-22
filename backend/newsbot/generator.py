@@ -106,22 +106,19 @@ def _extract_json(text: str) -> dict[str, Any]:
 async def generate_article(item: NewsItem) -> GenerateResult:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    # Extended thinking lets Opus reason about the source before
-    # committing to a draft. Budget is conservative — we're paying per
-    # token, and 8k of thinking is plenty for a single news item.
-    thinking_kwargs: dict[str, Any] = {}
-    if settings.claude_thinking_budget > 0:
-        thinking_kwargs["thinking"] = {
-            "type": "enabled",
-            "budget_tokens": settings.claude_thinking_budget,
-        }
-
+    # Opus 4.8 / Fable 5 require adaptive thinking — the legacy
+    # `{type: "enabled", budget_tokens: N}` API was removed and returns
+    # 400. Depth is controlled via output_config.effort instead. We
+    # leave display="omitted" (the default) so thinking blocks come
+    # back as empty placeholders; the article is in the trailing text
+    # block.
     resp = await client.messages.create(
         model=settings.claude_model,
-        max_tokens=4096 + settings.claude_thinking_budget,
+        max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
-        **thinking_kwargs,
+        thinking={"type": "adaptive"},
+        extra_body={"output_config": {"effort": settings.claude_effort}},
     )
 
     # Pull the text content out of the response. Thinking blocks come

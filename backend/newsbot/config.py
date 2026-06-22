@@ -34,9 +34,11 @@ class Settings(BaseSettings):
     # Quality matters for SEO/AdSense; volume is ~2 posts/day so Opus
     # is fine on cost (~$6/mo per SPEC).
     claude_model: str = "claude-opus-4-8"
-    # Adaptive thinking budget — 0 disables, otherwise tokens reserved
-    # for Claude's internal reasoning before it writes the article.
-    claude_thinking_budget: int = 8000
+    # Adaptive thinking effort level (low | medium | high | xhigh | max).
+    # 'high' is the sweet spot for content generation — model thinks
+    # enough to produce well-structured articles without overspending.
+    # Opus 4.8 requires adaptive-only; budget_tokens API was removed.
+    claude_effort: str = "high"
 
     # ── Tavily ──
     tavily_api_key: str = ""
