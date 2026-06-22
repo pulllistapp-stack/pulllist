@@ -18,6 +18,11 @@ const nextConfig = {
       // that TCGdex returns null for.
       { protocol: "https", hostname: "limitlesstcg.nyc3.cdn.digitaloceanspaces.com" },
       { protocol: "https", hostname: "s3.limitlesstcg.com" },
+      // pokemon.com static CDN — promo/collection cards that neither
+      // pokemontcg.io nor Limitless index (e.g. First Partner Illustration
+      // Collection). weserv can't proxy these (blocked by policy), so
+      // next/image fetches them server-side directly.
+      { protocol: "https", hostname: "assets.pokemon.com" },
     ],
   },
   async rewrites() {

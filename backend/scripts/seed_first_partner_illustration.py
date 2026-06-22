@@ -9,8 +9,11 @@ source.
 Set-id convention `fpic-s{N}` won't collide with pokemontcg.io's
 lowercase single-token style (`svp`, `sv8`, etc.), so if they ever
 index these, the future canonical rows live alongside ours and we
-migrate manually. Card images go through images.weserv.nl since
-pokemon.com hot-link-protects asset URLs (403 on cross-origin).
+migrate manually. Card images come straight from pokemon.com's CDN —
+the host serves these PNGs cross-origin without hot-link protection,
+and weserv's free proxy blocks pokemon.com by policy so we can't
+launder them through there. assets.pokemon.com is whitelisted in the
+frontend's next.config.mjs remotePatterns.
 
 Run:
     python -m scripts.seed_first_partner_illustration
@@ -19,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import urllib.parse
 from datetime import date
 from pathlib import Path
 
@@ -28,20 +30,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.database import SessionLocal, init_db
 from app.models import Card, Set
 
-_WESERV = "https://images.weserv.nl/?url={}"
 _POKEMON_CDN = (
     "https://assets.pokemon.com/static-assets/content-assets/"
     "cms2/img/cards/full/MEP/MEP_EN_{mep:02d}.png"
 )
 
 
-def _proxy(url: str) -> str:
-    stripped = url.split("://", 1)[-1]
-    return _WESERV.format(urllib.parse.quote(stripped, safe="/.-_~"))
-
-
 def _image(mep_num: int) -> str:
-    return _proxy(_POKEMON_CDN.format(mep=mep_num))
+    return _POKEMON_CDN.format(mep=mep_num)
 
 
 SETS = [
