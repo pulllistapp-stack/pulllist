@@ -3,9 +3,8 @@ pydantic>=2.5,<3
 pydantic-settings>=2.0,<3
 anthropic>=0.40,<1.0
 tavily-python>=0.5
-# curl_cffi impersonates Chrome's JA3/TLS fingerprint so we get past
-# PokeBeach's Cloudflare bot challenge. ~5 MB, no system deps.
-curl_cffi>=0.7
-# Fast lexbor-based HTML parser — ~10× lxml on this workload, ~2 MB,
-# no system deps (vs lxml which needs libxml2 headers in CI).
-selectolax>=0.3
+# Scrapling [fetchers] pulls in curl_cffi (for plain stealth) + Playwright
+# (for AsyncStealthySession with solve_cloudflare=True). The 'scrapling
+# install' CLI command — run in CI before main.py — fetches the Chromium
+# binary Playwright needs (~300MB; cached by actions/setup-python).
+scrapling[fetchers]>=0.3
