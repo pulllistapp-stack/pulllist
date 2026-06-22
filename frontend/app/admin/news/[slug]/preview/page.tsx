@@ -172,14 +172,17 @@ function PreviewContent({ slug }: { slug: string }) {
       </header>
 
       {post.thumbnail_url && (
-        // Bypass next/image — admin preview shouldn't need optimised
-        // remote loaders just to render a draft. eslint-disable for img.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={post.thumbnail_url}
-          alt=""
-          className="mb-8 aspect-video w-full rounded-2xl object-cover"
-        />
+        // Match the public detail page — object-contain inside a
+        // flex-centered box so portrait product shots aren't cropped.
+        // Bypass next/image: admin preview doesn't need the loader.
+        <div className="mb-8 flex justify-center overflow-hidden rounded-2xl bg-bg-surface">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={post.thumbnail_url}
+            alt=""
+            className="h-auto max-h-[32rem] w-auto max-w-full object-contain"
+          />
+        </div>
       )}
 
       <article className="prose-pl max-w-none">

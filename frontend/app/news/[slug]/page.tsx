@@ -110,13 +110,19 @@ export default async function NewsArticlePage({
       </header>
 
       {post.thumbnail_url && (
-        <div className="relative mb-8 aspect-video w-full overflow-hidden rounded-2xl bg-bg-surface">
+        // Drop the fixed 16:9 box — PokeBeach product shots are often
+        // portrait (1206×1500 etc.) and get heavily cropped with
+        // object-cover. Use object-contain inside a flex-centered
+        // container so landscape and portrait sources both display in
+        // full; max-h caps the rare giant portrait from dominating.
+        <div className="mb-8 flex justify-center overflow-hidden rounded-2xl bg-bg-surface">
           <Image
             src={post.thumbnail_url}
             alt=""
-            fill
+            width={1600}
+            height={900}
             sizes="(max-width: 768px) 100vw, 768px"
-            className="object-cover"
+            className="h-auto max-h-[32rem] w-auto max-w-full object-contain"
             unoptimized
             priority
           />
