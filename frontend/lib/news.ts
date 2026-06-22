@@ -17,6 +17,8 @@ export type NewsCategory =
   | "guide"
   | "news";
 
+export type NewsStatus = "draft" | "published";
+
 export type NewsPost = {
   slug: string;
   title: string;
@@ -28,6 +30,10 @@ export type NewsPost = {
   author: string | null;
   published_at: string; // YYYY-MM-DD
   reading_time: number | null;
+  // Optional in TS because legacy callers + the public listing don't
+  // depend on them; the API always returns them post-migration.
+  status?: NewsStatus;
+  source_url?: string | null;
 };
 
 const API_BASE =
@@ -40,6 +46,25 @@ export async function fetchPosts(
   try {
     const r = await fetch(`${API_BASE}/news/posts${qs}`, {
       cache: "no-store",
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as NewsPost[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Admin-only — includes drafts. Sends the bearer token so the API can
+ * authorise the include_drafts toggle; without the token the endpoint
+ * silently strips drafts (it does NOT 403), so a missing token here
+ * means the admin sees a partial list instead of a hard failure.
+ */
+export async function fetchPostsAdmin(token: string): Promise<NewsPost[]> {
+  try {
+    const r = await fetch(`${API_BASE}/news/posts?include_drafts=true`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
     });
     if (!r.ok) return [];
     return (await r.json()) as NewsPost[];

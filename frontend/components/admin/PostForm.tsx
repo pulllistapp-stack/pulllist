@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { getToken } from "@/lib/auth";
-import { CATEGORIES, NewsCategory, NewsPost } from "@/lib/news";
+import { CATEGORIES, NewsCategory, NewsPost, NewsStatus } from "@/lib/news";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
@@ -18,9 +18,10 @@ type Props = {
 
 /**
  * Shared form for both /admin/news/new and /admin/news/[slug]/edit.
- * No draft state — saving always publishes (per LO). No live preview
- * either — the textarea is plain Markdown, hit Publish to see it on
- * the live /news page.
+ * Status dropdown (Draft / Published) lets LO save half-written posts
+ * without showing them on /news, and edit draft posts the newsbot
+ * dumped here. Default on create is Published — matches the pre-bot
+ * "save = publish" muscle memory.
  */
 export function PostForm({ mode, initial }: Props) {
   const router = useRouter();
@@ -39,6 +40,9 @@ export function PostForm({ mode, initial }: Props) {
   );
   const [readingTime, setReadingTime] = useState<string>(
     initial?.reading_time?.toString() ?? "",
+  );
+  const [status, setStatus] = useState<NewsStatus>(
+    (initial?.status as NewsStatus | undefined) ?? "published",
   );
 
   const [saving, setSaving] = useState(false);
@@ -79,6 +83,8 @@ export function PostForm({ mode, initial }: Props) {
         author: author || null,
         published_at: publishedAt,
         reading_time: readingTime ? parseInt(readingTime, 10) : null,
+        status,
+        source_url: initial?.source_url ?? null,
       };
 
       const url =
@@ -171,6 +177,20 @@ export function PostForm({ mode, initial }: Props) {
         </select>
       </Field>
 
+      <Field
+        label="Status"
+        hint="Drafts stay hidden from /news until you publish them."
+      >
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as NewsStatus)}
+          className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm text-text-primary focus:border-accent-yellow focus:outline-none"
+        >
+          <option value="published">Published — visible on /news</option>
+          <option value="draft">Draft — hidden until you publish</option>
+        </select>
+      </Field>
+
       <Field label="Excerpt" hint="The one or two lines shown on the listing card.">
         <textarea
           value={excerpt}
@@ -247,7 +267,13 @@ export function PostForm({ mode, initial }: Props) {
             disabled={saving}
             className="rounded-btn bg-accent-yellow px-5 py-2.5 text-sm font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110 disabled:opacity-60"
           >
-            {saving ? "Saving..." : mode === "create" ? "Publish" : "Save changes"}
+            {saving
+              ? "Saving..."
+              : mode === "create"
+                ? status === "draft"
+                  ? "Save draft"
+                  : "Publish"
+                : "Save changes"}
           </button>
           <button
             type="button"
