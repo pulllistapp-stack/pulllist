@@ -2,8 +2,8 @@
 
 Daily-cron Python bot. Crawls Pokémon TCG news sources, dedupes,
 generates English articles with Claude, fact-checks via Tavily, posts
-to PullList as drafts. LO reviews + publishes manually until the bot
-has 30 clean days, then auto-publish flips on.
+to PullList as drafts. Admin reviews + publishes manually until the
+bot has 30 clean days, then auto-publish flips on.
 
 Full design + phase plan: [`SPEC.md`](./SPEC.md).
 
@@ -111,7 +111,7 @@ Claude classifier for ambiguous cases) without touching the others.
 
 - 3 consecutive successful `dry_run=1` runs in CI
 - 1 successful `dry_run=0` run produces a visible draft in `/admin/news`
-- LO publishes the draft manually + it appears on public `/news`
+- Admin publishes the draft manually + it appears on public `/news`
 
 Then `git tag newsbot-phase-1` and start Phase 2 (multilingual
 sweep). See `SPEC.md` for the Phase 2 checklist.

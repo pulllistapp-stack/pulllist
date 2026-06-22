@@ -2,8 +2,8 @@
 source_url. Idempotent — safe to re-run.
 
 Why:
-    The newsbot (backend/newsbot/) posts articles as drafts so LO can
-    review before they hit the public /news feed. Existing rows
+    The newsbot (backend/newsbot/) posts articles as drafts so an admin
+    can review before they hit the public /news feed. Existing rows
     grandfather to status='published'. The bot keys dedupe off the
     upstream URL via source_url; the index keeps the lookup O(log n).
 """

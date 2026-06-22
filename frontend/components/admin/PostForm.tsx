@@ -18,10 +18,10 @@ type Props = {
 
 /**
  * Shared form for both /admin/news/new and /admin/news/[slug]/edit.
- * Status dropdown (Draft / Published) lets LO save half-written posts
- * without showing them on /news, and edit draft posts the newsbot
- * dumped here. Default on create is Published — matches the pre-bot
- * "save = publish" muscle memory.
+ * Status dropdown (Draft / Published) lets an admin save half-written
+ * posts without showing them on /news, and edit draft posts the
+ * newsbot dumped here. Default on create is Published — matches the
+ * pre-bot "save = publish" muscle memory.
  */
 export function PostForm({ mode, initial }: Props) {
   const router = useRouter();

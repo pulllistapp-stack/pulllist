@@ -1,8 +1,8 @@
 """Map a NewsItem to one of the PullList categories using simple
 keyword heuristics. Claude-driven classification for ambiguous cases
 is deferred to Phase 2 — keyword coverage is decent for the curated
-Phase 1 sources, and a wrong category is recoverable (LO edits it
-before publishing the draft).
+Phase 1 sources, and a wrong category is recoverable (the admin
+edits it before publishing the draft).
 """
 from __future__ import annotations
 

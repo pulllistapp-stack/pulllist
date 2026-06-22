@@ -35,8 +35,8 @@ class NewsPost(Base):
     published_at: Mapped[str] = mapped_column(String(10), nullable=False)
     reading_time: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # 'draft' | 'published'. Newsbot inserts 'draft' so LO can review
-    # before the post hits the public /news feed. Existing rows
+    # 'draft' | 'published'. Newsbot inserts 'draft' so an admin can
+    # review before the post hits the public /news feed. Existing rows
     # grandfather to 'published' via the column default.
     status: Mapped[str] = mapped_column(
         String(16), default="published", nullable=False

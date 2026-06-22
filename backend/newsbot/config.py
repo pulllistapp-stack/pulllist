@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # ── Runtime knobs ──
     daily_post_limit: int = 2
     dry_run: bool = False
-    # Bot's by-line on the public post. Override per LO's preference.
+    # Bot's by-line on the public post. Override via env to change it.
     bot_author_name: str = "PullList Bot"
     # When True, skip Tavily entirely (useful for CI dry runs that
     # don't have a TAVILY_API_KEY secret available).
