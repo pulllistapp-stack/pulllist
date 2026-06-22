@@ -1,78 +1,50 @@
-import fs from "fs";
-import path from "path";
-
-import matter from "gray-matter";
-
 /**
- * Markdown-backed news posts. Authoring flow:
- *   1. Drop a .md file under `frontend/content/news/`
- *   2. Fill the frontmatter (see NewsFrontmatter)
- *   3. git push — Vercel rebuilds and the post is live
- *
- * View counts come from the backend (lightweight `news_views` table). The
- * Markdown files are the source of truth for content; the DB only stores
- * the running counter so we can rank popular posts later.
+ * News posts now live in the DB and are managed via /admin/news.
+ * This module is the typed client + a small label helper shared between
+ * the public /news pages and the admin UI.
  */
 
 export type NewsRegion = "all" | "kr" | "ja" | "us";
 
-export type NewsFrontmatter = {
-  /** kebab-case identifier, also the URL slug. Falls back to filename. */
-  slug?: string;
-  title: string;
-  excerpt?: string;
-  publishedAt: string; // YYYY-MM-DD
-  author?: string;
-  region: NewsRegion;
-  /** Free-form chip on the listing — e.g. '읽을거리', '소식', '가이드'. */
-  category?: string;
-  /** Public-folder path or absolute URL. */
-  thumbnail?: string;
-  /** Estimated read time in minutes. Used in the card meta strip. */
-  readingTime?: number;
-  /** When true, hidden from listing — useful for drafts in main. */
-  draft?: boolean;
-  /** Optional list of card_ids the post references; future feature ties
-   *  these into inline card previews when we render the body. */
-  cardIds?: string[];
-};
-
-export type NewsPost = NewsFrontmatter & {
+export type NewsPost = {
   slug: string;
+  title: string;
   body: string;
+  excerpt: string | null;
+  region: NewsRegion;
+  category: string | null;
+  thumbnail_url: string | null;
+  author: string | null;
+  published_at: string; // YYYY-MM-DD
+  reading_time: number | null;
 };
 
-const CONTENT_DIR = path.join(process.cwd(), "content", "news");
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
 
-function readPosts(): NewsPost[] {
-  if (!fs.existsSync(CONTENT_DIR)) return [];
-  const files = fs.readdirSync(CONTENT_DIR).filter((f) => f.endsWith(".md"));
-  const posts = files.map((file) => {
-    const raw = fs.readFileSync(path.join(CONTENT_DIR, file), "utf8");
-    const parsed = matter(raw);
-    const frontmatter = parsed.data as NewsFrontmatter;
-    const slug = frontmatter.slug ?? file.replace(/\.md$/, "");
-    return { ...frontmatter, slug, body: parsed.content };
-  });
-  // Hide drafts and sort newest-first by publishedAt (ISO YYYY-MM-DD
-  // sorts lexically the right way).
-  return posts
-    .filter((p) => !p.draft)
-    .sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+export async function fetchPosts(region?: NewsRegion): Promise<NewsPost[]> {
+  const qs = region && region !== "all" ? `?region=${region}` : "";
+  try {
+    const r = await fetch(`${API_BASE}/news/posts${qs}`, {
+      cache: "no-store",
+    });
+    if (!r.ok) return [];
+    return (await r.json()) as NewsPost[];
+  } catch {
+    return [];
+  }
 }
 
-export function getAllPosts(region?: NewsRegion): NewsPost[] {
-  const all = readPosts();
-  if (!region || region === "all") return all;
-  return all.filter((p) => p.region === region || p.region === "all");
-}
-
-export function getPost(slug: string): NewsPost | null {
-  return readPosts().find((p) => p.slug === slug) ?? null;
-}
-
-export function getAllSlugs(): string[] {
-  return readPosts().map((p) => p.slug);
+export async function fetchPost(slug: string): Promise<NewsPost | null> {
+  try {
+    const r = await fetch(`${API_BASE}/news/posts/${encodeURIComponent(slug)}`, {
+      cache: "no-store",
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as NewsPost;
+  } catch {
+    return null;
+  }
 }
 
 const REGION_LABELS: Record<NewsRegion, { kr: string; chip: string }> = {

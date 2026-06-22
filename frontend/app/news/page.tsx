@@ -3,13 +3,15 @@ import Link from "next/link";
 import { Metadata } from "next";
 import { Calendar, Eye } from "lucide-react";
 
-import { getAllPosts, NewsRegion, regionLabel } from "@/lib/news";
+import { fetchPosts, NewsPost, NewsRegion, regionLabel } from "@/lib/news";
 
 export const metadata: Metadata = {
   title: "News · PullList",
   description:
     "Pokémon TCG market updates, set release guides, and price-trend analysis from the PullList team.",
 };
+
+export const dynamic = "force-dynamic";
 
 const REGIONS: { key: NewsRegion; label: string }[] = [
   { key: "all", label: "전체" },
@@ -23,17 +25,13 @@ const API_BASE =
 
 async function fetchViewCounts(): Promise<Record<string, number>> {
   try {
-    const r = await fetch(`${API_BASE}/news/views`, {
-      next: { revalidate: 60 },
-    });
+    const r = await fetch(`${API_BASE}/news/views`, { cache: "no-store" });
     if (!r.ok) return {};
     return (await r.json()) as Record<string, number>;
   } catch {
     return {};
   }
 }
-
-export const dynamic = "force-dynamic";
 
 export default async function NewsPage({
   searchParams,
@@ -47,14 +45,14 @@ export default async function NewsPage({
       : "all";
 
   const [posts, views] = await Promise.all([
-    Promise.resolve(getAllPosts(region)),
+    fetchPosts(region),
     fetchViewCounts(),
   ]);
 
   // Group by date for the listing — newest day at the top, posts inside
   // grouped under their YYYY-MM-DD heading.
-  const groups = posts.reduce<Record<string, typeof posts>>((acc, p) => {
-    (acc[p.publishedAt] ??= []).push(p);
+  const groups = posts.reduce<Record<string, NewsPost[]>>((acc, p) => {
+    (acc[p.published_at] ??= []).push(p);
     return acc;
   }, {});
 
@@ -119,7 +117,7 @@ function ArticleCard({
   post,
   viewCount,
 }: {
-  post: ReturnType<typeof getAllPosts>[number];
+  post: NewsPost;
   viewCount: number;
 }) {
   return (
@@ -149,22 +147,20 @@ function ArticleCard({
         <div className="mt-2 flex items-center gap-3 text-xs font-mono text-text-tertiary">
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {formatShortDate(post.publishedAt)}
+            {formatShortDate(post.published_at)}
           </span>
           <span className="inline-flex items-center gap-1">
             <Eye className="h-3 w-3" />
             {viewCount.toLocaleString()}
           </span>
-          {post.author && (
-            <span>·  {post.author}</span>
-          )}
-          {post.readingTime && <span>· {post.readingTime} min read</span>}
+          {post.author && <span>· {post.author}</span>}
+          {post.reading_time && <span>· {post.reading_time} min read</span>}
         </div>
       </div>
-      {post.thumbnail && (
+      {post.thumbnail_url && (
         <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-bg">
           <Image
-            src={post.thumbnail}
+            src={post.thumbnail_url}
             alt=""
             fill
             sizes="128px"
@@ -191,13 +187,11 @@ function EmptyState() {
 }
 
 function formatKoreanDate(isoDate: string): string {
-  // 2026-06-21 -> 2026년 6월 21일
   const [y, m, d] = isoDate.split("-");
   return `${y}년 ${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
 }
 
 function formatShortDate(isoDate: string): string {
-  // 2026-06-21 -> 06.21
   const [, m, d] = isoDate.split("-");
   return `${m}.${d}`;
 }

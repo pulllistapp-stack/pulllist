@@ -50,6 +50,13 @@ class User(Base):
         Boolean, default=False, nullable=False
     )
 
+    # CMS access — gates the /admin/news editor. Granted manually via SQL
+    # for now (no signup-time admin promotion); long-term we'd add a
+    # roles table.
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false"
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

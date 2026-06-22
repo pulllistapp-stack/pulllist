@@ -4,6 +4,7 @@ export type User = {
   name: string | null;
   avatar_url: string | null;
   created_at: string;
+  is_admin?: boolean;
 };
 
 export type TokenResponse = {

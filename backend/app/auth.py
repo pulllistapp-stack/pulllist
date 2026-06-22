@@ -84,3 +84,17 @@ async def get_current_user_optional(
     except HTTPException:
         return None
     return await db.get(User, user_id)
+
+
+async def get_current_admin(
+    user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Gate admin-only endpoints (e.g. /news/posts mutations). Builds on
+    the existing JWT auth and just adds the is_admin check; promote a
+    user by setting is_admin=true directly in the DB (no signup-time
+    elevation)."""
+    if not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
+    return user

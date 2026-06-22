@@ -1,5 +1,6 @@
 from app.models.card import Card
 from app.models.collection import CollectionItem
+from app.models.news_post import NewsPost
 from app.models.news_view import NewsView
 from app.models.portfolio import PortfolioSnapshot
 from app.models.set import Set
@@ -11,6 +12,7 @@ __all__ = [
     "Card",
     "CardPriceSnapshot",
     "CollectionItem",
+    "NewsPost",
     "NewsView",
     "PortfolioSnapshot",
     "Set",

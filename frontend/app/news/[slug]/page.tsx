@@ -6,15 +6,13 @@ import { Metadata } from "next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { getAllSlugs, getPost, regionLabel } from "@/lib/news";
+import { fetchPost, regionLabel } from "@/lib/news";
 import { ViewBumper } from "./view-bumper";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
 
-export async function generateStaticParams() {
-  return getAllSlugs().map((slug) => ({ slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -22,7 +20,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPost(slug);
+  const post = await fetchPost(slug);
   if (!post) return { title: "Not found · PullList" };
   return {
     title: `${post.title} · PullList`,
@@ -30,9 +28,9 @@ export async function generateMetadata({
     openGraph: {
       title: post.title,
       description: post.excerpt ?? post.title,
-      images: post.thumbnail ? [post.thumbnail] : [],
+      images: post.thumbnail_url ? [post.thumbnail_url] : [],
       type: "article",
-      publishedTime: post.publishedAt,
+      publishedTime: post.published_at,
     },
   };
 }
@@ -40,7 +38,7 @@ export async function generateMetadata({
 async function fetchViewCount(slug: string): Promise<number> {
   try {
     const r = await fetch(`${API_BASE}/news/views/${slug}`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!r.ok) return 0;
     const data = (await r.json()) as { view_count: number };
@@ -56,15 +54,13 @@ export default async function NewsArticlePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = getPost(slug);
+  const post = await fetchPost(slug);
   if (!post) notFound();
 
   const viewCount = await fetchViewCount(slug);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
-      {/* Client-side hook that pings the backend once on mount to bump
-          the counter. SSR view stays read-only. */}
       <ViewBumper slug={slug} />
 
       <nav className="mb-6">
@@ -77,7 +73,6 @@ export default async function NewsArticlePage({
         </Link>
       </nav>
 
-      {/* Header */}
       <header className="mb-6">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
           <span className="rounded-full bg-accent-yellow/15 px-2.5 py-0.5 font-semibold text-accent-yellow">
@@ -101,7 +96,7 @@ export default async function NewsArticlePage({
         <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-4 text-xs font-mono text-text-tertiary">
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
-            {formatKoreanDate(post.publishedAt)}
+            {formatKoreanDate(post.published_at)}
           </span>
           {post.author && (
             <span className="inline-flex items-center gap-1">
@@ -113,14 +108,14 @@ export default async function NewsArticlePage({
             <Eye className="h-3.5 w-3.5" />
             {viewCount.toLocaleString()}
           </span>
-          {post.readingTime && <span>· {post.readingTime} min read</span>}
+          {post.reading_time && <span>· {post.reading_time} min read</span>}
         </div>
       </header>
 
-      {post.thumbnail && (
+      {post.thumbnail_url && (
         <div className="relative mb-8 aspect-video w-full overflow-hidden rounded-2xl bg-bg-surface">
           <Image
-            src={post.thumbnail}
+            src={post.thumbnail_url}
             alt=""
             fill
             sizes="(max-width: 768px) 100vw, 768px"
@@ -131,13 +126,15 @@ export default async function NewsArticlePage({
         </div>
       )}
 
-      {/* Body — Markdown with GFM (tables, strikethrough, task lists). */}
-      <article className="prose-pl prose-headings:font-bold prose-headings:text-text-primary prose-p:text-text-secondary prose-p:leading-relaxed prose-a:text-teal-500 prose-strong:text-text-primary prose-li:text-text-secondary prose-img:rounded-xl max-w-none">
+      <article className="prose-pl max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
             h2: (props) => (
-              <h2 className="mt-10 mb-3 text-xl font-bold text-text-primary border-b border-border pb-2" {...props} />
+              <h2
+                className="mt-10 mb-3 text-xl font-bold text-text-primary border-b border-border pb-2"
+                {...props}
+              />
             ),
             h3: (props) => (
               <h3 className="mt-7 mb-2 text-base font-bold text-text-primary" {...props} />

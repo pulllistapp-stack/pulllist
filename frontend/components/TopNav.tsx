@@ -120,6 +120,18 @@ export function TopNav() {
               >
                 Portfolio
               </Link>
+              {user.is_admin && (
+                <>
+                  <span className="text-text-tertiary">·</span>
+                  <Link
+                    href="/admin/news"
+                    className="rounded-full bg-accent-yellow/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-accent-yellow hover:bg-accent-yellow/25"
+                    title="Admin: manage news posts"
+                  >
+                    Admin
+                  </Link>
+                </>
+              )}
               <span className="text-text-tertiary">·</span>
               <Link
                 href="/me/settings"
