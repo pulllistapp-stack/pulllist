@@ -112,7 +112,15 @@ async def list_posts(
     admin: Annotated[User | None, Depends(get_current_admin_optional)] = None,
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    stmt = select(NewsPost).order_by(NewsPost.published_at.desc())
+    # published_at is a YYYY-MM-DD string — when the bot posts several
+    # articles on the same day, every row's published_at is identical
+    # and the result order falls back to whatever the DB feels like
+    # (usually insertion order, which puts NEW posts at the bottom).
+    # created_at is the real insertion timestamp; using it as the
+    # tiebreaker keeps the feed strictly newest-first.
+    stmt = select(NewsPost).order_by(
+        NewsPost.published_at.desc(), NewsPost.created_at.desc()
+    )
     if category and category != "all":
         # category filter is the primary axis the UI exposes — drops /
         # market / tcg / center / guide / news.
