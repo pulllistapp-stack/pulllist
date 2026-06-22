@@ -22,7 +22,11 @@ class Settings(BaseSettings):
 
     # ── PullList API ──
     pulllist_api_base: str = Field(default="https://api.pulllist.org/api/v1")
-    newsbot_admin_email: str = "newsbot@pulllist.org"
+    # Bot reuses the existing admin account instead of a dedicated
+    # newsbot user — simpler ops, one less mailbox. Implication: bot
+    # creds = admin creds, so a bot leak compromises admin access.
+    # Acceptable tradeoff at friends-beta scale; revisit if scope grows.
+    newsbot_admin_email: str = "admin@pulllist.org"
     newsbot_admin_password: str = ""
 
     # ── Anthropic / Claude ──

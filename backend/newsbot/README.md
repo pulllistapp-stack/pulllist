@@ -9,58 +9,56 @@ Full design + phase plan: [`SPEC.md`](./SPEC.md).
 
 ## Phase 1 status
 
-Single source (PokeBeach RSS), heuristic classifier, minimum-viable
-Tavily fact-check, manual `workflow_dispatch` trigger only (no cron).
+Single source (PokeBeach HTML scrape via curl_cffi + selectolax),
+heuristic classifier, minimum-viable Tavily fact-check, manual
+`workflow_dispatch` trigger only (no cron).
 
 ## One-time setup
 
-### 1. Create the bot user in the production DB
+### 1. Run the schema migration
+
+Easiest path — paste these into Neon SQL Editor:
 
 ```sql
--- Run in Neon SQL Editor AFTER the schema migration. Replace
--- <bcrypt hash> with the output from the python command below.
-INSERT INTO users (id, email, password_hash, name, is_admin, created_at)
-VALUES (
-  gen_random_uuid(),
-  'newsbot@pulllist.org',
-  '<bcrypt hash>',
-  'PullList Bot',
-  TRUE,
-  NOW()
-);
+ALTER TABLE news_posts ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'published';
+ALTER TABLE news_posts ADD COLUMN IF NOT EXISTS source_url VARCHAR(512);
+CREATE INDEX IF NOT EXISTS idx_news_posts_source_url ON news_posts (source_url);
 ```
 
-Generate the hash locally:
-
-```bash
-python -c "from passlib.context import CryptContext; \
-print(CryptContext(schemes=['bcrypt']).hash('YOUR_RANDOM_PASSWORD'))"
-```
-
-Drop the same plaintext password into the `NEWSBOT_ADMIN_PASSWORD`
-GitHub secret (next step).
-
-### 2. Run the schema migration
+Or run the equivalent script (uses `DATABASE_URL` from
+`backend/.env`):
 
 ```bash
 cd backend
 python -m scripts.migrate_news_status_source
 ```
 
-Idempotent — safe to re-run.
+Both are idempotent — safe to re-run.
 
-### 3. GitHub Actions secrets
+### 2. GitHub Actions secrets
 
-In `pulllist` repo → Settings → Secrets → Actions:
+Bot reuses the existing `admin@pulllist.org` admin account — no
+separate bot user to create. Set the secrets from your terminal so
+the plaintext password never passes through a chat or file:
+
+```bash
+gh secret set NEWSBOT_ADMIN_EMAIL --body "admin@pulllist.org"
+gh secret set NEWSBOT_ADMIN_PASSWORD   # prompts; no echo
+gh secret set TAVILY_API_KEY           # optional for first dry-run
+```
 
 | Name | Required | Notes |
 |---|---|---|
 | `PULLLIST_API_BASE` | optional | Defaults to `https://api.pulllist.org/api/v1`. Override for staging. |
-| `NEWSBOT_ADMIN_EMAIL` | yes | `newsbot@pulllist.org` (or whatever you used above) |
-| `NEWSBOT_ADMIN_PASSWORD` | yes | The plaintext you bcrypted into the DB |
-| `ANTHROPIC_API_KEY` | yes | Already exists in repo secrets |
-| `TAVILY_API_KEY` | yes for live | Free tier covers our volume |
+| `NEWSBOT_ADMIN_EMAIL` | yes | `admin@pulllist.org` |
+| `NEWSBOT_ADMIN_PASSWORD` | yes | Plaintext of the admin password (bot POSTs it to `/auth/login`) |
+| `ANTHROPIC_API_KEY` | yes | Already in repo secrets |
+| `TAVILY_API_KEY` | yes for live runs | Free tier covers our volume. Bot auto-skips factcheck if unset (useful for first dry-runs) |
 | `DAILY_POST_LIMIT` | optional | Default `2` |
+
+**Security note**: bot creds = admin creds. A leaked bot password is a
+leaked admin password. Acceptable at friends-beta scale; revisit
+(separate bot user) if scope grows.
 
 ## Running
 
@@ -70,7 +68,7 @@ Create `backend/newsbot/.env`:
 
 ```
 PULLLIST_API_BASE=https://api.pulllist.org/api/v1
-NEWSBOT_ADMIN_EMAIL=newsbot@pulllist.org
+NEWSBOT_ADMIN_EMAIL=admin@pulllist.org
 NEWSBOT_ADMIN_PASSWORD=...
 ANTHROPIC_API_KEY=...
 TAVILY_API_KEY=...
@@ -99,7 +97,7 @@ gh workflow run daily-newsbot.yml -f dry_run=0   # live (drafts go to /admin/new
 
 ```
 sources/pokebeach.py  →  classify.py    →  generator.py     →  factcheck.py  →  publisher.py
-   (RSS fetch)         (heuristic)        (Claude Opus)        (Tavily)         (POST draft)
+   (HTML scrape)        (heuristic)       (Claude Opus)         (Tavily)         (POST draft)
                             │
                             └─ dedupe.py filters by source_url first
 ```
