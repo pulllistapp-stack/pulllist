@@ -6,6 +6,8 @@ edits it before publishing the draft).
 """
 from __future__ import annotations
 
+import unicodedata
+
 from .sources import NewsItem
 
 # Order matters — first match wins. Keep more-specific categories
@@ -81,17 +83,27 @@ def classify(item: NewsItem) -> str:
 
 
 def slugify(title: str, max_len: int = 80) -> str:
-    """Kebab-case slug, same shape the admin UI builds in PostForm.tsx.
+    """Kebab-case ASCII-only slug.
 
-    Keeps unicode letters/numbers; collapses everything else to '-'.
-    Truncated to fit the news_posts.slug column (128 chars; we cap at
-    80 to leave room for any future suffix collisions). Stdlib `re`
-    doesn't support `\\p{L}`, so we filter char-by-char on str.isalnum
-    which is unicode-aware in Python 3.
+    NFKD-decomposes the title first so 'é' becomes 'e' + combining
+    acute, then the ASCII encode/decode pass drops the combining mark.
+    This produces standard URL-safe slugs and avoids a class of bugs
+    where Next.js routing and FastAPI path params disagree on whether
+    a unicode codepoint should be percent-encoded in the URL — that
+    mismatch silently 404s every link to a post whose title contains
+    é / ñ / 한 / etc.
+
+    Capped at 80 of the column's 128 chars to leave headroom for any
+    future suffix collisions.
     """
+    folded = (
+        unicodedata.normalize("NFKD", title.lower())
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
     out_chars = []
     prev_dash = False
-    for ch in title.lower():
+    for ch in folded:
         if ch.isalnum():
             out_chars.append(ch)
             prev_dash = False
