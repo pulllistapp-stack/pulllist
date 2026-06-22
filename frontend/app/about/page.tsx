@@ -110,7 +110,7 @@ export default function AboutPage() {
           <li>
             <strong className="text-text-primary">Japanese card catalog:</strong>{" "}
             <a
-              href="https://tcgdex.net"
+              href="https://tcgdex.dev"
               target="_blank"
               rel="noopener noreferrer"
               className="underline hover:text-text-primary"

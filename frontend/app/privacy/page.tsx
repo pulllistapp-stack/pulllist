@@ -171,27 +171,49 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="Who we share data with">
+          <p className="mb-2">
+            We rely on the following third-party processors. Naming them
+            here is required under GDPR Art. 13 / CCPA / Korea PIPA —
+            you have a right to know where your data lives.
+          </p>
           <ul className="list-disc pl-5 space-y-1">
             <li>
-              <strong className="text-text-primary">Neon</strong> (Postgres
-              hosting, USA)
+              <strong className="text-text-primary">Neon</strong> — Postgres
+              database hosting (USA). Holds your account, collection, and
+              wishlist.
             </li>
             <li>
-              <strong className="text-text-primary">Render</strong> (backend
-              hosting, USA)
+              <strong className="text-text-primary">Render</strong> — backend
+              API hosting (USA). Processes requests; does not store account
+              data beyond runtime.
             </li>
             <li>
-              <strong className="text-text-primary">Vercel</strong> (frontend
-              hosting, USA)
+              <strong className="text-text-primary">Vercel</strong> —
+              frontend hosting + edge CDN (USA). Serves the site.
             </li>
             <li>
-              <strong className="text-text-primary">Google</strong> (only if
-              you sign in with Google)
+              <strong className="text-text-primary">Google (Sign-In)</strong>{" "}
+              — only if you sign in with Google. Receives your sign-in
+              event but not your collection.
+            </li>
+            <li>
+              <strong className="text-text-primary">Google (AdSense)</strong>{" "}
+              — serves advertisements on our pages. Uses cookies for ad
+              personalization, measurement, and fraud detection. See the
+              Advertising section above for opt-out links.
+            </li>
+            <li>
+              <strong className="text-text-primary">Impact (TCGplayer)</strong>{" "}
+              + <strong className="text-text-primary">eBay Partner Network</strong>{" "}
+              — affiliate referral tracking. Sees only that you clicked
+              from pulllist.org, not your account info.
             </li>
           </ul>
           <p className="mt-3">
-            All four are bound to keep your data secure and use it only to
-            provide infrastructure for PullList.
+            Each of these is bound by their own terms to keep data secure
+            and to use it only to provide their service to PullList. We do
+            not share your account email or collection contents with
+            anyone outside this list.
           </p>
         </Section>
 
