@@ -129,12 +129,12 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <a
-                  href="mailto:hello@pulllist.org"
+                <Link
+                  href="/contact"
                   className="text-text-secondary hover:text-text-primary"
                 >
                   Contact
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

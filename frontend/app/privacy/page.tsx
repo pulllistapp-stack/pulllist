@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           Privacy Policy
         </h1>
         <p className="mt-2 text-sm text-text-tertiary">
-          Last updated: 2026-06-18
+          Last updated: 2026-06-21
         </p>
       </header>
 
@@ -67,8 +67,10 @@ export default function PrivacyPage() {
               .
             </li>
             <li>
-              Your behavior outside PullList. We don&apos;t set tracking
-              pixels on the open web.
+              First-party tracking pixels on the open web outside PullList.
+              (Third-party ad networks may still set their own cookies on
+              your browser while you visit our pages — see the Advertising
+              section below.)
             </li>
           </ul>
         </Section>
@@ -87,7 +89,10 @@ export default function PrivacyPage() {
             </li>
           </ul>
           <p className="mt-3">
-            We do not sell your data. We do not share it with advertisers.
+            We do not sell your account data (email, collection contents,
+            wishlist, etc.). Third-party advertisers do load on our pages
+            and use their own cookies — see the Advertising section for
+            details on what they do and how to opt out.
           </p>
         </Section>
 
@@ -98,6 +103,70 @@ export default function PrivacyPage() {
             tags are anonymous - the retailer does not learn anything about
             you from us beyond that you clicked an affiliate link from
             pulllist.org.
+          </p>
+        </Section>
+
+        <Section title="Advertising (Google AdSense)">
+          <p>
+            PullList shows advertisements served by Google AdSense and its
+            partner ad networks. To make ads work, third-party vendors
+            including Google use cookies to:
+          </p>
+          <ul className="list-disc pl-5 mt-2 space-y-1">
+            <li>
+              Serve ads based on your prior visits to this site or other
+              sites on the internet.
+            </li>
+            <li>
+              Measure ad performance (impressions, clicks).
+            </li>
+            <li>
+              Detect fraud and abuse (invalid clicks, bot traffic).
+            </li>
+          </ul>
+          <p className="mt-3">
+            You can opt out of personalized advertising by visiting{" "}
+            <a
+              href="https://www.google.com/settings/ads"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-500 underline"
+            >
+              Google Ads Settings
+            </a>
+            . You can opt out of third-party vendor cookies more broadly at{" "}
+            <a
+              href="https://www.aboutads.info/choices/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-500 underline"
+            >
+              aboutads.info/choices
+            </a>{" "}
+            (US) or{" "}
+            <a
+              href="https://www.youronlinechoices.eu/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-500 underline"
+            >
+              youronlinechoices.eu
+            </a>{" "}
+            (EU). Disabling cookies in your browser also blocks ad
+            personalization; the ads themselves will still appear but they
+            will be untargeted.
+          </p>
+          <p className="mt-3">
+            For Google&apos;s own data handling, see the{" "}
+            <a
+              href="https://policies.google.com/technologies/ads"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-500 underline"
+            >
+              Google Advertising Privacy Notice
+            </a>
+            .
           </p>
         </Section>
 
@@ -149,12 +218,28 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="Cookies">
-          <p>
-            We use one first-party cookie called
-            <code className="font-mono text-xs bg-bg-surface border border-border rounded px-1 mx-1">
-              pulllist_token
-            </code>
-            to keep you signed in. No third-party tracking cookies.
+          <p>We use:</p>
+          <ul className="list-disc pl-5 mt-2 space-y-1">
+            <li>
+              <strong className="text-text-primary">First-party</strong> —
+              one cookie called{" "}
+              <code className="font-mono text-xs bg-bg-surface border border-border rounded px-1 mx-1">
+                pulllist_token
+              </code>
+              to keep you signed in.
+            </li>
+            <li>
+              <strong className="text-text-primary">Third-party (advertising)</strong>{" "}
+              — Google AdSense and its partner networks set cookies to
+              serve and measure ads. Details and opt-out links are in the
+              Advertising section above.
+            </li>
+          </ul>
+          <p className="mt-3">
+            You can disable cookies in your browser settings. PullList&apos;s
+            account features (sign-in, collection) will stop working without
+            the first-party cookie; ads will still appear but will not be
+            personalized.
           </p>
         </Section>
 
