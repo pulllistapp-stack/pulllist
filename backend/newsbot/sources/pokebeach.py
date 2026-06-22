@@ -86,18 +86,22 @@ async def crawl() -> list[NewsItem]:
 
     items: list[NewsItem] = []
     for card in cards[:MAX_ITEMS]:
-        url = card.css_first(f"{SEL_CARD_TITLE}::attr(href)").get()
-        title = card.css_first(f"{SEL_CARD_TITLE}::text").get()
+        # Scrapling supports parsel-style pseudo-elements; .get()
+        # returns the first match's value (string), or None.
+        url = card.css(f"{SEL_CARD_TITLE}::attr(href)").get()
+        title = card.css(f"{SEL_CARD_TITLE}::text").get()
         if not url or not title:
             continue
         url = url.strip()
         title = title.strip()
-        excerpt_el = card.css_first(SEL_CARD_EXCERPT)
+        excerpt_matches = card.css(SEL_CARD_EXCERPT)
         excerpt = ""
-        if excerpt_el is not None:
-            # Scrapling element exposes .text on a single element; for a
-            # CSS-selected container we take everything inside it.
-            excerpt = (excerpt_el.text or "").strip()[:480]
+        if excerpt_matches:
+            # get_all_text() collects every descendant text node — what
+            # we want for excerpt blocks that mix inline elements.
+            excerpt = excerpt_matches[0].get_all_text(
+                separator=" ", strip=True
+            )[:480]
         items.append(
             NewsItem(
                 url=url[:512],
@@ -117,9 +121,9 @@ async def enrich(item: NewsItem) -> NewsItem:
     failure so the generator can still fall back to title + summary."""
     await asyncio.sleep(INTER_REQUEST_DELAY)
     page = await _fetch(item.url)
-    body_el = page.css_first(SEL_BODY)
-    if body_el is None:
+    body_matches = page.css(SEL_BODY)
+    if not body_matches:
         log.warning("pokebeach enrich: no body element at %s", item.url)
         return item
-    body = (body_el.text or "").strip()
+    body = body_matches[0].get_all_text(separator="\n", strip=True)
     return item.model_copy(update={"raw_text": body})
