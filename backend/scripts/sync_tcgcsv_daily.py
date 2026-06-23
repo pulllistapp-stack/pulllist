@@ -53,6 +53,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, engine, init_db  # noqa: E402
 from app.models import Card, CardPriceSnapshot  # noqa: E402
+from app.services.ebay_client import (  # noqa: E402
+    _DEFAULT_ABS_CEILING,
+    _RARITY_ABS_CEILING,
+)
 
 engine.echo = False
 logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
@@ -158,12 +162,42 @@ def _conflict_insert(dialect_name: str):
     return sqlite_insert(CardPriceSnapshot)
 
 
-def _snapshot_rows(card_id: str, prices: dict, snapshot_date: str) -> list[dict]:
-    """One snapshot row per variant — keeps trending / chart logic happy."""
+def _rarity_ceiling(rarity: str | None) -> float:
+    """Per-rarity absolute cap on what counts as a credible TCGplayer
+    market price. Same table the eBay snapshot uses — single source of
+    truth keeps the two sources consistent on chase / vintage caps."""
+    if rarity and rarity in _RARITY_ABS_CEILING:
+        return _RARITY_ABS_CEILING[rarity]
+    return _DEFAULT_ABS_CEILING
+
+
+def _snapshot_rows(
+    card_id: str,
+    prices: dict,
+    snapshot_date: str,
+    rarity: str | None = None,
+) -> list[dict]:
+    """One snapshot row per variant — keeps trending / chart logic happy.
+
+    Rejects per-variant market prices that exceed the rarity ceiling.
+    TCGCSV's `market` field occasionally reflects a single seller typo
+    ($46.63 → $4663) or graded-slab listing miscategorised as raw; the
+    cap drops those data points so the chart doesn't spike for ~10 days
+    waiting for upstream correction. If every variant fails the cap,
+    the card gets no snapshot row for the day (better than a poisoned
+    one — chart stays flat, future syncs recover automatically).
+    """
+    cap = _rarity_ceiling(rarity)
     rows = []
     for variant, payload in prices.items():
         market = payload.get("market") or payload.get("mid")
         if market is None:
+            continue
+        if float(market) > cap:
+            log.warning(
+                "drop snapshot %s variant=%s market=$%.2f > cap $%.2f (rarity=%s)",
+                card_id, variant, float(market), cap, rarity or "?",
+            )
             continue
         rows.append({
             "card_id": card_id,
@@ -268,13 +302,29 @@ async def sync(snapshot_date: str, dry_run: bool, group_limit: int | None) -> No
                         continue
 
                     market = _market_from_prices(prices)
+                    cap = _rarity_ceiling(existing.rarity)
+                    if market is not None and market > cap:
+                        # The single denormalised display price would surface
+                        # the same typo / mis-mapped slab the snapshot guard
+                        # catches; refuse to overwrite an existing sane value
+                        # with a spike. Per-variant tcgplayer_prices JSON is
+                        # still refreshed so the variant breakdown stays
+                        # up-to-date — only the catalog headline number is
+                        # gated.
+                        log.warning(
+                            "skip market_price_usd for %s: $%.2f > cap $%.2f (rarity=%s)",
+                            card_id, market, cap, existing.rarity or "?",
+                        )
+                        market = None
                     if not dry_run:
                         existing.tcgplayer_prices = prices
                         if market is not None:
                             existing.market_price_usd = market
 
                     stats["cards_refreshed"] += 1
-                    snapshot_batch.extend(_snapshot_rows(card_id, prices, snapshot_date))
+                    snapshot_batch.extend(
+                        _snapshot_rows(card_id, prices, snapshot_date, existing.rarity)
+                    )
 
                 if not dry_run:
                     await db.commit()
