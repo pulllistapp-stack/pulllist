@@ -214,12 +214,27 @@ async def run_snapshot(
                     # Backfill the denormalized Card.market_price_usd when it's NULL
                     # (so the catalog/grid UI shows a price for sets pokemontcg.io
                     # hasn't synced yet). Never overwrite an existing tcgplayer-derived value.
+                    #
+                    # For First Partner Illustration sets specifically, prefer the
+                    # snapshot's low over its median. In the first weeks after
+                    # release, sellers anchor outlier listings 2-4x above the
+                    # transactional clearing price to test the market; the median
+                    # gets dragged up by those even after the multi-card / sealed
+                    # noise filter passes. The low (post-IQR-trim) sits at the
+                    # real floor where copies actually clear. Snapshot rows still
+                    # record the median for the chart line — only the display
+                    # price diverges. Revisit per-set once these stabilise (~30
+                    # days post-release).
                     if card.market_price_usd is None and not dry_run:
+                        is_fpic = bool(card.set_id and card.set_id.startswith("fpic-"))
+                        display_price = (
+                            row["low_price_usd"] if is_fpic else row["market_price_usd"]
+                        )
                         await db.execute(
                             update(Card)
                             .where(Card.id == card.id)
                             .where(Card.market_price_usd.is_(None))
-                            .values(market_price_usd=row["market_price_usd"])
+                            .values(market_price_usd=display_price)
                         )
 
                 if len(rows_batch) >= batch_size:
