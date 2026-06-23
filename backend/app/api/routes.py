@@ -805,12 +805,30 @@ async def get_live_listings(
     # different x/y than this card. See app/services/listing_match.py
     # for the tier breakdown. Wishlist alerts (future) will tighten this
     # to score == 100 only; for the live panel >= 70 is comfortable.
+    printed_total = set_obj.printed_total if set_obj else None
     filtered_items, dropped = filter_listings(
         raw_items,
         card_number=card.number,
-        printed_total=set_obj.printed_total if set_obj else None,
+        printed_total=printed_total,
         min_score=70,
     )
+    # Fallback for vintage / promo cards. Sellers of Nintendo Black Star
+    # Promos, POP Series, e-Reader promos etc. routinely list the card
+    # by name alone ("Pokemon Mudkip Nintendo Black Star Promo NM"),
+    # without the "5/53" pattern — those listings score 30 ("no
+    # card-number reference") and the 70 threshold drops every one.
+    # Retry at 30 only when the strict pass found nothing; modern set
+    # cards never enter this branch because their listings carry the
+    # x/y format and pass at 70+. score 0 (DIFFERENT card-number in
+    # title) is still rejected — we never knowingly surface a wrong
+    # print.
+    if not filtered_items and raw_items:
+        filtered_items, dropped = filter_listings(
+            raw_items,
+            card_number=card.number,
+            printed_total=printed_total,
+            min_score=30,
+        )
 
     listings = []
     for it in filtered_items[:limit]:
