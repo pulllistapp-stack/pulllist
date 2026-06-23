@@ -92,6 +92,19 @@ _TITLE_NOISE_DEFAULT = (
     # unlimited base print by 10-100x in sets like Base Set / Jungle / Fossil.
     "1st edition", "first edition",
     "shadowless",
+    # Multi-card bundles. First Partner Illustration boxes ship as
+    # region-themed 3-card sets (e.g. "Johto Gen 2 set Chikorita +
+    # Cyndaquil + Totodile"); a single-card query for one Pokémon picks
+    # those bundles up and inflates the median to ~3x the solo card
+    # price. None of these phrases appear in genuine single-card listings.
+    "vol 1", "vol 2", "vol 3", "vol 4",
+    "set of 2", "set of 3", "set of 4",
+    "2-card", "3-card", "4-card",
+    "2 card set", "3 card set", "4 card set",
+    "gen 1 set", "gen 2 set", "gen 3 set", "gen 4 set",
+    "gen 5 set", "gen 6 set", "gen 7 set", "gen 8 set", "gen 9 set",
+    "kanto set", "johto set", "hoenn set", "sinnoh set",
+    "unova set", "kalos set", "alola set", "galar set", "paldea set",
 )
 
 # Minimum eBay listings required before we trust the median. With fewer than
