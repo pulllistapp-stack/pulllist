@@ -185,6 +185,8 @@ async def add_item(
         grade=payload.grade,
         acquired_at=payload.acquired_at,
         notes=payload.notes,
+        purchase_price_usd=payload.purchase_price_usd,
+        acquisition_type=payload.acquisition_type,
     )
     db.add(item)
     try:

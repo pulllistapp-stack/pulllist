@@ -8,6 +8,7 @@ _VARIANT_PATTERN = (
     r"^(normal|holofoil|reverseHolofoil|1stEdition|1stEditionHolofoil|"
     r"unlimited|unlimitedHolofoil)$"
 )
+_ACQUISITION_PATTERN = r"^(pull|trade|purchase|gift|other)$"
 
 
 class CollectionItemCreate(BaseModel):
@@ -19,6 +20,8 @@ class CollectionItemCreate(BaseModel):
     grade: str | None = None
     acquired_at: date | None = None
     notes: str | None = Field(default=None, max_length=500)
+    purchase_price_usd: float | None = Field(default=None, ge=0, le=1_000_000)
+    acquisition_type: str | None = Field(default=None, pattern=_ACQUISITION_PATTERN)
 
 
 class CollectionItemUpdate(BaseModel):
@@ -29,6 +32,8 @@ class CollectionItemUpdate(BaseModel):
     grade: str | None = None
     acquired_at: date | None = None
     notes: str | None = Field(default=None, max_length=500)
+    purchase_price_usd: float | None = Field(default=None, ge=0, le=1_000_000)
+    acquisition_type: str | None = Field(default=None, pattern=_ACQUISITION_PATTERN)
 
 
 class CollectionItemRead(BaseModel):
@@ -43,6 +48,8 @@ class CollectionItemRead(BaseModel):
     grade: str | None = None
     acquired_at: date | None = None
     notes: str | None = None
+    purchase_price_usd: float | None = None
+    acquisition_type: str | None = None
     created_at: datetime
 
 
