@@ -191,18 +191,22 @@ async def clean_tcgplayer_ceiling(db: AsyncSession, *, dry_run: bool) -> None:
 async def null_stale_market(
     db: AsyncSession, *, dry_run: bool, stale_days: int
 ) -> None:
-    preview_q = text(
+    # `card_price_snapshots.snapshot_date` is VARCHAR (ISO YYYY-MM-DD),
+    # not DATE, so direct interval comparison errors with
+    # "operator does not exist: character varying >= timestamp". Cast
+    # to ::date for the comparison; ISO format makes the cast cheap
+    # and unambiguous.
+    days = int(stale_days)
+
+    preview_sql = (
         "SELECT COUNT(*) FROM cards c "
         "WHERE c.market_price_usd IS NOT NULL "
         "AND NOT EXISTS ("
         "  SELECT 1 FROM card_price_snapshots s "
         "  WHERE s.card_id = c.id "
-        f"  AND s.snapshot_date >= CURRENT_DATE - INTERVAL ':n days'"
+        f"  AND s.snapshot_date::date >= CURRENT_DATE - INTERVAL '{days} days'"
         ")"
     )
-    # ":n days" can't be parameterised inside the interval literal — inline
-    # the int safely (it's argparse-parsed, not user input).
-    preview_sql = str(preview_q).replace(":n", str(int(stale_days)))
     n = (await db.execute(text(preview_sql))).scalar() or 0
 
     log.info(
@@ -219,7 +223,7 @@ async def null_stale_market(
         "AND NOT EXISTS ("
         "  SELECT 1 FROM card_price_snapshots s "
         "  WHERE s.card_id = cards.id "
-        f"  AND s.snapshot_date >= CURRENT_DATE - INTERVAL '{int(stale_days)} days'"
+        f"  AND s.snapshot_date::date >= CURRENT_DATE - INTERVAL '{days} days'"
         ")"
     )
     await db.execute(text(update_sql))
