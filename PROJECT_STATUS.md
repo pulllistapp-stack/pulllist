@@ -92,14 +92,16 @@ core platform stabilizes.
   - One-shot `storage_cleanup.py` reclaimed 323 MB (cardmarket drop + VACUUM FULL)
 
 ### 3.4 Collection management
-- **CollectionItem** model (condition, grade, qty, acquired_at, notes, variant)
+- **CollectionItem** model (condition, grade, qty, acquired_at, notes, variant, purchase_price_usd, acquisition_type)
 - **WishlistItem** model (priority, max_price_usd, notes, variant)
 - **PortfolioSnapshot** model (daily valuation history per user)
 - **Per-variant collection** — same card can be owned in multiple variants (e.g. normal + holofoil)
-- One-tap "I have this" toggle on every card
+- **"+ I have this" modal** — variant (only when 2+ printings exist), condition, graded slab w/ service+grade, qty, acquired date, purchase price, source (pull/trade/purchase/gift/other), notes
 - Heart toggle for wishlist on every thumbnail
 - Wishlist target price modal (priority, target $, notes, live "at target" hint)
 - Portfolio page: stats grid, asset mix donut, growth chart (SVG area), Top 10 by value, full vault grouped by set
+- **Variant chip** on Portfolio + Wishlist rows for non-default prints (holo, reverse, 1st ed, etc.)
+- **Portfolio Manage mode** — checkbox bulk-select, sticky delete bar, type-DELETE confirmation for 2+ items
 - CSV export of collection
 
 ### 3.5 Trending
@@ -554,6 +556,7 @@ Rough chronological summary of major work landed in this push:
 10. **Affiliate + ads pipeline** — TCGplayer Impact params hardcoded, eBay Partner Network approved (campid pending), AdSense verified + under review
 11. **AdSense compliance pass** — privacy policy updated to disclose AdSense, ads.txt added, `/contact` page created
 12. **Anti-bot Phase 1** — honeypot + per-IP rate limit + disposable email blocklist on `/auth/signup`
+13. **Portfolio polish pass** — variant chips for non-default prints, Manage mode w/ checkbox bulk-delete + type-DELETE confirm, full-options "+ I have this" modal (variant/condition/grade/qty/purchase price/source/notes) replacing the 1-click toggle; `collection_items` gains `purchase_price_usd` + `acquisition_type` columns for ROI tracking
 
 ---
 
