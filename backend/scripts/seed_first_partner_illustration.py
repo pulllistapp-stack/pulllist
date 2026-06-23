@@ -61,6 +61,7 @@ SETS = [
         "printed_total": 9,
         "total": 9,
         "release_date": date(2026, 3, 20),
+        "logo_url": "/set-logos/fps1.avif",
     },
     {
         "id": "fpic-s2",
@@ -69,6 +70,7 @@ SETS = [
         "printed_total": 9,
         "total": 9,
         "release_date": date(2026, 6, 19),
+        "logo_url": "/set-logos/fps2.jpg",
     },
 ]
 
@@ -136,6 +138,8 @@ async def seed() -> None:
             row.printed_total = s["printed_total"]
             row.total = s["total"]
             row.release_date = s["release_date"]
+            if s.get("logo_url"):
+                row.logo_url = s["logo_url"]
         await db.commit()
         print(f"Upserted {len(SETS)} sets.")
 
