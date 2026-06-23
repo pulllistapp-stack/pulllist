@@ -61,7 +61,7 @@ SETS = [
         "printed_total": 9,
         "total": 9,
         "release_date": date(2026, 3, 20),
-        "logo_url": "/set-logos/fps1.avif",
+        "logo_url": "/set-logos/fps1.jpg",
     },
     {
         "id": "fpic-s2",
