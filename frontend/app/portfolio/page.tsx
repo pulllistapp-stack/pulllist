@@ -13,6 +13,7 @@ import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
 import { ShareModal } from "@/components/portfolio/ShareModal";
 import { PriceBadge } from "@/components/PriceBadge";
+import { VariantChip } from "@/components/VariantChip";
 import {
   downloadCollectionCsv,
   listSets,
@@ -380,6 +381,7 @@ export default function PortfolioPage() {
                               </span>
                             </>
                           )}
+                          <VariantChip variant={item.variant} />
                         </div>
                       </div>
                     </Link>

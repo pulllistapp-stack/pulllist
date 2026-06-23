@@ -18,6 +18,7 @@ import {
 import { MascotLoader } from "@/components/MascotLoader";
 import { RarityChip } from "@/components/RarityChip";
 import { useAuth } from "@/components/AuthProvider";
+import { VariantChip } from "@/components/VariantChip";
 import { useWishlist } from "@/components/WishlistProvider";
 import { WishlistTargetModal } from "@/components/WishlistTargetModal";
 import {
@@ -358,9 +359,10 @@ function WishlistRow({
           </div>
         </div>
 
-        {item.rarity && (
-          <div className="mt-1.5">
-            <RarityChip rarity={item.rarity} />
+        {(item.rarity || item.variant !== "normal") && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {item.rarity && <RarityChip rarity={item.rarity} />}
+            <VariantChip variant={item.variant} />
           </div>
         )}
 
