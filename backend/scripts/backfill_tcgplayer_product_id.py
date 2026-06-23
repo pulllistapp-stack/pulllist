@@ -85,15 +85,20 @@ _HEADERS = {
 _THROTTLE_S = 0.3
 
 
+_NAME_TRAIL_NUMBER_RE = re.compile(r"\s*[-–—]\s*\d+[a-z]*\s*$")
+
+
 def _normalise_name(name: str) -> str:
-    """Lowercase + strip diacritics so 'Pokémon' matches 'pokemon' etc.
-    Also drops any trailing ' ex' / ' V' / etc. — we only match Basics
-    here so plain-name parity is enough."""
+    """Lowercase + strip diacritics + drop trailing ' - <number>' so
+    TCGCSV's product naming convention ("Bulbasaur - 037") aligns with
+    our DB's bare card name ("Bulbasaur"). 'Pokémon' also folds to
+    'pokemon' for cross-source matching."""
     folded = (
         unicodedata.normalize("NFKD", name.lower())
         .encode("ascii", "ignore")
         .decode("ascii")
     )
+    folded = _NAME_TRAIL_NUMBER_RE.sub("", folded)
     return re.sub(r"\s+", " ", folded).strip()
 
 
