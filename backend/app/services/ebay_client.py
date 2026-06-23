@@ -618,11 +618,23 @@ class EbayClient:
             _RARITY_ABS_CEILING.get(rarity, _DEFAULT_ABS_CEILING) if rarity
             else _DEFAULT_ABS_CEILING
         )
-        sanity_ceiling = (
-            min(sanity_ceiling, rarity_ceiling)
-            if sanity_ceiling is not None
-            else rarity_ceiling
+        # Apply rarity cap as a backstop UNLESS the TCG reference itself
+        # already exceeds it. The rarity table is tuned for the typical
+        # card in each rarity bucket, but vintage chase cards (POP Series
+        # Gold Stars rarity='Rare' yet $1.9k; Nintendo Black Star Promos
+        # rarity='Promo' yet $1.5k; Pikachu Illustrator rarity='Promo'
+        # yet $5M+) blow past the cap. When TCGplayer says the card is
+        # genuinely that expensive, trust the TCG-relative ceiling and
+        # skip the rarity backstop — otherwise we filter every real
+        # listing as "above ceiling" and the live panel goes empty.
+        ref_above_cap = (
+            reference_price_usd is not None
+            and reference_price_usd > rarity_ceiling
         )
+        if sanity_ceiling is None:
+            sanity_ceiling = rarity_ceiling
+        elif not ref_above_cap:
+            sanity_ceiling = min(sanity_ceiling, rarity_ceiling)
 
         is_chase = bool(rarity and rarity in _CHASE_RARITIES)
         require_number_in_title = bool(is_chase and card_number)

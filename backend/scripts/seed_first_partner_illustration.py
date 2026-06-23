@@ -57,7 +57,7 @@ SETS = [
         # eBay match path doesn't take a hit.
         "id": "fpic-s1",
         "name": "First Partner Illustration Series 1",
-        "series": "Scarlet & Violet",
+        "series": "Mega Evolution",
         "printed_total": 9,
         "total": 9,
         "release_date": date(2026, 3, 20),
@@ -65,7 +65,7 @@ SETS = [
     {
         "id": "fpic-s2",
         "name": "First Partner Illustration Series 2",
-        "series": "Scarlet & Violet",
+        "series": "Mega Evolution",
         "printed_total": 9,
         "total": 9,
         "release_date": date(2026, 6, 19),
