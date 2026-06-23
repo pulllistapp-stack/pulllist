@@ -309,6 +309,23 @@ def _classify_listing(item: dict, cfg: FilterConfig) -> ListingClassification:
             kept=False, drop_reason=f"missing_number:{cfg.number_pattern.pattern}",
         )
 
+    # Multi-card bundle guard for chase rarities. Promo card numbers
+    # all begin with '0' (037-099 range — Mega Evolution Promo, SVP,
+    # SWSHP, etc.). A single-card listing's title contains exactly one
+    # such number; "Snivy 049 Tepig 050" carries two. The keyword-noise
+    # filter catches obvious phrasings ("johto set", "vol 2") but
+    # sellers also list bundles bare ("Snivy 049, Tepig 050 NM"), which
+    # this lets us drop without enumerating every region/Pokémon combo.
+    # Scoped to cfg.number_pattern (set only for chase rarities) so the
+    # regular booster-set price path isn't affected.
+    if cfg.number_pattern:
+        promo_nums_in_title = set(re.findall(r"\b0\d{2}\b", title_lc))
+        if len(promo_nums_in_title) > 1:
+            return ListingClassification(
+                title=title_raw, price_usd=None, currency="", url=url,
+                kept=False, drop_reason="multi_card_numbers",
+            )
+
     p = item.get("price") or {}
     raw_currency = p.get("currency", "")
     try:
