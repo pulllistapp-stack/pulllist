@@ -344,6 +344,7 @@ export function PullListCardDetail({
                   cardId={card.id}
                   variant="hero"
                   printVariant={selectedVariant}
+                  card={card}
                 />
               }
               wishlistButton={

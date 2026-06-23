@@ -5,7 +5,17 @@ import { useState } from "react";
 
 import { useAuth } from "./AuthProvider";
 import { useCollection } from "./CollectionProvider";
+import { CardAddModal } from "./card/CardAddModal";
+import { invalidateApiCache } from "@/lib/api";
 import type { CardVariant } from "@/lib/auth";
+
+type CardForModal = {
+  id: string;
+  name: string;
+  number?: string | null;
+  image_small?: string | null;
+  tcgplayer_prices?: unknown;
+};
 
 type Props = {
   cardId: string;
@@ -13,6 +23,10 @@ type Props = {
   variant?: "default" | "hero";
   /** Print variant the toggle adds/removes. Default 'normal'. */
   printVariant?: CardVariant;
+  /** Card payload used to populate the "+ I have this" modal. When
+   *  provided, clicking the not-owned button opens the modal instead of
+   *  doing a 1-click add. Without it, the legacy 1-click toggle runs. */
+  card?: CardForModal;
 };
 
 export function OwnedToggle({
@@ -20,12 +34,13 @@ export function OwnedToggle({
   size = "md",
   variant = "default",
   printVariant = "normal",
+  card,
 }: Props) {
   const { user } = useAuth();
-  const { has, toggle } = useCollection();
+  const { has, toggle, refresh } = useCollection();
   const [pending, setPending] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // hero = single-layer full-width pill (used on card detail Cheapest hero).
   const isHero = variant === "hero";
   const sizeCls = isHero
     ? "text-sm px-5 py-3"
@@ -52,6 +67,12 @@ export function OwnedToggle({
     e.preventDefault();
     e.stopPropagation();
     if (pending) return;
+
+    if (!owned && card) {
+      setModalOpen(true);
+      return;
+    }
+
     setPending(true);
     try {
       await toggle(cardId, printVariant);
@@ -60,13 +81,16 @@ export function OwnedToggle({
     }
   };
 
-  // Hero variant: solid green when not owned (call-to-action), solid amber when owned (already in collection)
+  const onAdded = async () => {
+    invalidateApiCache("/cards/browse");
+    await refresh();
+  };
+
   const heroOwned =
     "bg-accent-yellow text-gray-900 hover:brightness-105 shadow-md shadow-accent-yellow/30";
   const heroNotOwned =
     "bg-accent-green text-white hover:brightness-105 shadow-md shadow-accent-green/30";
 
-  // Default variant kept as-is
   const defaultOwned =
     "bg-accent-green/15 text-accent-green border border-accent-green/30 hover:bg-accent-green/20";
   const defaultNotOwned =
@@ -81,23 +105,34 @@ export function OwnedToggle({
       : defaultNotOwned;
 
   return (
-    <button
-      onClick={onClick}
-      disabled={pending}
-      className={`inline-flex items-center gap-1.5 font-bold transition-colors ${sizeCls} ${radiusCls} ${widthCls} ${stateCls} disabled:opacity-50`}
-      aria-pressed={owned}
-    >
-      {owned ? (
-        <>
-          <span aria-hidden>✓</span>
-          <span>{isHero ? "In your collection" : "Owned"}</span>
-        </>
-      ) : (
-        <>
-          <span aria-hidden>+</span>
-          <span>I have this</span>
-        </>
+    <>
+      <button
+        onClick={onClick}
+        disabled={pending}
+        className={`inline-flex items-center gap-1.5 font-bold transition-colors ${sizeCls} ${radiusCls} ${widthCls} ${stateCls} disabled:opacity-50`}
+        aria-pressed={owned}
+      >
+        {owned ? (
+          <>
+            <span aria-hidden>✓</span>
+            <span>{isHero ? "In your collection" : "Owned"}</span>
+          </>
+        ) : (
+          <>
+            <span aria-hidden>+</span>
+            <span>I have this</span>
+          </>
+        )}
+      </button>
+
+      {modalOpen && card && (
+        <CardAddModal
+          card={card}
+          initialVariant={printVariant}
+          onClose={() => setModalOpen(false)}
+          onAdded={onAdded}
+        />
       )}
-    </button>
+    </>
   );
 }

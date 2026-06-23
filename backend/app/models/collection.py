@@ -4,6 +4,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -66,6 +67,16 @@ class CollectionItem(Base):
 
     acquired_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    purchase_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    """What the user paid for this row, in USD. Required for ROI math
+    (current market_price_usd - purchase_price_usd). Optional — the
+    add-modal lets users skip it for cards they pulled or were gifted."""
+
+    acquisition_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """Pull / Trade / Purchase / Gift / Other. Optional context for
+    stats and future segmentation (e.g. 'show me everything I pulled
+    in 2026')."""
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

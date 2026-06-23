@@ -137,6 +137,13 @@ export type CardVariant =
   | "unlimited"
   | "unlimitedHolofoil";
 
+export type AcquisitionType =
+  | "pull"
+  | "trade"
+  | "purchase"
+  | "gift"
+  | "other";
+
 export type CollectionItemDetail = {
   id: number;
   card_id: string;
@@ -147,6 +154,8 @@ export type CollectionItemDetail = {
   grade: string | null;
   acquired_at: string | null;
   notes: string | null;
+  purchase_price_usd: number | null;
+  acquisition_type: AcquisitionType | null;
   created_at: string;
   card_name: string;
   card_number: string | null;
@@ -156,6 +165,28 @@ export type CollectionItemDetail = {
   set_id: string;
   set_name: string;
 };
+
+export type CollectionItemCreatePayload = {
+  card_id: string;
+  qty?: number;
+  variant?: CardVariant;
+  condition?: "NM" | "LP" | "MP" | "HP" | "DMG";
+  is_graded?: boolean;
+  grade?: string | null;
+  acquired_at?: string | null;
+  notes?: string | null;
+  purchase_price_usd?: number | null;
+  acquisition_type?: AcquisitionType | null;
+};
+
+export async function createCollectionItem(
+  payload: CollectionItemCreatePayload,
+): Promise<CollectionItemDetail> {
+  return authFetch<CollectionItemDetail>("/collection/items", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
 
 export async function toggleOwned(
   cardId: string,
