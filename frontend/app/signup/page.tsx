@@ -20,8 +20,17 @@ import {
 
 import { useAuth } from "@/components/AuthProvider";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { GuestOnly } from "@/components/GuestOnly";
 
 export default function SignupPage() {
+  return (
+    <GuestOnly>
+      <SignupPageInner />
+    </GuestOnly>
+  );
+}
+
+function SignupPageInner() {
   const router = useRouter();
   const { signup } = useAuth();
   const [name, setName] = useState("");

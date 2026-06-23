@@ -3,10 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useAuth } from "./AuthProvider";
+
 const HIDE_FOOTER_ON = ["/scan"];
 
 export function Footer() {
   const pathname = usePathname();
+  const { user, loading: authLoading } = useAuth();
+  // Hide Login/Signup once the user is authenticated. While auth state is
+  // still loading we also hide them — better to render the shorter list
+  // briefly than to flash login links to a signed-in user.
+  const showAuthLinks = !authLoading && !user;
   // Scan page is a focused, immersive surface — site-wide footer (marketplace
   // links, mascot, etc.) clutters the result panel below the camera frame.
   if (pathname && HIDE_FOOTER_ON.some((p) => pathname.startsWith(p))) {
@@ -90,16 +97,20 @@ export function Footer() {
                   Settings
                 </Link>
               </li>
-              <li>
-                <Link href="/login" className="text-text-secondary hover:text-text-primary">
-                  Login
-                </Link>
-              </li>
-              <li>
-                <Link href="/signup" className="text-text-secondary hover:text-text-primary">
-                  Sign up
-                </Link>
-              </li>
+              {showAuthLinks && (
+                <>
+                  <li>
+                    <Link href="/login" className="text-text-secondary hover:text-text-primary">
+                      Login
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/signup" className="text-text-secondary hover:text-text-primary">
+                      Sign up
+                    </Link>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
 
