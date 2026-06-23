@@ -5,7 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { CheckSquare, Download, Loader2, MoreVertical, Share2, Square, Trash2, X } from "lucide-react";
+import {
+  Calendar,
+  CheckSquare,
+  ChevronDown,
+  ChevronUp,
+  DollarSign,
+  Download,
+  Loader2,
+  Pencil,
+  Share2,
+  Square,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
@@ -29,6 +43,14 @@ import {
   listMyItems,
 } from "@/lib/auth";
 
+const SOURCE_LABEL: Record<string, string> = {
+  pull: "Pulled",
+  purchase: "Bought",
+  trade: "Traded",
+  gift: "Gift",
+  other: "Other",
+};
+
 export default function PortfolioPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -49,12 +71,23 @@ export default function PortfolioPage() {
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  // Per-row edit modal — click the ⋯ overlay on a vault card to surface
-  // notes / purchase price / acquired date / source that the add-modal
-  // captured; lets users edit or delete that one row in place.
+  // Per-row edit modal — opened from inside the expanded panel below.
   const [editingItem, setEditingItem] = useState<CollectionItemDetail | null>(
     null,
   );
+
+  // Expand/collapse panel — surfaces the row's notes/paid/acquired/source
+  // inline so users can SEE the metadata on the grid without leaving the
+  // page. Modal stays for editing; expansion is for at-a-glance reading.
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const toggleExpanded = useCallback((itemId: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }, []);
 
   const exitManageMode = useCallback(() => {
     setManageMode(false);
@@ -487,22 +520,6 @@ export default function PortfolioPage() {
                           </span>
                         )}
 
-                        {!manageMode && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEditingItem(item);
-                            }}
-                            className="absolute top-1 left-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md bg-bg/80 backdrop-blur border border-border text-text-secondary opacity-70 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-text-primary hover:bg-bg-elevated transition-opacity"
-                            aria-label={`Edit ${item.card_name}`}
-                            title="Edit row details"
-                          >
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-
                         <div className="relative aspect-[245/342] w-full overflow-hidden rounded-md bg-bg">
                           {item.image_small ? (
                             <Image
@@ -544,6 +561,112 @@ export default function PortfolioPage() {
                             )}
                             <VariantChip variant={item.variant} />
                           </div>
+
+                          {!manageMode && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleExpanded(item.id);
+                              }}
+                              className="mt-1 inline-flex items-center gap-1 self-start rounded-full border border-border bg-bg/60 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-text-tertiary hover:text-text-primary hover:border-accent-yellow/40 transition-colors"
+                              aria-expanded={expandedRows.has(item.id)}
+                              aria-label={
+                                expandedRows.has(item.id)
+                                  ? "Hide details"
+                                  : "Show details"
+                              }
+                            >
+                              {expandedRows.has(item.id) ? (
+                                <>
+                                  <ChevronUp className="h-3 w-3" /> Less
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="h-3 w-3" /> Details
+                                </>
+                              )}
+                            </button>
+                          )}
+
+                          {!manageMode && expandedRows.has(item.id) && (
+                            <div className="mt-1.5 pt-2 border-t border-border space-y-1.5 text-xs">
+                              {item.acquired_at && (
+                                <div className="flex items-center gap-1.5 text-text-secondary font-mono">
+                                  <Calendar className="h-3 w-3 text-text-tertiary" />
+                                  {item.acquired_at}
+                                </div>
+                              )}
+                              {item.purchase_price_usd != null && (
+                                <div className="flex items-center gap-1.5 text-text-secondary font-mono">
+                                  <DollarSign className="h-3 w-3 text-text-tertiary" />
+                                  <span>
+                                    ${item.purchase_price_usd.toFixed(2)}
+                                  </span>
+                                  {item.market_price_usd != null &&
+                                    (() => {
+                                      const delta =
+                                        item.market_price_usd -
+                                        item.purchase_price_usd;
+                                      const pct =
+                                        item.purchase_price_usd > 0
+                                          ? (delta / item.purchase_price_usd) *
+                                            100
+                                          : 0;
+                                      const positive = delta >= 0;
+                                      return (
+                                        <span
+                                          className={
+                                            "text-[10px] font-bold " +
+                                            (positive
+                                              ? "text-accent-green"
+                                              : "text-accent-red")
+                                          }
+                                        >
+                                          {positive ? "+" : ""}
+                                          {pct.toFixed(0)}%
+                                        </span>
+                                      );
+                                    })()}
+                                </div>
+                              )}
+                              {item.acquisition_type && (
+                                <div className="flex items-center gap-1.5 text-text-secondary">
+                                  <Tag className="h-3 w-3 text-text-tertiary" />
+                                  <span className="capitalize">
+                                    {SOURCE_LABEL[item.acquisition_type] ??
+                                      item.acquisition_type}
+                                  </span>
+                                </div>
+                              )}
+                              {item.notes && (
+                                <p className="text-text-secondary italic leading-snug line-clamp-3 break-words">
+                                  &ldquo;{item.notes}&rdquo;
+                                </p>
+                              )}
+                              {!item.acquired_at &&
+                                item.purchase_price_usd == null &&
+                                !item.acquisition_type &&
+                                !item.notes && (
+                                  <p className="text-text-tertiary italic">
+                                    No details yet.
+                                  </p>
+                                )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setEditingItem(item);
+                                }}
+                                className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-accent-yellow/40 text-accent-yellow text-[11px] font-bold px-2.5 py-1 hover:bg-accent-yellow/10 transition-colors"
+                              >
+                                <Pencil className="h-3 w-3" />
+                                Edit
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </>
                     );
