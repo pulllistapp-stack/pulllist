@@ -188,6 +188,24 @@ export async function createCollectionItem(
   });
 }
 
+export type CollectionItemUpdatePayload = Partial<
+  Omit<CollectionItemCreatePayload, "card_id">
+>;
+
+export async function updateCollectionItem(
+  itemId: number,
+  payload: CollectionItemUpdatePayload,
+): Promise<CollectionItemDetail> {
+  return authFetch<CollectionItemDetail>(`/collection/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCollectionItem(itemId: number): Promise<void> {
+  await authFetch<void>(`/collection/items/${itemId}`, { method: "DELETE" });
+}
+
 export async function toggleOwned(
   cardId: string,
   variant: CardVariant = "normal",

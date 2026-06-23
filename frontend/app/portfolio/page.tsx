@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { CheckSquare, Download, Loader2, Share2, Square, Trash2, X } from "lucide-react";
+import { CheckSquare, Download, Loader2, MoreVertical, Share2, Square, Trash2, X } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
 import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
+import { CollectionItemEditModal } from "@/components/portfolio/CollectionItemEditModal";
 import { ShareModal } from "@/components/portfolio/ShareModal";
 import { PriceBadge } from "@/components/PriceBadge";
 import { VariantChip } from "@/components/VariantChip";
@@ -47,6 +48,13 @@ export default function PortfolioPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  // Per-row edit modal — click the ⋯ overlay on a vault card to surface
+  // notes / purchase price / acquired date / source that the add-modal
+  // captured; lets users edit or delete that one row in place.
+  const [editingItem, setEditingItem] = useState<CollectionItemDetail | null>(
+    null,
+  );
 
   const exitManageMode = useCallback(() => {
     setManageMode(false);
@@ -275,6 +283,37 @@ export default function PortfolioPage() {
 
       {shareOpen && <ShareModal onClose={() => setShareOpen(false)} />}
 
+      {editingItem && (
+        <CollectionItemEditModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSaved={async () => {
+            try {
+              const [s, list] = await Promise.all([
+                collectionSummary(),
+                listMyItems(),
+              ]);
+              setSummary(s);
+              setItems(list);
+            } catch {
+              // non-fatal — modal already closed
+            }
+          }}
+          onDeleted={async () => {
+            try {
+              const [s, list] = await Promise.all([
+                collectionSummary(),
+                listMyItems(),
+              ]);
+              setSummary(s);
+              setItems(list);
+            } catch {
+              // non-fatal
+            }
+          }}
+        />
+      )}
+
       {/* Top row: stats column left (compact), vault grid right (large). */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 mb-8">
         {/* Stats column */}
@@ -446,6 +485,22 @@ export default function PortfolioPage() {
                           >
                             ×{item.qty}
                           </span>
+                        )}
+
+                        {!manageMode && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingItem(item);
+                            }}
+                            className="absolute top-1 left-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md bg-bg/80 backdrop-blur border border-border text-text-secondary opacity-70 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-text-primary hover:bg-bg-elevated transition-opacity"
+                            aria-label={`Edit ${item.card_name}`}
+                            title="Edit row details"
+                          >
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </button>
                         )}
 
                         <div className="relative aspect-[245/342] w-full overflow-hidden rounded-md bg-bg">
