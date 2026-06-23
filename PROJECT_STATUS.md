@@ -97,7 +97,7 @@ core platform stabilizes.
 - **PortfolioSnapshot** model (daily valuation history per user)
 - **Per-variant collection** — same card can be owned in multiple variants (e.g. normal + holofoil)
 - **"+ I have this" modal** — variant (only when 2+ printings exist), condition, graded slab w/ service+grade, qty, acquired date, purchase price, source (pull/trade/purchase/gift/other), notes
-- **Per-row Edit modal** — ⋯ overlay on each vault card opens the same form bound to the existing row, with Delete + inline ROI (market vs paid) band
+- **Per-row expand panel** — ▼ Details pill on each vault card inline-shows acquired date / paid (with ±% ROI vs market) / source / notes; ✎ Edit button inside opens the per-row edit modal (variant, condition, grade, qty, all fields editable + Delete)
 - Heart toggle for wishlist on every thumbnail
 - Wishlist target price modal (priority, target $, notes, live "at target" hint)
 - Portfolio page: stats grid, asset mix donut, growth chart (SVG area), Top 10 by value, full vault grouped by set
@@ -557,7 +557,7 @@ Rough chronological summary of major work landed in this push:
 10. **Affiliate + ads pipeline** — TCGplayer Impact params hardcoded, eBay Partner Network approved (campid pending), AdSense verified + under review
 11. **AdSense compliance pass** — privacy policy updated to disclose AdSense, ads.txt added, `/contact` page created
 12. **Anti-bot Phase 1** — honeypot + per-IP rate limit + disposable email blocklist on `/auth/signup`
-13. **Portfolio polish pass** — variant chips for non-default prints, Manage mode w/ checkbox bulk-delete + type-DELETE confirm, full-options "+ I have this" modal (variant/condition/grade/qty/purchase price/source/notes) replacing the 1-click toggle, per-row ⋯ Edit modal closing the read/edit loop with inline ROI band; `collection_items` gains `purchase_price_usd` + `acquisition_type` columns for ROI tracking
+13. **Portfolio polish pass** — variant chips for non-default prints, Manage mode w/ checkbox bulk-delete + type-DELETE confirm, full-options "+ I have this" modal (variant/condition/grade/qty/purchase price/source/notes) replacing the 1-click toggle, per-row ▼ Details expand panel surfacing the metadata inline with ±% ROI band + ✎ Edit modal for write access; `collection_items` gains `purchase_price_usd` + `acquisition_type` columns for ROI tracking
 
 ---
 
