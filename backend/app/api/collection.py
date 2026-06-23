@@ -8,7 +8,8 @@ import io
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import case, func, select
+from pydantic import BaseModel, Field
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -224,6 +225,33 @@ async def remove_item(
     if not item or item.user_id != user.id:
         raise HTTPException(status_code=404, detail="Item not found")
     await db.delete(item)
+    await db.commit()
+
+
+class _BulkDeleteIn(BaseModel):
+    ids: list[int] = Field(..., min_length=1, max_length=500)
+
+
+@router.post("/items/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_items_bulk(
+    payload: _BulkDeleteIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete N collection items in one round-trip.
+
+    The Portfolio "Manage" mode hands us the selected ids; without this
+    endpoint a 50-card cleanup is 50 sequential DELETEs over the network.
+    Scopes the WHERE to the caller's user_id so a stray id from another
+    user can't leak through, and silently skips ids that don't match
+    (no 404 — the frontend already optimistically clears the rows).
+    """
+    await db.execute(
+        delete(CollectionItem).where(
+            CollectionItem.id.in_(payload.ids),
+            CollectionItem.user_id == user.id,
+        )
+    )
     await db.commit()
 
 

@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Download, Loader2, Share2 } from "lucide-react";
+import { CheckSquare, Download, Loader2, Share2, Square, Trash2, X } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
@@ -20,6 +20,7 @@ import {
   type SetWithCardCount,
 } from "@/lib/api";
 import {
+  bulkDeleteCollectionItems,
   CollectionItemDetail,
   CollectionSummary,
   collectionSummary,
@@ -36,6 +37,63 @@ export default function PortfolioPage() {
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // Manage mode: a tap on a vault card toggles its checkbox instead of
+  // navigating, and a sticky action bar surfaces bulk delete. Same-card-
+  // different-variant entries (the Professor Elm bug LO hit) can be cleaned
+  // up here without round-tripping through each card's detail page.
+  const [manageMode, setManageMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const exitManageMode = useCallback(() => {
+    setManageMode(false);
+    setSelected(new Set());
+    setConfirmOpen(false);
+    setConfirmText("");
+  }, []);
+
+  const toggleSelected = useCallback((itemId: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
+  }, []);
+
+  const selectAllVisible = useCallback(() => {
+    setSelected((prev) =>
+      prev.size === items.length ? new Set() : new Set(items.map((it) => it.id)),
+    );
+  }, [items]);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selected.size === 0) return;
+    // Multi-item deletes require typing "delete" — a single accidental
+    // tap shouldn't be able to wipe 50 cards from someone's collection.
+    if (selected.size >= 2 && confirmText.trim().toLowerCase() !== "delete") {
+      return;
+    }
+    const ids = Array.from(selected);
+    setDeleting(true);
+    try {
+      await bulkDeleteCollectionItems(ids);
+      // Optimistic: drop the rows + refresh summary in the background.
+      setItems((prev) => prev.filter((it) => !selected.has(it.id)));
+      void collectionSummary().then(setSummary).catch(() => {});
+      exitManageMode();
+    } catch (err) {
+      console.error(err);
+      alert(
+        `Couldn't delete: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }, [selected, confirmText, exitManageMode]);
 
   const handleExport = async () => {
     const tok = getToken();
@@ -165,8 +223,29 @@ export default function PortfolioPage() {
         <div className="shrink-0 flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={() => (manageMode ? exitManageMode() : setManageMode(true))}
+            disabled={items.length === 0}
+            className={
+              "inline-flex items-center gap-2 rounded-full border font-semibold px-4 py-2.5 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed " +
+              (manageMode
+                ? "border-accent-red/60 bg-accent-red/10 text-accent-red hover:bg-accent-red/15"
+                : "border-border bg-bg-surface text-text-primary hover:border-accent-yellow/40 hover:text-accent-yellow")
+            }
+            title={
+              items.length === 0
+                ? "Add cards before managing"
+                : manageMode
+                  ? "Exit manage mode"
+                  : "Select cards to delete"
+            }
+          >
+            {manageMode ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+            {manageMode ? "Cancel" : "Manage"}
+          </button>
+          <button
+            type="button"
             onClick={handleExport}
-            disabled={exporting || items.length === 0}
+            disabled={exporting || items.length === 0 || manageMode}
             className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-4 py-2.5 text-sm hover:border-accent-yellow/40 hover:text-accent-yellow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title={items.length === 0 ? "Add cards to enable export" : "Download your collection as CSV"}
           >
@@ -330,68 +409,220 @@ export default function PortfolioPage() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {setItems.map((item) => (
-                    <Link
-                      key={item.id}
-                      href={`/cards/${item.card_id}`}
-                      className="group relative flex flex-col rounded-card bg-bg-surface border border-border p-2 hover:border-accent-yellow/40 transition-colors"
-                    >
-                      {item.qty > 1 && (
-                        <span
-                          className="absolute top-1 right-1 z-10 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-accent-yellow text-gray-900 text-xs font-bold font-mono"
-                          title={`${item.qty} copies`}
-                        >
-                          ×{item.qty}
-                        </span>
-                      )}
+                  {setItems.map((item) => {
+                    const isSelected = selected.has(item.id);
+                    const cardCls =
+                      "group relative flex flex-col rounded-card border p-2 transition-colors text-left " +
+                      (manageMode
+                        ? isSelected
+                          ? "cursor-pointer bg-accent-red/5 border-accent-red/70 ring-2 ring-accent-red/30"
+                          : "cursor-pointer bg-bg-surface border-border hover:border-accent-red/40"
+                        : "bg-bg-surface border-border hover:border-accent-yellow/40");
 
-                      <div className="relative aspect-[245/342] w-full overflow-hidden rounded-md bg-bg">
-                        {item.image_small ? (
-                          <Image
-                            src={item.image_small}
-                            alt={item.card_name}
-                            fill
-                            sizes="(max-width: 768px) 33vw, 200px"
-                            className="object-contain group-hover:scale-[1.02] transition-transform"
-                            unoptimized
-                          />
-                        ) : null}
-                      </div>
-
-                      <div className="mt-2 px-1 flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-mono text-text-tertiary">
-                            #{item.card_number ?? "—"}
+                    const inner = (
+                      <>
+                        {manageMode && (
+                          <span
+                            className={
+                              "absolute top-1 left-1 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md backdrop-blur shadow-sm " +
+                              (isSelected
+                                ? "bg-accent-red text-white"
+                                : "bg-bg/90 text-text-secondary border border-border")
+                            }
+                            aria-hidden
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="h-4 w-4" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
                           </span>
-                          <PriceBadge price={item.market_price_usd} />
+                        )}
+
+                        {!manageMode && item.qty > 1 && (
+                          <span
+                            className="absolute top-1 right-1 z-10 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-accent-yellow text-gray-900 text-xs font-bold font-mono"
+                            title={`${item.qty} copies`}
+                          >
+                            ×{item.qty}
+                          </span>
+                        )}
+
+                        <div className="relative aspect-[245/342] w-full overflow-hidden rounded-md bg-bg">
+                          {item.image_small ? (
+                            <Image
+                              src={item.image_small}
+                              alt={item.card_name}
+                              fill
+                              sizes="(max-width: 768px) 33vw, 200px"
+                              className={
+                                "object-contain transition-transform " +
+                                (manageMode ? "" : "group-hover:scale-[1.02]")
+                              }
+                              unoptimized
+                            />
+                          ) : null}
                         </div>
-                        <div
-                          className="text-sm font-medium truncate"
-                          title={item.card_name}
-                        >
-                          {item.card_name}
+
+                        <div className="mt-2 px-1 flex flex-col gap-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-mono text-text-tertiary">
+                              #{item.card_number ?? "—"}
+                            </span>
+                            <PriceBadge price={item.market_price_usd} />
+                          </div>
+                          <div
+                            className="text-sm font-medium truncate"
+                            title={item.card_name}
+                          >
+                            {item.card_name}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-text-tertiary font-mono">
+                            <span>{item.condition}</span>
+                            {item.is_graded && item.grade && (
+                              <>
+                                <span>·</span>
+                                <span className="text-accent-yellow">
+                                  {item.grade}
+                                </span>
+                              </>
+                            )}
+                            <VariantChip variant={item.variant} />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-text-tertiary font-mono">
-                          <span>{item.condition}</span>
-                          {item.is_graded && item.grade && (
-                            <>
-                              <span>·</span>
-                              <span className="text-accent-yellow">
-                                {item.grade}
-                              </span>
-                            </>
-                          )}
-                          <VariantChip variant={item.variant} />
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
+                      </>
+                    );
+
+                    return manageMode ? (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleSelected(item.id)}
+                        aria-pressed={isSelected}
+                        className={cardCls}
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <Link
+                        key={item.id}
+                        href={`/cards/${item.card_id}`}
+                        className={cardCls}
+                      >
+                        {inner}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             );
           })
         )}
       </section>
+
+      {manageMode && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-bg-surface/95 backdrop-blur-md shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)]"
+          role="region"
+          aria-label="Manage mode actions"
+        >
+          <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-mono text-text-secondary">
+              <span className="text-text-primary font-bold">
+                {selected.size}
+              </span>{" "}
+              of {items.length} selected
+            </span>
+            <button
+              type="button"
+              onClick={selectAllVisible}
+              className="rounded-full border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
+            >
+              {selected.size === items.length ? "Clear all" : "Select all"}
+            </button>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={exitManageMode}
+              className="rounded-full border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmText("");
+                setConfirmOpen(true);
+              }}
+              disabled={selected.size === 0}
+              className="inline-flex items-center gap-1.5 rounded-full bg-accent-red text-white font-bold px-4 py-1.5 text-xs hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete {selected.size > 0 ? `(${selected.size})` : ""}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="w-full max-w-md rounded-card border border-border bg-bg-surface p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-text-primary mb-1">
+              {selected.size === 1
+                ? "Remove this card?"
+                : `Remove ${selected.size} cards?`}
+            </h3>
+            <p className="text-sm text-text-secondary mb-4">
+              {selected.size === 1
+                ? "It'll come right back if you add it again later."
+                : "This can't be undone. Type DELETE below to confirm."}
+            </p>
+
+            {selected.size >= 2 && (
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Type DELETE"
+                autoFocus
+                className="w-full rounded-btn border border-border bg-bg px-3 py-2 text-sm font-mono uppercase tracking-wider text-text-primary focus:border-accent-red focus:outline-none mb-4"
+                aria-label="Type DELETE to confirm"
+              />
+            )}
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setConfirmText("");
+                }}
+                disabled={deleting}
+                className="rounded-btn border border-border bg-bg px-4 py-2 text-sm font-semibold text-text-secondary hover:text-text-primary disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={
+                  deleting ||
+                  (selected.size >= 2 &&
+                    confirmText.trim().toLowerCase() !== "delete")
+                }
+                className="inline-flex items-center gap-2 rounded-btn bg-accent-red text-white font-bold px-4 py-2 text-sm hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
