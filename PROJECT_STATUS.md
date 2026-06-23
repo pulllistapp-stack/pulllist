@@ -188,7 +188,7 @@ core platform stabilizes.
 
 ### 3.14 Affiliate / monetization
 - **TCGplayer affiliate** via Impact — approved, 3.5% commission. Direct-link params hardcoded as default in `affiliate.ts` (`irpid=7410135`). Every outbound TCGplayer link wrapped automatically.
-- **eBay Partner Network** — approved. Campaign ID still to be wired into env (`NEXT_PUBLIC_EBAY_CAMPAIGN_ID`).
+- **eBay Partner Network** — live. Campaign `5339157076` (default) Active in EPN; `NEXT_PUBLIC_EBAY_CAMPAIGN_ID` wired in Vercel; every outbound eBay link wrapped with campid + toolid + mkrid. Contract: 1–4% per item, 24h referral window.
 - **Google AdSense** — site verified (`ca-pub-9440218369165896`), under review. Compliance pass landed (privacy policy disclosure, ads.txt, /contact page).
 - "Buy on TCGplayer" buttons throughout card detail (auto-tracked)
 - Affiliate disclosure in Footer + Privacy
@@ -229,7 +229,7 @@ PullList Pro  $5.99/mo  or  $59/year  (NOT LIVE YET)
 ```
 
 Affiliate income: **TCGplayer 3.5%** (live) + **eBay Partner Network**
-(pending campid wiring).
+(live, 1–4% per item, 24h cookie).
 
 Ad income: **Google AdSense** + **Mediavine / Ezoic** later (when traffic
 crosses 10k MAU).
@@ -241,8 +241,6 @@ crosses 10k MAU).
 ### Now (immediate)
 - [ ] Grant LO admin (1 SQL UPDATE in Neon)
 - [ ] Wait for AdSense review (1-14 days; auto-resolves)
-- [ ] Wire `NEXT_PUBLIC_EBAY_CAMPAIGN_ID` into Vercel env once LO shares the
-      campid number from the eBay Partner Network dashboard
 - [ ] LO: rotate the PixelLab API key (was exposed in chat)
 - [ ] First 5-10 news posts to bulk up text content for AdSense review
 
@@ -345,7 +343,7 @@ crosses 10k MAU).
 **Frontend (Vercel)**:
 - `NEXT_PUBLIC_API_BASE` — backend URL
 - `NEXT_PUBLIC_TCGPLAYER_AFFILIATE_PARAMS` (optional — defaulted in code to LO's Impact params)
-- `NEXT_PUBLIC_EBAY_CAMPAIGN_ID` — wire once LO shares campid
+- `NEXT_PUBLIC_EBAY_CAMPAIGN_ID` — EPN campaign id (currently `5339157076`, default campaign Active)
 
 **Local dev (`.env`, gitignored)**:
 - All of above; also `LOG_LEVEL=DEBUG`
@@ -577,7 +575,7 @@ Rough chronological summary of major work landed in this push:
 | eBay Developer | Browse API for live listings + price snapshots |
 | Anthropic Console | Claude Haiku 4.5 (vision scanning) |
 | impact.com | TCGplayer affiliate (approved, 3.5%) |
-| eBay Partner Network | eBay affiliate (approved, campid pending) |
+| eBay Partner Network | eBay affiliate (live, 1–4%, campaign 5339157076) |
 | Google AdSense | Site verified (pub-9440218369165896), under review |
 | PixelLab | Pixel-art mascots (MCP integrated) |
 

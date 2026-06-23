@@ -199,6 +199,34 @@ function getSegments(points: PricePoint[], gapDays: number): PricePoint[][] {
   return segments;
 }
 
+/**
+ * Vertical year-boundary markers — drawn at each Jan 1 falling inside
+ * the visible window. The x-axis tick labels encode the year as a
+ * 2-digit suffix ("DEC 25" → "JAN 26") which is easy to miss; an
+ * explicit line + year label makes the crossover unmistakable on the
+ * 90D and 1Y views. Returns empty for 7D / 30D unless the window
+ * happens to straddle Jan 1.
+ */
+function getYearBoundaries(range: RangeKey): { dateStr: string; year: number }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(today.getDate() - (RANGE_META[range].days - 1));
+
+  const out: { dateStr: string; year: number }[] = [];
+  // Iterate Jan 1 of (startYear+1) forward — Jan 1 of startYear can't
+  // fall inside the window unless start IS Jan 1, which we'd skip
+  // anyway (no transition to mark at the very left edge).
+  for (let year = start.getFullYear() + 1; year <= today.getFullYear(); year++) {
+    const boundary = new Date(year, 0, 1);
+    boundary.setHours(0, 0, 0, 0);
+    if (boundary >= start && boundary <= today) {
+      out.push({ dateStr: fmtDateKey(boundary), year });
+    }
+  }
+  return out;
+}
+
 function getTicks(range: RangeKey): string[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -290,6 +318,7 @@ export function CardPriceChart({ cardId, isOnFire = false }: Props) {
 
   const segments = useMemo(() => getSegments(data, RANGE_META[range].gapDays), [data, range]);
   const ticks = useMemo(() => getTicks(range), [range]);
+  const yearBoundaries = useMemo(() => getYearBoundaries(range), [range]);
 
   const { xScale, yScale, minVal, maxVal } = useMemo(() => {
     if (data.length === 0) {
@@ -518,6 +547,37 @@ export function CardPriceChart({ cardId, isOnFire = false }: Props) {
             className="stroke-border"
             strokeWidth={1}
           />
+
+          {/* Year boundary markers — vertical dashed line + year label
+              above the plot. Only renders when the visible window
+              actually crosses Jan 1 (always on 1Y, sometimes 90D, rarely
+              30D). Drawn before X ticks so tick labels can sit on top
+              of the marker line. */}
+          {yearBoundaries.map((b) => {
+            const x = xScale(b.dateStr);
+            return (
+              <g key={`yb-${b.year}`}>
+                <line
+                  x1={x}
+                  y1={M.top}
+                  x2={x}
+                  y2={M.top + PLOT_H}
+                  className="stroke-text-tertiary"
+                  strokeOpacity={0.35}
+                  strokeWidth={1}
+                  strokeDasharray="3 4"
+                />
+                <text
+                  x={x}
+                  y={M.top - 4}
+                  textAnchor="middle"
+                  className="fill-text-tertiary text-[9px] font-mono font-semibold uppercase tracking-wider"
+                >
+                  {b.year}
+                </text>
+              </g>
+            );
+          })}
 
           {/* X ticks */}
           {ticks.map((t, i) => {

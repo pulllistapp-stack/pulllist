@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { useAuth } from "./AuthProvider";
 import { SearchBar } from "./SearchBar";
@@ -94,7 +94,14 @@ export function TopNav() {
         </nav>
 
         <div className="flex-1 flex justify-center min-w-0">
-          <SearchBar compact />
+          {/* SearchBar uses useSearchParams() to echo /search?q= in the
+              input; without a Suspense boundary that opts every page out
+              of static prerender, breaking the production build. The
+              fallback keeps the layout slot the same width so the header
+              doesn't reflow before hydration. */}
+          <Suspense fallback={<div className="w-full max-w-md h-9" />}>
+            <SearchBar compact />
+          </Suspense>
         </div>
 
         {/* Theme toggle — always visible (desktop + mobile) */}

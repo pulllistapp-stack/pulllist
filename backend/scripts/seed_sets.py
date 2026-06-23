@@ -45,6 +45,16 @@ from app.models import Card, Set
 
 POKEMONTCG_BASE = "https://api.pokemontcg.io/v2"
 
+# Sets that keep gaining cards after their first import. The default seed
+# flow skips any set that already has at least one card on the assumption
+# that closed sets never change — true for booster sets, false for the
+# ongoing promo sets (new SVP / SWSHP promos drop monthly). Listing a set
+# here makes seed_sets.py always re-pull it, picking up newly-printed
+# cards (e.g. First Partner Illustration Collection promos under svp).
+ALWAYS_REFRESH_SETS: frozenset[str] = frozenset({
+    "svp",  # Scarlet & Violet Black Star Promos — still actively printing
+})
+
 
 def _headers() -> dict[str, str]:
     h = {"Accept": "application/json"}
@@ -183,7 +193,7 @@ async def seed(
         for idx, raw_set in enumerate(sets, start=1):
             set_id = raw_set["id"]
 
-            if not refresh:
+            if not refresh and set_id not in ALWAYS_REFRESH_SETS:
                 async with SessionLocal() as db:
                     existing = await db.execute(
                         select(Card.id).where(Card.set_id == set_id).limit(1)
