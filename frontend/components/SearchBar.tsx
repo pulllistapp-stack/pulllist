@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import type { Suggestion } from "@/lib/api";
@@ -10,6 +10,8 @@ import { suggestCards } from "@/lib/api";
 
 export function SearchBar({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
@@ -17,6 +19,20 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
   const [items, setItems] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+
+  // Sync the input across route changes. On /search we echo the URL's
+  // ?q= so the user sees their query reflected; anywhere else we clear
+  // — leaving a stale term in the global TopNav search box across pages
+  // makes the UI feel sticky / broken. setOpen(false) keeps the dropdown
+  // from popping up after a navigation as a side-effect.
+  useEffect(() => {
+    if (pathname === "/search") {
+      setQ(searchParams?.get("q") ?? "");
+    } else {
+      setQ("");
+    }
+    setOpen(false);
+  }, [pathname, searchParams]);
 
   useEffect(() => {
     if (q.trim().length < 2) {
