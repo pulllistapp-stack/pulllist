@@ -8,9 +8,18 @@ import { Eye, EyeOff, Lock, Mail, Sparkles, TrendingUp } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { GuestOnly } from "@/components/GuestOnly";
 import { getTrending, type TrendingMover } from "@/lib/api";
 
 export default function LoginPage() {
+  return (
+    <GuestOnly>
+      <LoginPageInner />
+    </GuestOnly>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
