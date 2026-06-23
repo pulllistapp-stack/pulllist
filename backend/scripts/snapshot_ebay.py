@@ -174,6 +174,7 @@ async def run_snapshot(
         skipped_existing = 0
         empty_listings = 0
         errors = 0
+        consecutive_429s = 0
         rows_batch: list[dict] = []
         batch_size = 100
         throttle_sec = throttle_ms / 1000.0
@@ -192,9 +193,25 @@ async def run_snapshot(
                 try:
                     row = await collect_from_ebay(ebay, card, card.set, snapshot_date)
                     calls_made += 1
+                    consecutive_429s = 0
                 except EbayClientError as e:
                     errors += 1
                     log.warning(f"{card.id} {card.name!r}: {e}")
+                    # Bail out as soon as we see we've burned through the daily
+                    # quota — better than grinding through every candidate just
+                    # to log 18 identical "too many requests" warnings. Looking
+                    # for "429" in the stringified error stays decoupled from
+                    # eBay's response shape (status code + structured errorId
+                    # are both reflected in EbayClientError.args[0]).
+                    if "429" in str(e):
+                        consecutive_429s += 1
+                        if consecutive_429s >= 3:
+                            log.error(
+                                "3 consecutive 429s — eBay quota exhausted, "
+                                "aborting. Retry after the next PT-midnight "
+                                "reset (~16:00 KST)."
+                            )
+                            break
                     continue
                 except Exception as e:
                     errors += 1
