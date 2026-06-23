@@ -1,19 +1,30 @@
-"""Backfill Card.tcgplayer_product_id by resolving each card against
-TCGplayer's search page and grabbing the first product hit.
+"""Backfill Card.tcgplayer_product_id via TCGCSV.
 
-We need this for manually-seeded sets (First Partner Illustration
-Collection, future promo bundles) that don't flow through pokemontcg.io
-— without the product id, our affiliate wrapper falls through to a
-search URL instead of the exact product page, costing one click of UX
-friction (the Impact cookie still drops on the search landing, so the
-commission isn't lost, but the conversion rate is lower).
+TCGplayer's public search page is a Single-Page App — the initial
+HTML is a static CloudFront shell with no product list, so plain
+httpx scraping returns zero matches (the JS-rendered grid hits a
+private internal API client-side). TCGCSV (our daily price source,
+tcgcsv.com) republishes TCGplayer's full product catalog as JSON
+including the canonical productIds, so we resolve through it instead.
+
+For each candidate card without a tcgplayer_product_id:
+  1. Map the card's set to one or more TCGCSV group ids (hand-curated)
+  2. Fetch products in those groups (cached per-group)
+  3. Match by (normalised name, normalised number) → productId
+  4. UPDATE Card.tcgplayer_product_id
+
+Series 2 First Partner cards aren't indexed yet (TCGCSV lags TCGplayer's
+catalogue by ~1-2 weeks for new sets); re-run later to pick them up.
 
 Usage:
     # Default — fill missing ids for the manual fpic-* sets:
     python -m scripts.backfill_tcgplayer_product_id
 
     # Specific set:
-    python -m scripts.backfill_tcgplayer_product_id --set-ids fpic-s2
+    python -m scripts.backfill_tcgplayer_product_id --set-ids fpic-s1
+
+    # Add extra TCGCSV groups to scan (comma-separated group ids):
+    python -m scripts.backfill_tcgplayer_product_id --extra-groups 24722
 
     # Refresh (overwrite existing ids — rare, for stale rows):
     python -m scripts.backfill_tcgplayer_product_id --refresh
@@ -28,8 +39,9 @@ import asyncio
 import logging
 import re
 import sys
-import urllib.parse
+import unicodedata
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -41,72 +53,85 @@ from app.models import Card
 
 log = logging.getLogger("backfill_tcgplayer_product_id")
 
-TCGPLAYER_SEARCH = (
-    "https://www.tcgplayer.com/search/pokemon/product"
-    "?q={q}&productLineName=pokemon&view=grid"
-)
+TCGCSV_BASE = "https://tcgcsv.com/tcgplayer"
+POKEMON_CATEGORY = "3"
 
-# TCGplayer search result links look like
-# <a href="/product/673436/pokemon-first-partner-collection-2026...">.
-# Grab the numeric id from the first match; the search result page is
-# server-rendered enough that the first product appears in the raw
-# HTML, so a plain httpx GET is sufficient (no browser needed).
-_PRODUCT_HREF_RE = re.compile(r'/product/(\d+)/[A-Za-z0-9-]+')
-
-# Realistic-ish UA. TCGplayer's anti-bot is mild on the public search
-# page (no Cloudflare gate, no captcha for moderate volume); a vanilla
-# browser UA + an Accept header avoids the most basic 403s.
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/131.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
+# Hand-curated mapping from our internal set_id to the TCGCSV groupId
+# that holds the singles for that set. TCGCSV groups TCGplayer's data
+# by "set" as TCGplayer defines it, which doesn't always align with the
+# product line LO/I assigned the cards under in our catalogue — e.g.
+# the First Partner Illustration *Collection* (sealed boxes) lives in
+# group 24584, but the individual promo cards (037–054) live in group
+# 24451 "ME: Mega Evolution Promo" because that's where TCGplayer
+# catalogues the singles.
+#
+# To add a new set: open https://tcgcsv.com/tcgplayer/3/groups and
+# find the group whose listed products match the cards you're trying
+# to resolve.
+SET_TO_TCGCSV_GROUPS: dict[str, tuple[int, ...]] = {
+    "fpic-s1": (24451,),  # ME: Mega Evolution Promo (037–045)
+    "fpic-s2": (24451,),  # Series 2 promos will land here once TCGCSV indexes them
+    "fpic-s3": (24451,),  # Series 3 (Aug 2026 release) ditto
 }
 
-# Throttle between requests so we don't rate-limit ourselves out.
-# TCGplayer doesn't publish a documented rate cap; 800 ms is comfortable.
-_THROTTLE_S = 0.8
+_HEADERS = {
+    "User-Agent": "PullList/1.0 (https://pulllist.org)",
+    "Accept": "application/json",
+}
 
-# Default — every manually-seeded set that won't flow through
-# pokemontcg.io's daily sync.
-_DEFAULT_SETS = ("fpic-s1", "fpic-s2")
-
-
-def build_query(name: str, number: str | None) -> str:
-    parts = [name.strip()]
-    if number:
-        # Strip the "/<total>" suffix if present — TCGplayer keys promos
-        # on the bare card number ("047" not "047/9").
-        parts.append(number.strip().split("/")[0])
-    return " ".join(p for p in parts if p)
+# TCGCSV is a static-ish JSON API behind CloudFront — friendly, no
+# documented rate cap. A small delay between group fetches stays
+# polite without dragging the run out.
+_THROTTLE_S = 0.3
 
 
-async def fetch_first_product_id(
-    client: httpx.AsyncClient, query: str
-) -> int | None:
-    url = TCGPLAYER_SEARCH.format(q=urllib.parse.quote_plus(query))
-    try:
-        r = await client.get(url, headers=_HEADERS, timeout=20.0)
-    except httpx.HTTPError as exc:
-        log.warning(f"  ! fetch failed for {query!r}: {exc}")
+def _normalise_name(name: str) -> str:
+    """Lowercase + strip diacritics so 'Pokémon' matches 'pokemon' etc.
+    Also drops any trailing ' ex' / ' V' / etc. — we only match Basics
+    here so plain-name parity is enough."""
+    folded = (
+        unicodedata.normalize("NFKD", name.lower())
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    return re.sub(r"\s+", " ", folded).strip()
+
+
+def _normalise_number(number: str | None) -> str | None:
+    """TCGCSV stores card numbers as printed (e.g. '037'). Strip
+    leading zeros for a tolerant compare path that also catches '37'
+    style inputs. We try strict match first, fall back to this."""
+    if not number:
         return None
-    if r.status_code != 200:
-        log.warning(f"  ! HTTP {r.status_code} for {query!r}")
-        return None
-    match = _PRODUCT_HREF_RE.search(r.text)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except ValueError:
-        return None
+    n = number.split("/")[0].strip()
+    return n.lstrip("0") or "0"
+
+
+async def fetch_products(
+    client: httpx.AsyncClient, group_id: int
+) -> list[dict[str, Any]]:
+    url = f"{TCGCSV_BASE}/{POKEMON_CATEGORY}/{group_id}/products"
+    r = await client.get(url, headers=_HEADERS, timeout=30.0)
+    r.raise_for_status()
+    payload = r.json()
+    return payload.get("results", [])
+
+
+def _extract_number(product: dict[str, Any]) -> str | None:
+    """TCGCSV exposes the printed card number via extendedData entries
+    of name=='Number'. Older / partial rows just have it absent. The
+    extendedData list isn't keyed, so we walk it."""
+    for ext in product.get("extendedData") or []:
+        if (ext.get("name") or "").lower() == "number":
+            value = ext.get("value")
+            if isinstance(value, str):
+                return value.strip()
+    return None
 
 
 async def backfill(
     set_ids: tuple[str, ...],
+    extra_groups: tuple[int, ...],
     refresh: bool,
     dry_run: bool,
 ) -> None:
@@ -127,22 +152,78 @@ async def backfill(
         log.info("Nothing to do.")
         return
 
-    resolved: list[tuple[str, int]] = []
-    misses: list[str] = []
+    # Aggregate every group we'll need across all selected cards, plus
+    # any explicit --extra-groups. Fetching each group once.
+    needed_groups: set[int] = set(extra_groups)
+    for c in cards:
+        needed_groups.update(SET_TO_TCGCSV_GROUPS.get(c.set_id, ()))
+    if not needed_groups:
+        log.error(
+            "No TCGCSV groups mapped for sets %s. Add an entry to "
+            "SET_TO_TCGCSV_GROUPS or pass --extra-groups.",
+            list(set_ids),
+        )
+        return
+    log.info(f"Will fetch TCGCSV groups: {sorted(needed_groups)}")
+
+    # (normalised_name, normalised_number) → productId
+    # Strict (with-leading-zeros) and tolerant (zero-stripped) entries
+    # are both written so a card stored as '37' or '037' resolves the
+    # same way.
+    lookup: dict[tuple[str, str], int] = {}
     async with httpx.AsyncClient() as client:
-        for i, card in enumerate(cards, 1):
-            query = build_query(card.name, card.number)
-            pid = await fetch_first_product_id(client, query)
-            if pid is None:
-                misses.append(card.id)
-                log.info(f"[{i}/{len(cards)}] {card.id} {card.name!r:30s} — no product match")
-            else:
-                resolved.append((card.id, pid))
-                log.info(f"[{i}/{len(cards)}] {card.id} {card.name!r:30s} → product {pid}")
+        for gid in sorted(needed_groups):
+            try:
+                products = await fetch_products(client, gid)
+            except httpx.HTTPError as exc:
+                log.warning(f"  ! group {gid} fetch failed: {exc}")
+                continue
+            added = 0
+            for p in products:
+                pid = p.get("productId")
+                name = p.get("name")
+                num = _extract_number(p)
+                if not (isinstance(pid, int) and isinstance(name, str) and num):
+                    continue
+                key_name = _normalise_name(name)
+                lookup[(key_name, num)] = pid
+                stripped = _normalise_number(num)
+                if stripped and stripped != num:
+                    lookup[(key_name, stripped)] = pid
+                added += 1
+            log.info(f"  group {gid}: {added} products indexed")
             await asyncio.sleep(_THROTTLE_S)
 
+    resolved: list[tuple[str, int]] = []
+    misses: list[str] = []
+    for card in cards:
+        name_key = _normalise_name(card.name)
+        num_key = _normalise_number(card.number)
+        if not num_key:
+            misses.append(card.id)
+            log.info(f"{card.id} {card.name!r}: no card number to match")
+            continue
+        pid = lookup.get((name_key, num_key))
+        if pid is None and card.number:
+            # Fallback to printed-form match in case the stripping
+            # disagrees with TCGCSV's storage form.
+            pid = lookup.get((name_key, card.number.strip()))
+        if pid is None:
+            misses.append(card.id)
+            log.info(
+                f"{card.id:20s} {card.name!r:24s} #{card.number}: no TCGCSV match"
+            )
+        else:
+            resolved.append((card.id, pid))
+            log.info(
+                f"{card.id:20s} {card.name!r:24s} #{card.number} → productId {pid}"
+            )
+
     if dry_run:
-        log.info(f"Dry run: would update {len(resolved)} row(s), {len(misses)} miss(es).")
+        log.info(
+            f"Dry run: would update {len(resolved)} row(s), "
+            f"{len(misses)} miss(es)."
+        )
         return
 
     if not resolved:
@@ -157,15 +238,23 @@ async def backfill(
                 .values(tcgplayer_product_id=pid)
             )
         await db.commit()
-    log.info(f"Wrote {len(resolved)} tcgplayer_product_id(s). Misses: {len(misses)}")
+    log.info(
+        f"Wrote {len(resolved)} tcgplayer_product_id(s). "
+        f"Misses: {len(misses)} (rerun later for sets still indexing on TCGCSV)"
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--set-ids",
-        default=",".join(_DEFAULT_SETS),
+        default="fpic-s1,fpic-s2",
         help="Comma-separated set ids to backfill (default: fpic-s1,fpic-s2)",
+    )
+    parser.add_argument(
+        "--extra-groups",
+        default="",
+        help="Comma-separated extra TCGCSV groupIds to scan (rarely needed)",
     )
     parser.add_argument(
         "--refresh",
@@ -186,7 +275,17 @@ def main() -> None:
     )
 
     set_ids = tuple(s.strip() for s in args.set_ids.split(",") if s.strip())
-    asyncio.run(backfill(set_ids=set_ids, refresh=args.refresh, dry_run=args.dry_run))
+    extra_groups = tuple(
+        int(g.strip()) for g in args.extra_groups.split(",") if g.strip()
+    )
+    asyncio.run(
+        backfill(
+            set_ids=set_ids,
+            extra_groups=extra_groups,
+            refresh=args.refresh,
+            dry_run=args.dry_run,
+        )
+    )
 
 
 if __name__ == "__main__":
