@@ -187,6 +187,17 @@ export async function listMyItems(
   return authFetch<CollectionItemDetail[]>(`/collection/items${qs}`);
 }
 
+export async function bulkDeleteCollectionItems(
+  ids: number[],
+): Promise<void> {
+  if (ids.length === 0) return;
+  await authFetch<void>(`/collection/items/bulk-delete`, {
+    method: "POST",
+    body: JSON.stringify({ ids }),
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 // ────────── Wishlist ──────────
 
 export type WishlistSummary = {
