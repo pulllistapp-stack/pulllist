@@ -48,8 +48,15 @@ def _image(mep_num: int) -> str:
 
 SETS = [
     {
+        # Display name dropped "Collection —" because the verbatim set name
+        # is fed into the eBay Browse query (see services/ebay_client.py
+        # `build_card_query`); an em-dash + the word "Collection" added two
+        # tokens that eBay seller titles rarely match, killing recall. The
+        # canonical product name is still "First Partner Illustration
+        # Collection—Series 1" — we just shorten in our catalog so the
+        # eBay match path doesn't take a hit.
         "id": "fpic-s1",
-        "name": "First Partner Illustration Collection — Series 1",
+        "name": "First Partner Illustration Series 1",
         "series": "Scarlet & Violet",
         "printed_total": 9,
         "total": 9,
@@ -57,7 +64,7 @@ SETS = [
     },
     {
         "id": "fpic-s2",
-        "name": "First Partner Illustration Collection — Series 2",
+        "name": "First Partner Illustration Series 2",
         "series": "Scarlet & Violet",
         "printed_total": 9,
         "total": 9,

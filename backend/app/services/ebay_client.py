@@ -233,7 +233,16 @@ def build_card_query(
     parts: list[str] = ["pokemon", card_name.strip()]
     if card_number:
         num = card_number.strip()
-        if printed_total and "/" not in num:
+        # Booster-set numbering — append /printed_total so "4" → "4/102"
+        # matches the slash format eBay sellers use on regular set cards.
+        # Promo cards print with leading zeros ("037 / 048") and sellers
+        # write them bare in titles ("MEP EN 037") never with a slash,
+        # so forcing "037/9" guarantees zero matches for promo sets.
+        if (
+            printed_total
+            and "/" not in num
+            and not num.startswith("0")
+        ):
             num = f"{num}/{printed_total}"
         parts.append(num)
     if set_name:
