@@ -32,12 +32,16 @@ const SOURCES = [
 
 // Price tier floors — filters out penny-stock noise. Default $5 hides
 // bulk-card chatter while keeping real chase-card movement visible.
+// Price bands, not floors. Each chip carves a slice so a $480 chase
+// doesn't dominate the same list as a $7 holo — they live in different
+// segments of the market and their %change isn't comparable. Top tier
+// ($1000+) stays open-ended for vintage holy grails.
 const PRICE_TIERS = [
-  { label: "$5+", value: 5 },
-  { label: "$10+", value: 10 },
-  { label: "$50+", value: 50 },
-  { label: "$100+", value: 100 },
-  { label: "$1000+", value: 1000 },
+  { label: "$5+", value: 5, max: 30 },
+  { label: "$10+", value: 10, max: 50 },
+  { label: "$50+", value: 50, max: 150 },
+  { label: "$100+", value: 100, max: 500 },
+  { label: "$1000+", value: 1000, max: null as number | null },
 ] as const;
 
 // Rarity tier — separates pack-pull market from chase-card market. Bulk
@@ -86,12 +90,14 @@ export default function TrendingPage() {
     let cancelled = false;
     setLoading(true);
     setErr(null);
+    const band = PRICE_TIERS.find((t) => t.value === minPrice);
     getTrending({
       periodDays,
       source,
       direction,
       limit: 25,
       minPriceUsd: minPrice,
+      maxPriceUsd: band?.max ?? undefined,
       tier,
     })
       .then((r) => {
@@ -250,7 +256,12 @@ export default function TrendingPage() {
             </span>{" "}
             shown · {eligible.toLocaleString()} eligible · {periodDays}d window ·{" "}
             {source === "ebay" ? "eBay" : "TCGplayer"} ·{" "}
-            <span className="text-accent-green font-semibold">${minPrice}+</span>
+            <span className="text-accent-green font-semibold">
+              {(() => {
+                const band = PRICE_TIERS.find((t) => t.value === minPrice);
+                return band?.max ? `$${minPrice}-${band.max}` : `$${minPrice}+`;
+              })()}
+            </span>
             {tier !== "all" && (
               <>
                 {" "}·{" "}
