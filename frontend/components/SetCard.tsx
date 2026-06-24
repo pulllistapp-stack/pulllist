@@ -19,17 +19,32 @@ function formatReleaseDate(d: string | null): string | null {
   return `${months[monthNum - 1] ?? ""} ${year}`;
 }
 
-function fmtValue(v: number | null): string | null {
+/** Compact USD label: $0.10 / $4 / $25 / $480 / $1.2k / $12k. Bulk
+ *  cards use 2 decimals so a $0.05 floor doesn't collapse to $0. */
+function fmtPrice(v: number | null | undefined): string | null {
   if (v == null || v <= 0) return null;
   if (v >= 10000) return `$${(v / 1000).toFixed(1)}k`;
   if (v >= 1000) return `$${(v / 1000).toFixed(2)}k`;
-  return `$${v.toFixed(0)}`;
+  if (v >= 10) return `$${v.toFixed(0)}`;
+  if (v >= 1) return `$${v.toFixed(1)}`;
+  return `$${v.toFixed(2)}`;
+}
+
+/** "$0.05 – $480" style range. Falls back to a single value when min
+ *  and max collapse (set with only one priced card). */
+function fmtRange(min: number | null, max: number | null): string | null {
+  const lo = fmtPrice(min);
+  const hi = fmtPrice(max);
+  if (!lo && !hi) return null;
+  if (lo && hi && lo === hi) return lo;
+  if (lo && hi) return `${lo} – ${hi}`;
+  return lo ?? hi;
 }
 
 export function SetCard({ set }: Props) {
   const displayName = set.name;
   const releaseLabel = formatReleaseDate(set.release_date);
-  const valueLabel = fmtValue(set.total_value_usd);
+  const rangeLabel = fmtRange(set.min_card_price_usd, set.max_card_price_usd);
   const progress = set.owned_unique != null && set.card_count > 0
     ? (set.owned_unique / set.card_count) * 100
     : null;
@@ -117,12 +132,14 @@ export function SetCard({ set }: Props) {
         </div>
       )}
 
-      {valueLabel && (
+      {rangeLabel && (
         <div className="mt-3 flex items-center justify-between text-xs px-1">
           <span className="font-mono uppercase tracking-wider text-text-tertiary">
-            Set value
+            Price range
           </span>
-          <span className="font-mono font-bold text-accent-yellow">{valueLabel}</span>
+          <span className="font-mono font-bold text-accent-yellow">
+            {rangeLabel}
+          </span>
         </div>
       )}
     </Link>

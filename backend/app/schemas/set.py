@@ -30,6 +30,12 @@ class SetRead(SetBase):
 class SetWithCardCount(SetBase):
     card_count: int
     total_value_usd: float | None = None
-    """Sum of market_price_usd across all cards in the set (None if no prices)."""
+    """Sum of market_price_usd across all cards in the set (None if no prices).
+    Kept for backwards compatibility — UI now displays the min..max range instead."""
+    min_card_price_usd: float | None = None
+    """Cheapest card's market price in this set (None if no prices). Paired
+    with max_card_price_usd to render a "$X – $Y" range on the set card."""
+    max_card_price_usd: float | None = None
+    """Most expensive card's market price in this set (the chase)."""
     owned_unique: int | None = None
     """Distinct cards from this set in the requesting user's collection. None if anonymous."""
