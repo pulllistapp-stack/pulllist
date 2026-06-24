@@ -45,8 +45,19 @@ jobs:
           LATITUDE: "34.873413"
           LONGITUDE: "-82.327458"
           LOG_LEVEL: INFO
+        # Quota strategy: keep the daily cron well under the 5,000/day
+        # Browse API ceiling so live-listings + notification polling +
+        # ad-hoc backfills can share the budget.
+        #   --min-price 10  : $5-10 cards rely on TCGCSV daily sync alone;
+        #                     no eBay double-check (which adds little signal
+        #                     at that price). When a $7 card jumps past $10
+        #                     in TCGCSV, the next cron picks it up
+        #                     automatically (market_price_usd is refreshed
+        #                     daily by sync_tcgcsv_daily.py).
+        #   --max-calls 3500: leaves ~1,500 colls/day for browsing +
+        #                     wishlist alert polling (planned).
         run: |
           python -m scripts.snapshot_ebay \
-            --max-calls 4500 \
-            --min-price 5 \
+            --max-calls 3500 \
+            --min-price 10 \
             --throttle-ms 150
