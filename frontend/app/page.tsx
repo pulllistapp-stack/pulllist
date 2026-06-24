@@ -46,8 +46,8 @@ type SetSummary = {
   series?: string | null;
   card_count?: number | null;
   total_value_usd?: number | null;
-  min_card_price_usd?: number | null;
-  max_card_price_usd?: number | null;
+  total_value_low_usd?: number | null;
+  total_value_high_usd?: number | null;
   released_at?: string | null;
   logo_url?: string | null;
 };
@@ -359,8 +359,8 @@ function fmtCompactPrice(v: number | null | undefined): string | null {
 }
 
 function SetCard({ set }: { set: SetSummary }) {
-  const lo = fmtCompactPrice(set.min_card_price_usd);
-  const hi = fmtCompactPrice(set.max_card_price_usd);
+  const lo = fmtCompactPrice(set.total_value_low_usd);
+  const hi = fmtCompactPrice(set.total_value_high_usd);
   const rangeLabel =
     lo && hi ? (lo === hi ? lo : `${lo} – ${hi}`) : lo ?? hi;
 

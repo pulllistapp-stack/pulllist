@@ -12,8 +12,8 @@ export type SetWithCardCount = {
   logo_url: string | null;
   card_count: number;
   total_value_usd: number | null;
-  min_card_price_usd: number | null;
-  max_card_price_usd: number | null;
+  total_value_low_usd: number | null;
+  total_value_high_usd: number | null;
   owned_unique: number | null;
 };
 
