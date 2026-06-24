@@ -1,14 +1,20 @@
-name: Daily eBay price snapshot
+name: eBay price snapshot (Mon + Thu)
 
 on:
   schedule:
-    # 07:00 UTC every day = 03:00 EDT (Atlanta, summer) / 02:00 EST (winter).
-    # Scheduled overnight so fresh data is ready by morning. GitHub commonly
-    # delays scheduled runs 30-90min, so expect actual start between
-    # 07:30-08:30 UTC (03:30-04:30 EDT). GitHub Actions cron is always UTC
-    # and does not honor DST — pick a UTC time that lands overnight in both
-    # EDT and EST.
-    - cron: "0 7 * * *"
+    # PRE-LAUNCH SCHEDULE — Mon + Thu only (was daily).
+    # Reason: friends-beta is not yet officially open, and the daily
+    # cron was eating the bulk of our 5,000/day Browse API quota,
+    # starving manual experiments + future notification polling.
+    # Mon + Thu = 2 fresh snapshots/week, which still satisfies the
+    # 7d trending window's "need 2+ snapshots per card" requirement,
+    # AND leaves roughly 4 untouched days of quota for ad-hoc work.
+    # Bump back to daily once we go live (revert to "0 7 * * *").
+    #
+    # 07:00 UTC = 03:00 EDT / 02:00 EST. GitHub commonly delays
+    # scheduled runs 30-90 min, so expect actual start 07:30-08:30 UTC.
+    # GitHub Actions cron is always UTC and does not honor DST.
+    - cron: "0 7 * * 1,4"
   workflow_dispatch: # also runnable manually from the Actions tab
 
 jobs:
