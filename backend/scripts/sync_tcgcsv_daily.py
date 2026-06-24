@@ -107,6 +107,31 @@ def _f(value) -> float | None:
     return f
 
 
+def _low_high_from_prices(
+    prices: dict, rarity: str | None, cap_fn
+) -> tuple[float | None, float | None]:
+    """Per-card flat low/high derived from the per-variant prices blob.
+
+    low  = cheapest 'low' across all variants — no cap (low prices are
+           rarely manipulated)
+    high = most expensive 'high' across all variants, capped by the
+           rarity ceiling (drops outlier $10k-asks on a $5 common)
+    """
+    lows: list[float] = []
+    highs: list[float] = []
+    cap = cap_fn(rarity)
+    for variant in prices.values():
+        if not isinstance(variant, dict):
+            continue
+        lo = variant.get("low")
+        hi = variant.get("high")
+        if isinstance(lo, (int, float)) and lo > 0:
+            lows.append(float(lo))
+        if isinstance(hi, (int, float)) and hi > 0 and float(hi) <= cap:
+            highs.append(float(hi))
+    return (min(lows) if lows else None, max(highs) if highs else None)
+
+
 def _market_from_prices(prices: dict) -> float | None:
     """Pick the base variant's market price following the same priority
     as the pokemontcg.io sync — keeps cards.market_price_usd consistent
@@ -316,10 +341,19 @@ async def sync(snapshot_date: str, dry_run: bool, group_limit: int | None) -> No
                             card_id, market, cap, existing.rarity or "?",
                         )
                         market = None
+                    lo, hi = _low_high_from_prices(
+                        prices, existing.rarity, _rarity_ceiling
+                    )
                     if not dry_run:
                         existing.tcgplayer_prices = prices
                         if market is not None:
                             existing.market_price_usd = market
+                        # low/high refresh every sync regardless of market
+                        # cap — they feed the set price-range banner,
+                        # which is interesting even when the headline
+                        # market field is gated.
+                        existing.low_price_usd = lo
+                        existing.high_price_usd = hi
 
                     stats["cards_refreshed"] += 1
                     snapshot_batch.extend(

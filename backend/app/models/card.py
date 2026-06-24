@@ -40,6 +40,16 @@ class Card(Base):
 
     market_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
 
+    low_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    """Cheapest active listing across all variants of this card. Used
+    to compute set-completion floor (sum of all cards' lows = "buy every
+    card at the cheapest going price")."""
+
+    high_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    """Most expensive active listing across all variants of this card,
+    capped by the rarity ceiling (drops outlier $10k-asks). Pairs with
+    low_price_usd to render the set-completion price band."""
+
     set_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("sets.id", ondelete="CASCADE"), index=True
     )

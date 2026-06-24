@@ -44,7 +44,10 @@ function fmtRange(min: number | null, max: number | null): string | null {
 export function SetCard({ set }: Props) {
   const displayName = set.name;
   const releaseLabel = formatReleaseDate(set.release_date);
-  const rangeLabel = fmtRange(set.min_card_price_usd, set.max_card_price_usd);
+  const rangeLabel = fmtRange(
+    set.total_value_low_usd,
+    set.total_value_high_usd,
+  );
   const progress = set.owned_unique != null && set.card_count > 0
     ? (set.owned_unique / set.card_count) * 100
     : null;
@@ -135,7 +138,7 @@ export function SetCard({ set }: Props) {
       {rangeLabel && (
         <div className="mt-3 flex items-center justify-between text-xs px-1">
           <span className="font-mono uppercase tracking-wider text-text-tertiary">
-            Price range
+            Set value
           </span>
           <span className="font-mono font-bold text-accent-yellow">
             {rangeLabel}
