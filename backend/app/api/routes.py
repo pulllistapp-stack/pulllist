@@ -315,6 +315,15 @@ async def search_cards(
             "sharing a National Pokédex number (Pokémon cards only)."
         ),
     ),
+    sort: str = Query(
+        "relevance",
+        pattern="^(relevance|price_desc|price_asc|newest|oldest)$",
+        description=(
+            "relevance (default) keeps exact-name matches first then highest "
+            "priced. price_desc / price_asc are pure market-price sorts. "
+            "newest / oldest order by the set's release_date."
+        ),
+    ),
 ) -> CardList:
     offset = (page - 1) * page_size
     pattern = f"%{q}%"
@@ -338,19 +347,26 @@ async def search_cards(
     )
     if language is not None:
         stmt = stmt.where(Card.language == language)
-    stmt = (
-        stmt
-        # Prefer exact name hits over dex-only cross-language matches so a
-        # user searching "Charizard" still sees the EN cards first; JP cards
+
+    if sort == "price_desc":
+        order_by = (Card.market_price_usd.desc().nullslast(), Card.name)
+    elif sort == "price_asc":
+        order_by = (Card.market_price_usd.asc().nullsfirst(), Card.name)
+    elif sort == "newest":
+        order_by = (Set.release_date.desc().nullslast(), Card.name)
+    elif sort == "oldest":
+        order_by = (Set.release_date.asc().nullslast(), Card.name)
+    else:
+        # relevance: prefer exact name hits over dex-only cross-language matches
+        # so a user searching "Charizard" still sees the EN cards first; JP cards
         # with the same dex number follow.
-        .order_by(
+        order_by = (
             Card.name.ilike(pattern).desc(),
             Card.market_price_usd.desc().nullslast(),
             Card.name,
         )
-        .offset(offset)
-        .limit(page_size)
-    )
+
+    stmt = stmt.order_by(*order_by).offset(offset).limit(page_size)
     rows = (await db.execute(stmt)).all()
 
     return CardList(
