@@ -33,10 +33,11 @@ const SOURCES = [
 // Price tier floors — filters out penny-stock noise. Default $5 hides
 // bulk-card chatter while keeping real chase-card movement visible.
 const PRICE_TIERS = [
-  { label: "$1+", value: 1 },
   { label: "$5+", value: 5 },
   { label: "$10+", value: 10 },
   { label: "$50+", value: 50 },
+  { label: "$100+", value: 100 },
+  { label: "$1000+", value: 1000 },
 ] as const;
 
 // Rarity tier — separates pack-pull market from chase-card market. Bulk
@@ -54,7 +55,7 @@ const TIERS: { key: TrendingTier; label: string; sub: string }[] = [
 // minimum per tier; users can override via the price pill row.
 const TIER_DEFAULT_MIN_PRICE: Record<TrendingTier, number> = {
   all: 5,
-  bulk: 1,
+  bulk: 5,
   chase: 10,
 };
 
@@ -66,7 +67,7 @@ export default function TrendingPage() {
   const [direction, setDirection] = useState<Direction>("up");
   const [tier, setTier] = useState<TrendingTier>("all");
   // Default $5 floor — surfaces real chase-card movement, hides bulk noise.
-  // Users can drop to $1 if they actually want to scan everything.
+  // Top tiers ($100+ / $1000+) shift attention to vintage holy grails + slabs.
   const [minPrice, setMinPrice] = useState<number>(5);
   const [movers, setMovers] = useState<TrendingMover[]>([]);
   const [eligible, setEligible] = useState(0);
