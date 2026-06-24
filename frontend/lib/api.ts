@@ -376,6 +376,7 @@ export async function getTrending(opts: {
   direction?: "up" | "down";
   limit?: number;
   minPriceUsd?: number;
+  maxPriceUsd?: number;
   minAbsChangeUsd?: number;
   tier?: TrendingTier;
 } = {}): Promise<TrendingResponse> {
@@ -385,6 +386,7 @@ export async function getTrending(opts: {
   if (opts.direction) qs.set("direction", opts.direction);
   if (opts.limit != null) qs.set("limit", String(opts.limit));
   if (opts.minPriceUsd != null) qs.set("min_price_usd", String(opts.minPriceUsd));
+  if (opts.maxPriceUsd != null) qs.set("max_price_usd", String(opts.maxPriceUsd));
   if (opts.minAbsChangeUsd != null)
     qs.set("min_abs_change_usd", String(opts.minAbsChangeUsd));
   if (opts.tier && opts.tier !== "all") qs.set("tier", opts.tier);

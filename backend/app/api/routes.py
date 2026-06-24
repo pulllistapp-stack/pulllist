@@ -541,6 +541,16 @@ async def get_trending(
             "a $0.02 → $0.27 card is a +1250% mover by math, but useless signal."
         ),
     ),
+    max_price_usd: float | None = Query(
+        None,
+        ge=0,
+        description=(
+            "Price ceiling (both endpoints). Combined with min_price_usd "
+            "this carves a band — e.g. min=5, max=30 surfaces movers "
+            "between $5-$30 so a $480 chase doesn't dominate the same "
+            "list as a $7 holo. Open-ended when omitted."
+        ),
+    ),
     min_abs_change_usd: float = Query(
         0.5,
         ge=0,
@@ -699,6 +709,10 @@ async def get_trending(
         # Quality floors - both endpoints must clear the price floor AND the
         # absolute change must be meaningful.
         if float(oldest) < min_price_usd or float(latest) < min_price_usd:
+            continue
+        if max_price_usd is not None and (
+            float(oldest) > max_price_usd or float(latest) > max_price_usd
+        ):
             continue
         if abs(float(latest) - float(oldest)) < min_abs_change_usd:
             continue
