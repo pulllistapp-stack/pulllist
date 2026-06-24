@@ -2,30 +2,55 @@ import Link from "next/link";
 
 import { CardThumb } from "@/components/CardThumb";
 import { SearchPagination } from "./SearchPagination";
-import { Card as CardType, CardList, searchCards } from "@/lib/api";
+import {
+  Card as CardType,
+  CardList,
+  searchCards,
+  type CardSearchSort,
+} from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 const DEFAULT_PAGE_SIZE = 50;
 const ALLOWED_PAGE_SIZES = new Set([30, 50, 100]);
+const ALLOWED_SORTS = new Set<CardSearchSort>([
+  "relevance",
+  "price_desc",
+  "price_asc",
+  "newest",
+  "oldest",
+]);
 
 type Props = {
-  searchParams: Promise<{ q?: string; page?: string; page_size?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+    page_size?: string;
+    sort?: string;
+  }>;
 };
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q: rawQ, page: pageStr, page_size: pageSizeStr } = await searchParams;
+  const {
+    q: rawQ,
+    page: pageStr,
+    page_size: pageSizeStr,
+    sort: sortStr,
+  } = await searchParams;
   const q = (rawQ ?? "").trim();
   const page = Math.max(1, Number.parseInt(pageStr ?? "1", 10) || 1);
   const requested = Number.parseInt(pageSizeStr ?? "", 10);
   const pageSize = ALLOWED_PAGE_SIZES.has(requested) ? requested : DEFAULT_PAGE_SIZE;
+  const sort: CardSearchSort = ALLOWED_SORTS.has(sortStr as CardSearchSort)
+    ? (sortStr as CardSearchSort)
+    : "relevance";
 
   let result: CardList | null = null;
   let error: string | null = null;
 
   if (q.length > 0) {
     try {
-      result = await searchCards(q, page, pageSize);
+      result = await searchCards(q, page, pageSize, sort);
     } catch (e) {
       error = e instanceof Error ? e.message : "Unknown error";
     }
@@ -68,6 +93,7 @@ export default async function SearchPage({ searchParams }: Props) {
               totalPages={totalPages}
               total={result.total}
               pageSize={pageSize}
+              sort={sort}
               renderResults={
                 result.items.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-10">

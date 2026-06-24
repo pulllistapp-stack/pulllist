@@ -155,13 +155,22 @@ export async function suggestCards(q: string, limit = 8): Promise<Suggestion[]> 
   );
 }
 
+export type CardSearchSort =
+  | "relevance"
+  | "price_desc"
+  | "price_asc"
+  | "newest"
+  | "oldest";
+
 export async function searchCards(
   q: string,
   page = 1,
   pageSize = 50,
+  sort: CardSearchSort = "relevance",
 ): Promise<CardList> {
+  const sortQs = sort && sort !== "relevance" ? `&sort=${sort}` : "";
   return apiFetch<CardList>(
-    `/cards/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}`,
+    `/cards/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}${sortQs}`,
   );
 }
 
