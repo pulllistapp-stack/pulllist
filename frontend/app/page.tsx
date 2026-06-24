@@ -46,6 +46,8 @@ type SetSummary = {
   series?: string | null;
   card_count?: number | null;
   total_value_usd?: number | null;
+  min_card_price_usd?: number | null;
+  max_card_price_usd?: number | null;
   released_at?: string | null;
   logo_url?: string | null;
 };
@@ -347,7 +349,21 @@ function MoverCard({ mover }: { mover: Mover }) {
   );
 }
 
+function fmtCompactPrice(v: number | null | undefined): string | null {
+  if (v == null || v <= 0) return null;
+  if (v >= 10000) return `$${(v / 1000).toFixed(1)}k`;
+  if (v >= 1000) return `$${(v / 1000).toFixed(2)}k`;
+  if (v >= 10) return `$${v.toFixed(0)}`;
+  if (v >= 1) return `$${v.toFixed(1)}`;
+  return `$${v.toFixed(2)}`;
+}
+
 function SetCard({ set }: { set: SetSummary }) {
+  const lo = fmtCompactPrice(set.min_card_price_usd);
+  const hi = fmtCompactPrice(set.max_card_price_usd);
+  const rangeLabel =
+    lo && hi ? (lo === hi ? lo : `${lo} – ${hi}`) : lo ?? hi;
+
   return (
     <Link
       href={`/sets/${set.id}`}
@@ -357,9 +373,9 @@ function SetCard({ set }: { set: SetSummary }) {
         <p className="text-[11px] font-mono uppercase tracking-wider text-text-tertiary">
           {set.series ?? "Pokémon TCG"}
         </p>
-        {set.total_value_usd != null && (
+        {rangeLabel && (
           <span className="text-[11px] font-mono text-accent-yellow font-bold">
-            ${Math.round(set.total_value_usd).toLocaleString()}
+            {rangeLabel}
           </span>
         )}
       </div>
