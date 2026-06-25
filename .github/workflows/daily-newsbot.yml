@@ -20,6 +20,11 @@ on:
         options:
           - '1'
           - '0'
+      post_limit:
+        description: 'Override daily_post_limit for this run (blank = default 2). Use for backfills.'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   run:
@@ -61,7 +66,10 @@ jobs:
           NEWSBOT_ADMIN_PASSWORD: ${{ secrets.NEWSBOT_ADMIN_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          DAILY_POST_LIMIT: ${{ secrets.DAILY_POST_LIMIT || '2' }}
+          # Per-run override > org secret > built-in default of 2. Lets
+          # manual backfill runs pull 6+ articles in one shot without
+          # touching repo secrets or chaining three separate triggers.
+          DAILY_POST_LIMIT: ${{ inputs.post_limit || secrets.DAILY_POST_LIMIT || '2' }}
           # Schedule fires don't carry inputs — fall back to '0' (live)
           # so the daily cron posts drafts. Manual UI triggers keep
           # their explicit '1' / '0' choice; the input default is '1'
