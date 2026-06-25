@@ -282,27 +282,43 @@ async def toggle_card_owned(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """One-click toggle — adds a default NM entry of `variant` (default
-    'normal') if none exists for that specific variant, else removes
-    all that variant's entries. Other variants of the same card stay
-    untouched, so toggling normal Larvitar doesn't delete the user's
-    reverseHolofoil Larvitar."""
+    """Card-id grained one-click toggle. Matches the frontend's
+    "In your collection" pill, which reflects ownership at the
+    card level (does the user have ANY variant of this card?).
+
+    Behavior:
+      - If the user has 0 entries for this card → create a new NM
+        entry at the requested `variant` and return owned=True.
+      - If the user has 1+ entries (across any variants) → delete
+        ALL of them and return owned=False.
+
+    The variant parameter only matters when creating. The grain
+    must stay aligned with the frontend's card-id grain owned check;
+    a previous variant-grained version of this endpoint caused
+    duplicates when the user owned (variant=normal) but clicked
+    the pill on a card whose displayed variant was holofoil —
+    backend saw "no holofoil row exists" and ADDED one instead of
+    removing the existing normal row, leaving the user with two
+    rows for the same card.
+
+    Power users who want granular per-variant control use the
+    CardAddModal (specific add) and the Portfolio Manage mode
+    (specific delete) — the 1-click pill is the simple path."""
     card = await db.get(Card, card_id)
     if not card:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    existing = (
+    existing_any = (
         await db.execute(
             select(CollectionItem).where(
                 CollectionItem.user_id == user.id,
                 CollectionItem.card_id == card_id,
-                CollectionItem.variant == variant,
             )
         )
     ).scalars().all()
 
-    if existing:
-        for item in existing:
+    if existing_any:
+        for item in existing_any:
             await db.delete(item)
         await db.commit()
         return {"owned": False, "variant": variant}
