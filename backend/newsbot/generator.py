@@ -5,19 +5,31 @@ the fact-checker should verify.
 Output contract:
     GenerateResult(title, body_markdown, excerpt, reading_time, claims)
 
-Uses Anthropic's **structured outputs** (`messages.parse` with our
-Pydantic model as the schema) so the API guarantees the response
-matches the contract — no `json.loads()` from a free-form text block,
-no malformed-JSON failures. Backfill testing showed ~33% of articles
-were dropped to JSON parse errors on the previous prompt-only
-approach; structured outputs eliminate that loss.
+Defence in depth against the model misbehaving:
+
+1. **Server-side schema enforcement** via `output_config.format` with
+   a JSON-schema derived from `GenerateResult`. Tells the API "the
+   response MUST match this shape" — closes off the bulk of
+   "missing-comma" and "stray-prose" failures that plagued the
+   prompt-only contract (33% drop rate in backfill testing).
+
+2. **Markdown-fence stripping** as a second layer. Even with
+   output_config.format, the model occasionally still wraps the
+   payload in ```json…``` blocks. We pull the outermost {…} object
+   out of whatever it returns before parsing.
+
+3. **Pydantic validation** at the end catches anything that survived
+   1 + 2 with the wrong field types / out-of-range values.
 """
 from __future__ import annotations
 
+import json
 import logging
+import re
+from typing import Any
 
 from anthropic import AsyncAnthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from .config import settings
 from .sources import NewsItem
@@ -26,17 +38,34 @@ log = logging.getLogger("newsbot.generator")
 
 
 class GenerateResult(BaseModel):
-    """Schema Claude is forced to satisfy via output_format. Constraints
-    (min_length/max_length/ge/le/max_length on lists) are validated
-    client-side by the SDK — the API doesn't enforce them — so we keep
-    them for our own sanity checks but never depend on the API to
-    reject a too-long title."""
+    """Schema Claude is forced to satisfy. Constraint fields
+    (min_length/max_length/ge/le) drive client-side validation only —
+    Claude's output_config.format only honours base types + required."""
 
     title: str = Field(min_length=1, max_length=256)
     body_markdown: str = Field(min_length=200)
     excerpt: str = Field(min_length=1, max_length=512)
     reading_time: int = Field(ge=1, le=30)
     claims: list[str] = Field(default_factory=list, max_length=3)
+
+
+# JSON-schema sent to the API with output_config.format. Hand-rolled
+# instead of `GenerateResult.model_json_schema()` so we can guarantee
+# `additionalProperties: false` (required by Claude) and avoid the
+# unsupported constraint keys (minLength / maxLength / etc.) that
+# the API would otherwise reject.
+_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "body_markdown": {"type": "string"},
+        "excerpt": {"type": "string"},
+        "reading_time": {"type": "integer"},
+        "claims": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["title", "body_markdown", "excerpt", "reading_time", "claims"],
+    "additionalProperties": False,
+}
 
 
 SYSTEM_PROMPT = """You are the PullList Newsbot — a daily Pokémon TCG \
@@ -104,13 +133,18 @@ Rules:
   that's redundant with the hero).
 - Don't repeat the hero image (it already renders above the article).
 
-# Field guidance
+# Output
 
-- **title**: short specific headline (<= 90 chars).
-- **body_markdown**: the full article body as described above.
-- **excerpt**: 1-2 sentence summary for the listing card (<= 220 chars).
-- **reading_time**: estimated minutes as integer (1-15).
-- **claims**: 1-3 specific factual claims for the verifier.
+Your response MUST be a single JSON object matching this shape — no
+prose around it, no markdown code fence, no preamble:
+
+{
+  "title": "short specific headline (<= 90 chars)",
+  "body_markdown": "the full article body as described above",
+  "excerpt": "1-2 sentence summary for the listing card (<= 220 chars)",
+  "reading_time": estimated minutes as integer (1-15),
+  "claims": ["specific factual claim 1", "specific factual claim 2"]
+}
 """
 
 
@@ -136,20 +170,55 @@ def _build_user_prompt(item: NewsItem) -> str:
     return "\n".join(parts) + "\n"
 
 
+# Greedy match from first `{` to last `}` — handles whatever the model
+# wrapped the JSON in (```json fences, "Here you go:" preamble, etc).
+_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    match = _JSON_BLOCK_RE.search(text)
+    if not match:
+        raise ValueError(
+            f"no JSON object found in model output: {text[:200]!r}"
+        )
+    return json.loads(match.group(0))
+
+
 async def generate_article(item: NewsItem) -> GenerateResult:
-    """Calls Claude via messages.parse() — the API enforces our
-    GenerateResult schema, so the response either matches or the SDK
-    raises. No json.loads, no regex-extract-JSON-from-prose. Adaptive
-    thinking + the configured effort stay in extra_body alongside the
-    SDK-supplied output_config.format."""
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    resp = await client.messages.parse(
+    resp = await client.messages.create(
         model=settings.claude_model,
         max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
         thinking={"type": "adaptive"},
-        output_format=GenerateResult,
-        extra_body={"output_config": {"effort": settings.claude_effort}},
+        # output_config.format = server-side schema enforcement.
+        # output_config.effort = adaptive-thinking depth (low/medium/
+        # high/xhigh/max). Both live under one output_config dict.
+        # extra_body forwards them since older SDK versions may not
+        # type these as top-level kwargs.
+        extra_body={
+            "output_config": {
+                "format": {"type": "json_schema", "schema": _RESPONSE_SCHEMA},
+                "effort": settings.claude_effort,
+            }
+        },
     )
-    return resp.parsed_output
+
+    text_parts: list[str] = []
+    for block in resp.content:
+        if getattr(block, "type", None) == "text":
+            text_parts.append(block.text)
+    if not text_parts:
+        raise RuntimeError("Claude returned no text content")
+    raw = "".join(text_parts)
+
+    # Belt + suspenders: server-side format SHOULD give clean JSON,
+    # but the model occasionally still wraps in ```json fences. The
+    # greedy {…} extractor handles both shapes.
+    payload = _extract_json(raw)
+    try:
+        return GenerateResult.model_validate(payload)
+    except ValidationError as exc:
+        log.error("generator output failed pydantic validation: %s", exc)
+        raise
