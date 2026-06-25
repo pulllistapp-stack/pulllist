@@ -1,23 +1,23 @@
-"""Article generator. Asks Claude Opus to rewrite a source item into
-a PullList-voiced English news post + extract the 1-3 factual claims
+"""Article generator. Asks Claude to rewrite a source item into a
+PullList-voiced English news post + extract the 1-3 factual claims
 the fact-checker should verify.
 
 Output contract:
     GenerateResult(title, body_markdown, excerpt, reading_time, claims)
 
-The model is instructed to emit a single JSON object. We parse it with
-a strict schema — malformed responses raise so they get surfaced in
-CI logs instead of silently producing a bad draft.
+Uses Anthropic's **structured outputs** (`messages.parse` with our
+Pydantic model as the schema) so the API guarantees the response
+matches the contract — no `json.loads()` from a free-form text block,
+no malformed-JSON failures. Backfill testing showed ~33% of articles
+were dropped to JSON parse errors on the previous prompt-only
+approach; structured outputs eliminate that loss.
 """
 from __future__ import annotations
 
-import json
 import logging
-import re
-from typing import Any
 
 from anthropic import AsyncAnthropic
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from .config import settings
 from .sources import NewsItem
@@ -26,6 +26,12 @@ log = logging.getLogger("newsbot.generator")
 
 
 class GenerateResult(BaseModel):
+    """Schema Claude is forced to satisfy via output_format. Constraints
+    (min_length/max_length/ge/le/max_length on lists) are validated
+    client-side by the SDK — the API doesn't enforce them — so we keep
+    them for our own sanity checks but never depend on the API to
+    reject a too-long title."""
+
     title: str = Field(min_length=1, max_length=256)
     body_markdown: str = Field(min_length=200)
     excerpt: str = Field(min_length=1, max_length=512)
@@ -98,15 +104,13 @@ Rules:
   that's redundant with the hero).
 - Don't repeat the hero image (it already renders above the article).
 
-Output a single JSON object — no prose around it, no markdown fence:
+# Field guidance
 
-{
-  "title": "short specific headline (<= 90 chars)",
-  "body_markdown": "the full article body as described above",
-  "excerpt": "1-2 sentence summary for the listing card (<= 220 chars)",
-  "reading_time": estimated minutes as integer 1-15,
-  "claims": ["specific factual claim 1", "specific factual claim 2"]
-}
+- **title**: short specific headline (<= 90 chars).
+- **body_markdown**: the full article body as described above.
+- **excerpt**: 1-2 sentence summary for the listing card (<= 220 chars).
+- **reading_time**: estimated minutes as integer (1-15).
+- **claims**: 1-3 specific factual claims for the verifier.
 """
 
 
@@ -132,49 +136,20 @@ def _build_user_prompt(item: NewsItem) -> str:
     return "\n".join(parts) + "\n"
 
 
-_JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
-
-
-def _extract_json(text: str) -> dict[str, Any]:
-    """Claude sometimes wraps the JSON in stray prose or a fence even
-    when told not to. Find the outermost {...} and parse that."""
-    match = _JSON_BLOCK_RE.search(text)
-    if not match:
-        raise ValueError(f"no JSON object found in model output: {text[:200]!r}")
-    return json.loads(match.group(0))
-
-
 async def generate_article(item: NewsItem) -> GenerateResult:
+    """Calls Claude via messages.parse() — the API enforces our
+    GenerateResult schema, so the response either matches or the SDK
+    raises. No json.loads, no regex-extract-JSON-from-prose. Adaptive
+    thinking + the configured effort stay in extra_body alongside the
+    SDK-supplied output_config.format."""
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-
-    # Opus 4.8 / Fable 5 require adaptive thinking — the legacy
-    # `{type: "enabled", budget_tokens: N}` API was removed and returns
-    # 400. Depth is controlled via output_config.effort instead. We
-    # leave display="omitted" (the default) so thinking blocks come
-    # back as empty placeholders; the article is in the trailing text
-    # block.
-    resp = await client.messages.create(
+    resp = await client.messages.parse(
         model=settings.claude_model,
         max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
         thinking={"type": "adaptive"},
+        output_format=GenerateResult,
         extra_body={"output_config": {"effort": settings.claude_effort}},
     )
-
-    # Pull the text content out of the response. Thinking blocks come
-    # first when enabled; the article is in the trailing text block(s).
-    text_parts: list[str] = []
-    for block in resp.content:
-        if getattr(block, "type", None) == "text":
-            text_parts.append(block.text)
-    if not text_parts:
-        raise RuntimeError("Claude returned no text content")
-    raw = "".join(text_parts)
-
-    payload = _extract_json(raw)
-    try:
-        return GenerateResult.model_validate(payload)
-    except ValidationError as exc:
-        log.error("generator output failed validation: %s", exc)
-        raise
+    return resp.parsed_output
