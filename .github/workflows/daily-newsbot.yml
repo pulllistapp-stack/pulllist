@@ -1,18 +1,20 @@
 name: Daily news bot
 
-# Phase 1 = manual trigger only. The schedule: block stays commented
-# out until we've had 3 clean dry-runs + 1 clean live run end to end.
-# See backend/newsbot/SPEC.md → Phase 3 for the cron flip.
-#
-# schedule:
-#   - cron: "0 12 * * *"  # 12:00 UTC = 21:00 KST (after eBay/TCGplayer)
+# Cron enabled after Phase 1 lived through 3+ clean dry-runs and
+# multiple successful live runs. Manual trigger still available for
+# backfilling / off-cycle posts.
 
 on:
+  schedule:
+    # 12:00 UTC = 21:00 KST = 8am ET. After the eBay (07:00 UTC) +
+    # TCGplayer (08:00 UTC) snapshots so all three workflows don't
+    # contend on the Render free tier at the same time.
+    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Dry run (1 = crawl + generate + log only; 0 = publish drafts)'
-        required: true
+        required: false
         default: '1'
         type: choice
         options:
@@ -60,6 +62,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           DAILY_POST_LIMIT: ${{ secrets.DAILY_POST_LIMIT || '2' }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          # Schedule fires don't carry inputs — fall back to '0' (live)
+          # so the daily cron posts drafts. Manual UI triggers keep
+          # their explicit '1' / '0' choice; the input default is '1'
+          # so a fat-fingered manual run can't accidentally publish.
+          DRY_RUN: ${{ inputs.dry_run || '0' }}
           LOG_LEVEL: INFO
         run: python -m newsbot.main
