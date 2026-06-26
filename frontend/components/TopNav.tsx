@@ -191,6 +191,7 @@ export function TopNav() {
             <MobileLink href="/cards">Browse cards</MobileLink>
             <MobileLink href="/trending">Trending</MobileLink>
             <MobileLink href="/drops">Drops</MobileLink>
+            <MobileLink href="/news">News</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
 
             <div className="h-px bg-border my-3" />
