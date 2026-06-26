@@ -41,6 +41,7 @@ const PRICE_TIERS = [
   { label: "$10+", value: 10, max: 50 },
   { label: "$50+", value: 50, max: 150 },
   { label: "$100+", value: 100, max: 500 },
+  { label: "$500+", value: 500, max: 1000 },
   { label: "$1000+", value: 1000, max: null as number | null },
 ] as const;
 
