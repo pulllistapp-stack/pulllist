@@ -4,7 +4,11 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw, ShieldCheck, Truck } from "lucide-react";
 
-import { getLiveListings, type LiveListing } from "@/lib/api";
+import {
+  getLiveListings,
+  invalidateApiCache,
+  type LiveListing,
+} from "@/lib/api";
 import { wrapEbayUrl, wrapTcgPlayerUrl } from "@/lib/affiliate";
 import { cn } from "@/lib/utils";
 
@@ -173,7 +177,13 @@ export function LiveListings({ cardId }: { cardId: string }) {
             </span>
           )}
           <button
-            onClick={() => setRefreshKey((k) => k + 1)}
+            onClick={() => {
+              // Without invalidation the 5-min apiFetch cache short-circuits
+              // the refetch and the user sees no change — bypassing the
+              // cache for this specific cardId forces a real eBay round-trip.
+              invalidateApiCache(`/cards/${cardId}/live-listings`);
+              setRefreshKey((k) => k + 1);
+            }}
             disabled={loading}
             title="Refetch from eBay"
             className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-teal-400/40 hover:text-text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
