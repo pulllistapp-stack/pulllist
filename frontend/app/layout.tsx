@@ -9,6 +9,7 @@ import { PWARegister } from "@/components/PWARegister";
 import { ScanFAB } from "@/components/ScanFAB";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopNav } from "@/components/TopNav";
+import { TrackVisit } from "@/components/TrackVisit";
 import { WishlistProvider } from "@/components/WishlistProvider";
 
 import "./globals.css";
@@ -91,6 +92,7 @@ export default function RootLayout({
             <CollectionProvider>
               <WishlistProvider>
                 <PWARegister />
+                <TrackVisit />
                 <TopNav />
                 {children}
                 <Footer />

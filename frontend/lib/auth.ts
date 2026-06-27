@@ -277,6 +277,35 @@ export async function updateCardReport(
   });
 }
 
+// ────────── Visit logs / traffic admin ──────────
+
+export type VisitsSummary = {
+  views: { today: number; yesterday: number; week: number };
+  uniques: { today: number; yesterday: number; week: number };
+  countries_today: { country: string; count: number }[];
+  daily_7d: { date: string; views: number; uniques: number }[];
+};
+
+export type VisitsByUserItem = {
+  user_id: string;
+  email: string | null;
+  name: string | null;
+  is_admin: boolean;
+  views: number;
+  last_seen: string | null;
+  last_country: string | null;
+};
+
+export async function getVisitsSummary(): Promise<VisitsSummary> {
+  return authFetch<VisitsSummary>("/admin/visits/summary");
+}
+
+export async function getVisitsByUser(
+  days = 1,
+): Promise<{ days: number; items: VisitsByUserItem[] }> {
+  return authFetch(`/admin/visits/by-user?days=${days}`);
+}
+
 export async function toggleOwned(
   cardId: string,
   variant: CardVariant = "normal",
