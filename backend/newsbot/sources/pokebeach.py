@@ -28,9 +28,7 @@ import asyncio
 import logging
 import re
 
-from scrapling.fetchers import AsyncStealthySession
-
-from . import NewsItem, register, register_enricher
+from . import NewsItem, get_stealth_session, register, register_enricher
 
 log = logging.getLogger("newsbot.sources.pokebeach")
 
@@ -76,30 +74,14 @@ MAX_INLINE_IMAGES = 10  # cap so prompts + articles don't bloat
 _WP_THUMB_SUFFIX = re.compile(r"-\d+x\d+(?=\.\w+$)")
 
 
-# Lazy module-level session — opened on first call, reused across the
-# whole bot run, leaked at process exit (one-shot script, so cleanup
-# isn't worth the async-context-manager complexity).
-_session: AsyncStealthySession | None = None
-_session_ctx = None
-_session_lock = asyncio.Lock()
-
-
-async def _get_session() -> AsyncStealthySession:
-    global _session, _session_ctx
-    async with _session_lock:
-        if _session is None:
-            _session_ctx = AsyncStealthySession(
-                headless=True,
-                solve_cloudflare=True,
-            )
-            _session = await _session_ctx.__aenter__()
-        return _session
-
-
 async def _fetch(url: str):
     """Returns a Scrapling page object. Use .css() / .css_first() to
-    extract; selectors support ::text and ::attr(name) pseudo-elements."""
-    session = await _get_session()
+    extract; selectors support ::text and ::attr(name) pseudo-elements.
+
+    Uses the shared module-level Stealth session — same Chromium +
+    Cloudflare cookie is reused across web_search's generic_enrich
+    fallback so we don't pay a second Chromium spinup."""
+    session = await get_stealth_session()
     page = await session.fetch(url, google_search=False)
     status = getattr(page, "status", None)
     if status is not None and status != 200:

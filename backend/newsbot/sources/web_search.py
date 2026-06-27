@@ -26,7 +26,7 @@ import httpx
 from curl_cffi.requests import AsyncSession
 
 from ..config import settings
-from . import NewsItem, register, register_enricher
+from . import NewsItem, get_stealth_session, register, register_enricher
 
 log = logging.getLogger("newsbot.sources.web_search")
 
@@ -198,23 +198,60 @@ async def crawl() -> list[NewsItem]:
     return items
 
 
+async def _fetch_html(url: str) -> str | None:
+    """Two-tier fetch: try curl_cffi (Chrome JA3 — fast, no JS) first.
+    On 403 or any error, fall back to the shared Scrapling Stealth
+    session (real Chromium with solve_cloudflare=True) which defeats
+    the JS interstitial Pokemon Center and similar retailers serve to
+    unknown clients. Returns the raw HTML string or None if both
+    tiers fail."""
+    async with AsyncSession(impersonate="chrome120", timeout=REQUEST_TIMEOUT) as s:
+        try:
+            r = await s.get(url, allow_redirects=True)
+            if r.status_code == 200:
+                return r.text
+            log.info(
+                "generic_enrich: curl_cffi %s → %d, trying stealth fallback",
+                url, r.status_code,
+            )
+        except Exception as exc:
+            log.warning(
+                "generic_enrich: curl_cffi %s failed (%s), trying stealth",
+                url, exc,
+            )
+
+    try:
+        session = await get_stealth_session()
+        page = await session.fetch(url, google_search=False)
+        status = getattr(page, "status", None)
+        if status is not None and status != 200:
+            log.warning("generic_enrich: stealth %s → %d", url, status)
+            return None
+        # Scrapling Adaptor exposes the raw response body via .body
+        # (bytes) — decoded to str preserves the og:* meta tags for
+        # our regex extraction. Falls back to str(page) on attribute
+        # mismatch across versions.
+        body = getattr(page, "body", None)
+        if isinstance(body, bytes):
+            return body.decode("utf-8", errors="replace")
+        if isinstance(body, str):
+            return body
+        # Last resort — Adaptor's repr/str is the HTML in most builds.
+        return str(page)
+    except Exception as exc:
+        log.warning("generic_enrich: stealth %s failed: %s", url, exc)
+        return None
+
+
 @register_enricher(GENERIC_KEY)
 async def generic_enrich(item: NewsItem) -> NewsItem:
     """Generic fetch + og:* + plaintext body extraction. Used as the
     registry fallback for any source_name without a per-domain
-    enricher. Curl_cffi (Chrome JA3) handles most lightly-protected
-    pages; pages behind a JS challenge fall back to whatever the
-    search result already provided (title + snippet)."""
-    async with AsyncSession(impersonate="chrome120", timeout=REQUEST_TIMEOUT) as s:
-        try:
-            r = await s.get(item.url, allow_redirects=True)
-        except Exception as exc:
-            log.warning("generic_enrich: fetch %s failed: %s", item.url, exc)
-            return item
-    if r.status_code != 200:
-        log.warning("generic_enrich: %s → %d", item.url, r.status_code)
+    enricher. Tiered fetch (curl_cffi → Stealth) handles both light-
+    weight pages and Cloudflare-walled retailer product pages."""
+    html_text = await _fetch_html(item.url)
+    if not html_text:
         return item
-    html_text = r.text
     hero_m = _OG_IMAGE_RE.search(html_text)
     desc_m = _OG_DESC_RE.search(html_text)
     hero = hero_m.group(1).strip()[:512] if hero_m else item.hero_image_url

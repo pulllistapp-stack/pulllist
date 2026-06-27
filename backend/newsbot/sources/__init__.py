@@ -73,6 +73,33 @@ def register_enricher(name: str):
     return _wrap
 
 
+# Shared Scrapling Stealth session — lazily opened, reused across
+# every source that needs to defeat Cloudflare JS challenges
+# (PokeBeach articles, Pokemon Center product pages, etc.). Spinning
+# up a real Chromium is the expensive bit (~5s); sharing one session
+# across enrichers keeps that one-time per process.
+_stealth_session = None  # type: ignore[var-annotated]
+_stealth_session_ctx = None  # type: ignore[var-annotated]
+_stealth_lock = asyncio.Lock()
+
+
+async def get_stealth_session():
+    """Lazy module-level singleton. Reuses the same headless Chromium
+    + Cloudflare clearance cookie across every fetch in this process.
+    Leaked at process exit (one-shot script — no shutdown plumbing
+    needed)."""
+    global _stealth_session, _stealth_session_ctx
+    async with _stealth_lock:
+        if _stealth_session is None:
+            from scrapling.fetchers import AsyncStealthySession  # lazy import
+            _stealth_session_ctx = AsyncStealthySession(
+                headless=True,
+                solve_cloudflare=True,
+            )
+            _stealth_session = await _stealth_session_ctx.__aenter__()
+        return _stealth_session
+
+
 # Import side-effects register sources + their enrichers. Add new
 # source modules below.
 from . import pokebeach  # noqa: E402,F401
