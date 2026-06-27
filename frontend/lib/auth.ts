@@ -306,6 +306,25 @@ export async function getVisitsByUser(
   return authFetch(`/admin/visits/by-user?days=${days}`);
 }
 
+// ────────── Single-card price refresh ──────────
+
+export type CardRefreshResult = {
+  card_id: string;
+  market_price_usd: number | null;
+  tcg_market: number | null;
+  ebay_median: number | null;
+  cached: boolean;
+};
+
+export async function refreshCardPrice(
+  cardId: string,
+): Promise<CardRefreshResult> {
+  return authFetch<CardRefreshResult>(
+    `/cards/${encodeURIComponent(cardId)}/refresh-price`,
+    { method: "POST" },
+  );
+}
+
 export async function toggleOwned(
   cardId: string,
   variant: CardVariant = "normal",

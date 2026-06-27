@@ -1,7 +1,16 @@
 "use client";
 
-import { ArrowUpRight, ShoppingCart, Star, Tag } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowUpRight,
+  Loader2,
+  RefreshCw,
+  ShoppingCart,
+  Star,
+  Tag,
+} from "lucide-react";
 
+import { refreshCardPrice } from "@/lib/auth";
 import type { Card } from "@/lib/api";
 import {
   AFFILIATE_ENABLED,
@@ -40,12 +49,49 @@ export function CardPriceHero({
   ownedToggle,
   wishlistButton,
 }: Props) {
-  // Simple average when both sources have data; fall back to whichever exists.
-  // (Volume-weighted blend is a future improvement once Card.snapshot_count is wired.)
+  // Refresh button — overrides the server-rendered prices when the user
+  // pulls fresh data on demand. Keeps the SSR'd page fast while letting
+  // power users force a re-pull. Per `feedback-hide-staleness` we never
+  // surface "updated N ago" anywhere; the only freshness signal is the
+  // transient "Up to date!" badge that flashes briefly on click.
+  const [refreshing, setRefreshing] = useState(false);
+  const [override, setOverride] = useState<{
+    tcg: number | null;
+    ebay: number | null;
+  } | null>(null);
+  const [showFresh, setShowFresh] = useState(false);
+  const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (freshTimer.current) clearTimeout(freshTimer.current);
+    };
+  }, []);
+
+  const displayedTcg = override?.tcg ?? tcgMarket;
+  const displayedEbay = override?.ebay ?? ebayMedian;
+
   const marketPrice =
-    tcgMarket != null && ebayMedian != null
-      ? (tcgMarket + ebayMedian) / 2
-      : (tcgMarket ?? ebayMedian);
+    displayedTcg != null && displayedEbay != null
+      ? (displayedTcg + displayedEbay) / 2
+      : (displayedTcg ?? displayedEbay);
+
+  const onRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const result = await refreshCardPrice(card.id);
+      setOverride({ tcg: result.tcg_market, ebay: result.ebay_median });
+    } catch {
+      // Keep showing the prior price — silent failure is better than a
+      // scary toast for what's effectively a "nice to have" action.
+    } finally {
+      setRefreshing(false);
+      setShowFresh(true);
+      if (freshTimer.current) clearTimeout(freshTimer.current);
+      freshTimer.current = setTimeout(() => setShowFresh(false), 2500);
+    }
+  };
 
   // Prefer the canonical product URL when we know the TCGplayer product
   // id (resolved out-of-band from pokemontcg.io's redirect endpoint and
@@ -63,14 +109,38 @@ export function CardPriceHero({
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {/* Market Price — hero, spans full width */}
       <div className="sm:col-span-2 relative overflow-hidden rounded-card border-2 border-accent-yellow/70 bg-bg-surface p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Star
-            className="h-4 w-4 fill-accent-yellow text-accent-yellow"
-            aria-hidden
-          />
-          <span className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary font-semibold">
-            Market Price
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <Star
+              className="h-4 w-4 fill-accent-yellow text-accent-yellow"
+              aria-hidden
+            />
+            <span className="font-mono text-[11px] uppercase tracking-wider text-text-tertiary font-semibold">
+              Market Price
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {showFresh && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-green/15 text-accent-green border border-accent-green/30 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider font-bold">
+                <span aria-hidden>✓</span>
+                Up to date
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-text-tertiary hover:text-accent-yellow hover:border-accent-yellow/40 transition-colors disabled:opacity-50"
+              aria-label="Refresh price"
+              title="Refresh price"
+            >
+              {refreshing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -109,9 +179,9 @@ export function CardPriceHero({
           </div>
         </div>
         <div className="font-mono text-2xl font-bold text-text-primary">
-          {fmt(tcgMarket)}
+          {fmt(displayedTcg)}
         </div>
-        {tcgMarket != null ? (
+        {displayedTcg != null ? (
           <a
             href={tcgUrl}
             target="_blank"
@@ -155,9 +225,9 @@ export function CardPriceHero({
           </div>
         </div>
         <div className="font-mono text-2xl font-bold text-text-primary">
-          {fmt(ebayMedian)}
+          {fmt(displayedEbay)}
         </div>
-        {ebayMedian != null ? (
+        {displayedEbay != null ? (
           <a
             href={ebayUrl}
             target="_blank"

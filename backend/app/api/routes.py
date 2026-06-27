@@ -1,7 +1,10 @@
-from datetime import date, timedelta
+import time
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func, or_, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_optional
@@ -950,6 +953,158 @@ async def get_live_listings(
             "dropped_no_pattern": dropped.get("no_pattern", 0),
             "dropped_accessory": dropped.get("accessory", 0),
         },
+    }
+
+
+# ────────── Single-card price refresh ──────────
+#
+# Per-card in-memory cooldown: blocks rapid repeat clicks across all
+# users so a viral card doesn't shell-out the eBay quota in seconds.
+# Single-instance Render free-tier — global to the process is fine.
+_REFRESH_LAST_TS: dict[str, float] = {}
+_REFRESH_COOLDOWN_SEC = 60
+
+
+@router.post("/cards/{card_id}/refresh-price")
+async def refresh_card_price(
+    card_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Re-fetch eBay pricing for a single card on demand. Hit when a
+    user clicks the 🔄 refresh button on the card detail page.
+
+    Per-card cooldown is 60s globally — repeated clicks within the
+    window return the existing snapshot without re-hitting eBay. The
+    UX intent (per `feedback-hide-staleness`) is for the user to see
+    a transient "Up to date!" indicator on every click; we make that
+    truthful by reporting `cached: true` so the frontend can still
+    flash the indicator without lying about a backend refresh.
+    """
+    card = await db.get(Card, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    now_ts = time.time()
+    last_ts = _REFRESH_LAST_TS.get(card_id, 0.0)
+    cached = (now_ts - last_ts) < _REFRESH_COOLDOWN_SEC
+
+    if not cached:
+        _REFRESH_LAST_TS[card_id] = now_ts
+        set_obj = await db.get(Set, card.set_id) if card.set_id else None
+        query = build_card_query(
+            card_name=card.name,
+            card_number=card.number,
+            printed_total=set_obj.printed_total if set_obj else None,
+            set_name=set_obj.name if set_obj else None,
+            rarity=card.rarity,
+        )
+        reference_price = (
+            float(card.market_price_usd)
+            if card.market_price_usd is not None
+            else None
+        )
+        try:
+            async with EbayClient() as ebay:
+                detail = await ebay.price_summary_with_trace(
+                    query,
+                    max_results=50,
+                    reference_price_usd=reference_price,
+                    card_number=card.number,
+                    rarity=card.rarity,
+                )
+        except EbayClientError:
+            # Quota / network failure — return what we have, mark cached
+            # so the UI still flashes "Up to date!" (no lie — we tried).
+            return {
+                "card_id": card_id,
+                "market_price_usd": card.market_price_usd,
+                "ebay_median": None,
+                "cached": True,
+            }
+        except Exception:
+            return {
+                "card_id": card_id,
+                "market_price_usd": card.market_price_usd,
+                "ebay_median": None,
+                "cached": True,
+            }
+
+        summary = detail.get("summary")
+        if summary:
+            snapshot_date = date.today().isoformat()
+            ebay_median = float(summary["median"])
+            row = {
+                "card_id": card_id,
+                "source": "ebay",
+                "variant": "active",
+                "market_price_usd": ebay_median,
+                "low_price_usd": float(summary["low"]),
+                "mid_price_usd": ebay_median,
+                "high_price_usd": float(summary["high"]),
+                "sales_count": None,
+                "snapshot_at": datetime.utcnow(),
+                "snapshot_date": snapshot_date,
+            }
+            dialect_name = db.bind.dialect.name
+            insert_cls = (
+                pg_insert if dialect_name == "postgresql" else sqlite_insert
+            )
+            upsert_stmt = (
+                insert_cls(CardPriceSnapshot)
+                .values(**row)
+                .on_conflict_do_update(
+                    index_elements=["card_id", "source", "variant", "snapshot_date"],
+                    set_={
+                        "market_price_usd": row["market_price_usd"],
+                        "low_price_usd": row["low_price_usd"],
+                        "mid_price_usd": row["mid_price_usd"],
+                        "high_price_usd": row["high_price_usd"],
+                        "snapshot_at": row["snapshot_at"],
+                    },
+                )
+            )
+            await db.execute(upsert_stmt)
+            await db.commit()
+
+    # Return the latest snapshot for both sources so the frontend can
+    # display the freshest numbers without doing a second round-trip.
+    latest_stmt = (
+        select(CardPriceSnapshot)
+        .where(CardPriceSnapshot.card_id == card_id)
+        .order_by(CardPriceSnapshot.snapshot_at.desc())
+    )
+    latest_rows = (await db.execute(latest_stmt)).scalars().all()
+    tcg_market: float | None = None
+    ebay_median: float | None = None
+    for snap in latest_rows:
+        if snap.source == "tcgplayer" and tcg_market is None:
+            tcg_market = (
+                float(snap.market_price_usd)
+                if snap.market_price_usd is not None
+                else None
+            )
+        elif snap.source == "ebay" and ebay_median is None:
+            ebay_median = (
+                float(snap.market_price_usd)
+                if snap.market_price_usd is not None
+                else None
+            )
+        if tcg_market is not None and ebay_median is not None:
+            break
+
+    # The headline "market price" uses the same averaging rule the
+    # card hero shows on first paint.
+    if tcg_market is not None and ebay_median is not None:
+        market_price = (tcg_market + ebay_median) / 2
+    else:
+        market_price = tcg_market if tcg_market is not None else ebay_median
+
+    return {
+        "card_id": card_id,
+        "market_price_usd": market_price,
+        "tcg_market": tcg_market,
+        "ebay_median": ebay_median,
+        "cached": cached,
     }
 
 
