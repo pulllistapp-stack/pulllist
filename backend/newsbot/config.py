@@ -54,5 +54,37 @@ class Settings(BaseSettings):
     # don't have a TAVILY_API_KEY secret available).
     skip_factcheck: bool = False
 
+    # ── Web-search source (Phase 2 Track A) ──
+    # Off by default while we tune query design and domain allowlist.
+    # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).
+    web_search_enabled: bool = False
+    # Pydantic-settings parses JSON list from env var. Examples:
+    #   WEB_SEARCH_QUERIES='["Pokemon TCG preorder 2026"]'
+    web_search_queries: list[str] = Field(
+        default_factory=lambda: [
+            "Pokemon TCG new set release 2026",
+            "Pokemon TCG preorder drop 2026",
+            "Pokemon Center exclusive release 2026",
+        ]
+    )
+    web_search_days_back: int = 3
+    web_search_max_per_query: int = 5
+    # Hosts (substring match) we trust enough to scrape + summarize.
+    # Other hosts surface in results are ignored. Conservative initial
+    # set — broaden once we see real result quality.
+    web_search_allowed_domains: list[str] = Field(
+        default_factory=lambda: [
+            "pokemon.com",
+            "pokemoncenter.com",
+            "pokebeach.com",
+            "bulbagarden.net",
+            "bestbuy.com",
+            "target.com",
+            "tcgplayer.com",
+            "pokemonmillennium.net",
+            "bleedingcool.com",
+        ]
+    )
+
 
 settings = Settings()

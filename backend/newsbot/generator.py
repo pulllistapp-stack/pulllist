@@ -114,6 +114,42 @@ pricing trends, set context, collectibility angle.]
 Target length: **350-500 words**. Shorter is better than longer.
 Always end with a Sources section linking the original article.
 
+# Source type — editorial vs product/drop
+
+The user prompt starts with `Source type: …`. Adjust shape to match:
+
+- **editorial article** (default — PokeBeach posts, set reveals,
+  meta analyses, official announcements treated as news): full
+  350-500 word post per the body format above.
+- **product / drop page** (retailer announcement, store listing,
+  preorder page from BestBuy, Pokemon Center, Target, Walmart,
+  TCGPlayer, Amazon, etc.): much tighter — **150-250 words**, fact-
+  density over editorialising. Lead with the retailer + product +
+  price + drop date. Use one H2 (`## Details`) instead of the full
+  "What happened / Why it matters" structure. Skip "Why it matters
+  for collectors" entirely (drop posts are utility-first; readers
+  came for the SKU). Structure:
+
+    [Lead — 1 sentence: retailer + product + price + drop date/status]
+
+    ## Details
+
+    - **Price:** $X
+    - **SKU / item #:** 12345 (if visible on the source)
+    - **Limit:** N per order (if mentioned)
+    - **Status:** live / pre-order / waitlist / sold out
+    - **Link:** [Retailer name](URL)
+
+    [Optional 1-sentence collector context if there's a real angle —
+    e.g. "These tins reprint the Mega Box promos from January at
+    half the cost." Skip if nothing to add.]
+
+    ## Sources
+    - [Source name](URL)
+
+  No reference images section embedding (drop pages rarely have
+  useful product shots — retailer hero is good enough as thumbnail).
+
 # Reference images
 
 If the user prompt includes a "Reference images" list, embed each
@@ -188,12 +224,38 @@ prose around it, no markdown code fence, no preamble:
 """
 
 
+# Hosts that indicate a retailer / store / product page — the
+# "product/drop" prompt branch fires when item.url matches one.
+# Substring match against the lowercased URL, so subdomains + slugs
+# still hit (e.g. "bestbuy" matches "www.bestbuy.com/site/...").
+_DROP_HOSTS = (
+    "bestbuy.com",
+    "pokemoncenter.com",
+    "target.com",
+    "walmart.com",
+    "tcgplayer.com",
+    "amazon.com",
+    "gamestop.com",
+)
+
+
+def _is_drop_source(url: str) -> bool:
+    u = url.lower()
+    return any(h in u for h in _DROP_HOSTS)
+
+
 def _build_user_prompt(item: NewsItem) -> str:
     body = item.raw_text or item.summary or ""
     # Truncate aggressively — long articles blow up token cost without
     # adding much beyond the first ~6k tokens (~24k chars).
     body = body[:24000]
+    source_type = (
+        "product/drop page (retailer announcement)"
+        if _is_drop_source(item.url)
+        else "editorial article"
+    )
     parts = [
+        f"Source type: {source_type}",
         f"Source: {item.source_name}",
         f"URL: {item.url}",
         f"Original title: {item.title}",

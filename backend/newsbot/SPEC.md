@@ -1,18 +1,41 @@
 # PullList Newsbot — Spec & Handoff
 
-**Status:** Spec only. No code yet.
-**Designed:** 2026-06-22
-**Built in:** A separate session. The kickoff prompt below is the only thing the new session needs.
+**Status:** Phase 1 shipped 2026-06-25 (tag `newsbot-phase-1`). Phase 2 in progress.
+**Designed:** 2026-06-22 · **Phase 1 live:** 2026-06-25
 
 ---
 
-## Kickoff prompt for the new session
+## Kickoff prompt for a fresh session
 
-> Read `backend/newsbot/SPEC.md`, then build **Phase 1 end-to-end**:
-> schema migration → PokeBeach source → draft publish pipeline.
-> Commit per phase. Run dry-run tests in CI before live runs.
+> Read `backend/newsbot/SPEC.md` and resume from current phase.
 
-That's literally it. This document is the full briefing.
+That's it. The "Phase 1 reality" section below tells you what diverged from the original plan during implementation — read it before assuming any code matches the original SPEC sections verbatim.
+
+---
+
+## Phase 1 reality — what shipped vs original SPEC
+
+Several decisions changed during the Phase 1 build. The original SPEC sections below ("Schema changes", "Sources", "Stack", etc.) describe the plan; this table captures what actually landed in `main`:
+
+| Original SPEC | Phase 1 implementation | Why |
+|---|---|---|
+| Scrapling `Fetcher` (httpx-based) | Scrapling `AsyncStealthySession(solve_cloudflare=True)` — full headless Chromium | PokeBeach article pages 403 plain httpx + curl_cffi alone on JS challenge |
+| PokeBeach RSS at `/news/feed` | HTML scrape of `https://www.pokebeach.com/` homepage (16 `article.post` cards/page) | PokeBeach `/feed` returns 500 upstream, `/news/feed` 404s |
+| Claude Opus 4.8 + adaptive thinking | Claude Sonnet 4.6 medium effort + adaptive thinking | ~6× cheaper (~$0.012-0.05/article vs $0.075); Sonnet handles 400-word news well |
+| Dedicated `newsbot@pulllist.org` user | Reuses existing `admin@pulllist.org` (env-overridable) | One less mailbox / account to rotate |
+| Prompt-only JSON output contract | `output_config.format` schema + greedy `{…}` regex + Pydantic validate (defence in depth) | 33% drop rate on prompt-only; structured outputs eliminates JSON parse failures |
+| Phase 3 cron flip (later) | Cron live end of Phase 1 (12:00 UTC daily = 8am ET) | Stable across multi-run testing, no reason to delay |
+| (not in SPEC) | All external images proxied through `images.weserv.nl` | Hot-link-protected sources 403 cross-origin Referer — see `project-pulllist-weserv-images` memory |
+| (not in SPEC) | ASCII-only slugs via NFKD + ASCII strip | Unicode in slug caused Next.js + FastAPI URL-encoding mismatch → 404s |
+| (not in SPEC) | Body image extraction (figures + bare `<img>`, cap 10) | Set-reveal articles put 10-20+ card art shots as bare img tags outside figures |
+| (not in SPEC) | Paired-image auto-detection → `<div style="display:flex;gap:0">` HTML for split cards | Pokémon TCG split-card sets (LEGEND, split Stadium etc.) need adjacent rendering |
+| (not in SPEC) | Admin tooling: draft preview route, row-level delete, `admin-{dump,delete,proxy-thumbnails}-post.yml` workflows | Friction reduction during draft review |
+
+Operationally on `main`:
+- Cron: `.github/workflows/daily-newsbot.yml` → 12:00 UTC daily, manual `workflow_dispatch` with `dry_run` + `post_limit` inputs.
+- Stack: `scrapling[fetchers]>=0.3`, `anthropic>=0.50`, `tavily-python>=0.5`, `pydantic>=2.5`, `httpx`, `pydantic-settings`.
+- Default settings: `claude_model=claude-sonnet-4-6`, `claude_effort=medium`, `daily_post_limit=2`, `bot_author_name="PullList Bot"`.
+- Render free-tier cold-start: `publisher.REQUEST_TIMEOUT=90.0` (see `project-pulllist-render-cold-start` memory).
 
 ---
 
@@ -223,27 +246,42 @@ backend/newsbot/
 - [ ] LO publishes the draft manually → confirms it appears on public `/news`
 - [ ] Commit, tag `newsbot-phase-1`
 
-### Phase 2 — Multilingual sweep (1 PR)
+### Phase 2 — Source expansion (in progress)
 
-- [ ] Sources: bulbanews, pokemoncard_jp, pokemonkorea_kr, pokemoncenter, pokemon_com, reddit_tcg
-- [ ] Generator: detect source language, prompt Claude to translate + rewrite into English
+Driven by an observation during Phase 1: PokeBeach alone misses platform-specific drop info (BestBuy SKUs, Pokémon Center exclusives, Target/Walmart preorders) that lives in retailer announcements and community deal threads. Two-track expansion:
+
+**Track A: Search-driven discovery (priority)**
+
+Bot proactively finds new content via web search rather than relying only on hard-coded source crawlers. Reuses the existing Tavily account (already in deps for fact-check). Tavily free tier covers our volume.
+
+- [ ] `sources/web_search.py` — for each configured query, hit Tavily, filter by recency + domain allowlist, build NewsItem list
+- [ ] Settings: `web_search_enabled`, `web_search_queries` (list), `web_search_days_back`, `web_search_max_per_query`, `web_search_allowed_domains`
+- [ ] Generic page enricher: fetch with curl_cffi, extract `og:image` as hero + `<main>` / `<article>` / `og:description` as body. No per-domain selectors.
+- [ ] Generator prompt branch: detect drop/product pages (host in retailer list) → tighter format (150-250w, SKU/price/limit prominent) vs editorial default
+- [ ] Conservative defaults: 1 query/day, 5 results, top 3 allowed domains (bestbuy.com, pokemoncenter.com, target.com, etc.) — ~$2/mo extra
+- [ ] Iterate query design once we see real result quality
+
+**Track B: Known-source crawlers** (original SPEC list, lower priority)
+
+- [ ] Sources: bulbanews, pokemoncard_jp, pokemonkorea_kr, pokemoncenter, pokemon_com
+- [ ] Generator: detect source language, prompt Claude to translate + rewrite into English (Output is always English regardless of source)
 - [ ] Classify: heuristic per source (Pokémon Center → `center`, pokemoncard_jp drops → `drops`)
 - [ ] Test each source individually
-- [ ] Full multi-source run
+- [ ] **Reddit r/pkmntcgcollections** moved to "skip" — Track A's search-driven path catches the same retail drops Reddit aggregates, without the spam/karma filtering complexity
 
-### Phase 3 — Cron activation
+### Phase 3 — Cron activation ✅ shipped end of Phase 1
 
-- [ ] Update workflow: `schedule: '0 12 * * *'` (12:00 UTC = 21:00 KST)
-- [ ] Add failure alert: 3 consecutive failed runs → Discord webhook or Resend email
-- [ ] Monitor 14 days
-- [ ] If clean: lock in. If noisy: tune prompts, retry.
+- [x] Workflow: `schedule: '0 12 * * *'` (12:00 UTC = 21:00 KST = 8am ET) — see `.github/workflows/daily-newsbot.yml`
+- [ ] **Still open**: failure alert (3 consecutive failed runs → Discord webhook or Resend email) — deferred until a real noise pattern emerges
+- [ ] Monitor 14 days — currently mid-window
 
 ### Phase 4 — Future (not committed)
 
-- Auto-publish if dry-runs show <2% factual error rate
+- Auto-publish if dry-runs show <2% factual error rate (Tavily fact-check must be wired up first — currently `skip_factcheck` auto-engages when `TAVILY_API_KEY` is unset)
 - Twitter / X as source (paid API — gate on traffic)
 - Thumbnail image generation
 - SEO-tuned meta tags
+- Listing pagination (`/news` page) once post count crosses ~30
 
 ---
 

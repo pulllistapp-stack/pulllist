@@ -25,6 +25,14 @@ on:
         required: false
         default: ''
         type: string
+      enable_web_search:
+        description: 'Phase 2: enable Tavily web-search source for this run (needs TAVILY_API_KEY secret).'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
 
 jobs:
   run:
@@ -75,5 +83,10 @@ jobs:
           # their explicit '1' / '0' choice; the input default is '1'
           # so a fat-fingered manual run can't accidentally publish.
           DRY_RUN: ${{ inputs.dry_run || '0' }}
+          # Phase 2: web_search source is off by default (cron + manual
+          # both). Flip on per-run via -f enable_web_search=1 once
+          # TAVILY_API_KEY is wired and queries are tuned. Defaults in
+          # config.py cover queries / allowed_domains.
+          WEB_SEARCH_ENABLED: ${{ inputs.enable_web_search || '0' }}
           LOG_LEVEL: INFO
         run: python -m newsbot.main

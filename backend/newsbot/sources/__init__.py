@@ -73,9 +73,10 @@ def register_enricher(name: str):
     return _wrap
 
 
-# Import side-effects register sources. New source modules go in this
-# list (e.g. `from . import bulbanews  # noqa: F401` in Phase 2).
+# Import side-effects register sources + their enrichers. Add new
+# source modules below.
 from . import pokebeach  # noqa: E402,F401
+from . import web_search  # noqa: E402,F401
 
 
 async def crawl_all() -> list[NewsItem]:
@@ -99,9 +100,13 @@ async def crawl_all() -> list[NewsItem]:
 
 
 async def enrich_item(item: NewsItem) -> NewsItem:
-    """Run the source's enricher if it has one. No-op if the source
-    didn't register one — caller falls back to title + summary."""
-    enricher = ENRICHERS.get(item.source_name.lower().replace(" ", ""))
+    """Run the source's enricher. Per-source enricher wins; if none
+    registered for this item's source_name, fall back to the special
+    `__generic__` enricher (web_search registers it) — that handles
+    any URL via plain fetch + og:* extraction. No-op if neither path
+    is registered (caller falls back to title + summary)."""
+    key = item.source_name.lower().replace(" ", "")
+    enricher = ENRICHERS.get(key) or ENRICHERS.get("__generic__")
     if not enricher:
         return item
     try:
