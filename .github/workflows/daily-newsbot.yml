@@ -26,13 +26,14 @@ on:
         default: ''
         type: string
       enable_web_search:
-        description: 'Phase 2: enable Tavily web-search source for this run (needs TAVILY_API_KEY secret).'
+        description: 'Phase 2 web_search source. Blank = cron default (on). Set 0 to disable for this run.'
         required: false
-        default: '0'
+        default: ''
         type: choice
         options:
-          - '0'
+          - ''
           - '1'
+          - '0'
 
 jobs:
   run:
@@ -84,10 +85,11 @@ jobs:
           # their explicit '1' / '0' choice; the input default is '1'
           # so a fat-fingered manual run can't accidentally publish.
           DRY_RUN: ${{ inputs.dry_run || '0' }}
-          # Phase 2: web_search source is off by default (cron + manual
-          # both). Flip on per-run via -f enable_web_search=1 once
-          # TAVILY_API_KEY is wired and queries are tuned. Defaults in
-          # config.py cover queries / allowed_domains.
-          WEB_SEARCH_ENABLED: ${{ inputs.enable_web_search || '0' }}
+          # Phase 2: web_search is ON by default for cron runs (Serper
+          # validated end-to-end 2026-06-27). Manual UI triggers still
+          # default to the input's '0' so a fat-finger test trigger
+          # doesn't accidentally spend Serper credits + Claude tokens.
+          # Schedule fires don't carry inputs → fall back to '1' below.
+          WEB_SEARCH_ENABLED: ${{ inputs.enable_web_search || '1' }}
           LOG_LEVEL: INFO
         run: python -m newsbot.main
