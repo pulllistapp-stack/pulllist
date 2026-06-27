@@ -30,6 +30,7 @@ import {
 } from "@/lib/variant";
 import { OwnedToggle } from "@/components/OwnedToggle";
 import { RarityChip } from "@/components/RarityChip";
+import { CardReportModal } from "@/components/card/CardReportModal";
 import { WishlistHeart } from "@/components/WishlistHeart";
 import { type Card, type CardNeighbors } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -134,6 +135,8 @@ export function PullListCardDetail({
   const [selectedVariant, setSelectedVariant] = useState<CardVariant>(
     variants[0] ?? "normal",
   );
+
+  const [reportOpen, setReportOpen] = useState(false);
 
   // tcgMid for the selected variant. Hero updates when the user clicks
   // a different tab. Falls back to the card-level denormalized price
@@ -366,6 +369,29 @@ export function PullListCardDetail({
 
         {/* Live listings (real-time eBay) */}
         <LiveListings cardId={card.id} />
+
+        {/* Report issue trigger — modest text link below live listings so
+            it's visible but doesn't compete with primary CTAs */}
+        <div className="mt-6 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-mono text-text-tertiary hover:text-accent-red hover:border-accent-red/40 transition-colors"
+          >
+            <span aria-hidden>🚩</span>
+            Report an issue with this card
+          </button>
+        </div>
+
+        {reportOpen && (
+          <CardReportModal
+            cardId={card.id}
+            cardName={card.name}
+            cardNumber={card.number}
+            setName={card.set_name}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
 
         {/* Empty state mascot if we have very little data */}
         {!cheapest && (
