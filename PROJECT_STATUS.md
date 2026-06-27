@@ -182,8 +182,9 @@ core platform stabilizes.
 ### 3.13 Admin panel
 - `/admin/news` — list, create, edit, delete posts (Markdown body, category dropdown)
 - `/admin/users` — paginated user list, search, include-deleted toggle, role chip, card+wishlist counts, Promote/Demote, Soft Delete, Restore
+- `/admin/reports` — user-submitted card data-quality reports (Wrong price / Wrong image / Wrong name / Other); status tabs (Open/Resolved/Won't fix/All), inline resolution note, per-row Resolve/Won't fix/Re-open actions
 - Self-action guards (admin can't demote or delete themself)
-- Shared `<AdminNav>` strip (News / Users)
+- Shared `<AdminNav>` strip (News / Users / Reports)
 - `<AdminGuard>` wraps each page — client redirect for non-admins
 - Backend `get_current_admin` dependency — 403 for non-admins
 - Edge middleware on `/admin/*` — noindex + no-store headers
@@ -558,6 +559,7 @@ Rough chronological summary of major work landed in this push:
 11. **AdSense compliance pass** — privacy policy updated to disclose AdSense, ads.txt added, `/contact` page created
 12. **Anti-bot Phase 1** — honeypot + per-IP rate limit + disposable email blocklist on `/auth/signup`
 13. **Portfolio polish pass** — variant chips for non-default prints, Manage mode w/ checkbox bulk-delete + type-DELETE confirm, full-options "+ I have this" modal (variant/condition/grade/qty/purchase price/source/notes) replacing the 1-click toggle, per-row ▼ Details expand panel surfacing the metadata inline with ±% ROI band + ✎ Edit modal for write access; `collection_items` gains `purchase_price_usd` + `acquisition_type` columns for ROI tracking
+14. **Card data-quality reports** — "🚩 Report an issue" on every card detail page → 4-category modal (price/image/name/other) → `card_reports` table → `/admin/reports` triage UI with status tabs + inline resolution notes. Anonymous OK; signed-in submissions attributed to the user.
 
 ---
 
