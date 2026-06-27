@@ -33,7 +33,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # Mute SQLAlchemy echo on dev — settings.debug=True drowns out our progress log.
@@ -44,7 +44,7 @@ logging.basicConfig(
 )
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, engine, init_db  # noqa: E402
-from app.models import Card, CardPriceSnapshot  # noqa: E402
+from app.models import Card, CardPriceSnapshot, Set  # noqa: E402
 from app.services.ebay_client import (  # noqa: E402
     _DEFAULT_ABS_CEILING,
     _RARITY_ABS_CEILING,
@@ -257,10 +257,54 @@ async def _group_prices(client: httpx.AsyncClient, group_id: int) -> list[dict]:
     return data.get("results", [])
 
 
-async def _load_product_map(db: AsyncSession) -> dict[int, str]:
+DAILY_PRICE_FLOOR = 1.0
+RECENT_RELEASE_DAYS = 30
+
+
+async def _load_product_map(
+    db: AsyncSession,
+    *,
+    tier: str = "all",
+) -> dict[int, str]:
+    """Load product_id → card_id map, filtered by sync tier.
+
+    Tier carves the catalog into two non-overlapping buckets so the
+    daily cron only does meaningful work and the long-tail bulk only
+    refreshes once a month — cuts Neon egress without losing freshness
+    where collectors actually care.
+
+      tier='daily'   — cards we want fresh every day:
+                       priced ≥ $DAILY_PRICE_FLOOR, OR unpriced (so a
+                       new card gets its first TCGplayer price the next
+                       morning), OR in a set released ≤30 days ago
+                       (launch-week chase often starts <$1 and surges
+                       within days — we'd miss it on a monthly cadence).
+      tier='monthly' — bulk long-tail: priced <$1 AND set released
+                       >30 days ago. Refreshed once a month.
+      tier='all'     — no filter; manual ad-hoc runs only.
+    """
     stmt = select(Card.id, Card.tcgplayer_product_id).where(
         Card.tcgplayer_product_id.isnot(None)
     )
+
+    if tier in ("daily", "monthly"):
+        cutoff = date.today() - timedelta(days=RECENT_RELEASE_DAYS)
+        stmt = stmt.join(Set, Card.set_id == Set.id)
+        if tier == "daily":
+            stmt = stmt.where(
+                or_(
+                    Card.market_price_usd >= DAILY_PRICE_FLOOR,
+                    Card.market_price_usd.is_(None),
+                    Set.release_date >= cutoff,
+                )
+            )
+        else:  # monthly
+            stmt = stmt.where(
+                Card.market_price_usd < DAILY_PRICE_FLOOR,
+                Card.market_price_usd.is_not(None),
+                or_(Set.release_date.is_(None), Set.release_date < cutoff),
+            )
+
     rows = (await db.execute(stmt)).all()
     return {pid: cid for cid, pid in rows if pid is not None}
 
@@ -277,11 +321,19 @@ async def _flush_snapshots(db: AsyncSession, batch: list[dict]) -> int:
     return result.rowcount or 0
 
 
-async def sync(snapshot_date: str, dry_run: bool, group_limit: int | None) -> None:
+async def sync(
+    snapshot_date: str,
+    dry_run: bool,
+    group_limit: int | None,
+    tier: str = "daily",
+) -> None:
     await init_db()
     async with SessionLocal() as db:
-        product_to_card = await _load_product_map(db)
-    log.info(f"loaded {len(product_to_card)} tcgplayer_product_id mappings")
+        product_to_card = await _load_product_map(db, tier=tier)
+    log.info(
+        f"loaded {len(product_to_card)} tcgplayer_product_id mappings "
+        f"(tier={tier})"
+    )
 
     stats = {
         "groups_seen": 0,
@@ -392,9 +444,22 @@ def main() -> None:
         "--limit-groups", type=int, default=None,
         help="Process only the first N groups (smoke testing).",
     )
+    parser.add_argument(
+        "--tier",
+        choices=("daily", "monthly", "all"),
+        default="daily",
+        help=(
+            "Which slice of cards to sync. 'daily' = priced ≥$1 OR "
+            "unpriced OR set released ≤30d ago (default, daily cron). "
+            "'monthly' = bulk long-tail (priced <$1 AND set released "
+            ">30d ago) for the monthly cron. 'all' = no filter."
+        ),
+    )
     args = parser.parse_args()
     snapshot_date = args.snapshot_date or date.today().isoformat()
-    asyncio.run(sync(snapshot_date, args.dry_run, args.limit_groups))
+    asyncio.run(
+        sync(snapshot_date, args.dry_run, args.limit_groups, tier=args.tier)
+    )
 
 
 if __name__ == "__main__":

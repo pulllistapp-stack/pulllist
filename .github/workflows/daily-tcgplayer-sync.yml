@@ -32,11 +32,20 @@ jobs:
 
       # TCGplayer prices come from TCGCSV — daily cadence (UTC 20:00),
       # owns cards.tcgplayer_prices + tcgplayer source snapshots end-to-end.
-      - name: TCGplayer sync (TCGCSV)
+      #
+      # Tier filter (--tier daily, the default): only sync cards we
+      # consider "live" — priced ≥$1 OR unpriced (so newly mapped
+      # cards get their first price) OR in a set released ≤30 days
+      # ago (launch-week chase often starts <$1 and surges fast).
+      # The bulk long-tail (<$1, set >30d old) runs in its own
+      # monthly workflow — see .github/workflows/monthly-tcgplayer-bulk-sync.yml.
+      # Cuts daily Neon egress roughly in half without losing freshness
+      # where collectors actually look.
+      - name: TCGplayer sync (TCGCSV) — daily tier
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOG_LEVEL: INFO
-        run: python -m scripts.sync_tcgcsv_daily
+        run: python -m scripts.sync_tcgcsv_daily --tier daily
 
       # pokemontcg.io still covers Cardmarket — TCGCSV doesn't expose it
       # and Cardmarket's own data dumps are hard to parse. The
