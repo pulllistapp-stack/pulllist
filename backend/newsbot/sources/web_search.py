@@ -1,14 +1,17 @@
-"""Tavily-driven discovery source (Phase 2 Track A).
+"""Serper-driven discovery source (Phase 2 Track A).
 
 Instead of crawling a fixed feed, we run a configurable list of
-queries through Tavily, dedupe results by URL, filter by a domain
-allowlist, and return them as NewsItems. The pipeline's generic
-enricher (registered here for the special `__generic__` key) then
-handles fetching + body/og extraction for any host.
+queries through Serper's /news endpoint (Google news results), dedupe
+results by URL, filter by a domain allowlist, and return them as
+NewsItems. The pipeline's generic enricher (registered here for the
+special `__generic__` key) then handles fetching + body/og extraction
+for any host.
 
-Reuses the existing TAVILY_API_KEY secret (already wired for
-fact-check). Free tier easily covers a daily run with a handful of
-queries.
+Provider: Serper (google.serper.dev). Free tier 2,500 credits/month
+= 1 credit per /news call. At ~1-3 queries/day we use ~30-90/month,
+well inside free. The /news endpoint is preferred over /search
+because it returns date-stamped recent articles instead of generic
+web results.
 
 Off by default — flip `web_search_enabled=True` (env
 `WEB_SEARCH_ENABLED=1`) when ready to start collecting.
@@ -19,8 +22,8 @@ import logging
 import re
 from urllib.parse import urlparse
 
+import httpx
 from curl_cffi.requests import AsyncSession
-from tavily import AsyncTavilyClient
 
 from ..config import settings
 from . import NewsItem, register, register_enricher
@@ -31,6 +34,10 @@ log = logging.getLogger("newsbot.sources.web_search")
 # source enricher matches. enrich_item() in sources/__init__.py looks
 # this up after trying the item's specific source_name.
 GENERIC_KEY = "__generic__"
+
+SERPER_NEWS_URL = "https://google.serper.dev/news"
+SERPER_TIMEOUT = 30.0
+
 
 # Regex og:* extraction — avoids pulling an extra HTML parser dep
 # for what is, mechanically, three tag lookups. Robust enough for
@@ -66,61 +73,104 @@ def _domain_of(url: str) -> str:
         return ""
 
 
+def _serper_tbs(days_back: int) -> str:
+    """Map our days_back setting to Serper's `tbs` (time filter) param.
+    Google search uses qdr:d/w/m/y for day/week/month/year buckets —
+    pick the smallest bucket that contains the requested window."""
+    if days_back <= 1:
+        return "qdr:d"
+    if days_back <= 7:
+        return "qdr:w"
+    if days_back <= 31:
+        return "qdr:m"
+    return "qdr:y"
+
+
+def _build_query_with_sites(query: str, allowed_domains: list[str]) -> str:
+    """Append `site:` operators to the query so Google restricts
+    results at search time — saves credits and keeps result quality
+    high. 9 OR clauses comfortably fits Google's operator budget."""
+    if not allowed_domains:
+        return query
+    sites = " OR ".join(f"site:{d}" for d in allowed_domains)
+    return f"{query} ({sites})"
+
+
 @register("web_search")
 async def crawl() -> list[NewsItem]:
     if not settings.web_search_enabled:
         log.info("web_search: disabled (WEB_SEARCH_ENABLED=1 to enable)")
         return []
-    if not settings.tavily_api_key:
-        log.warning("web_search: TAVILY_API_KEY not set — skipping")
+    if not settings.serper_api_key:
+        log.warning("web_search: SERPER_API_KEY not set — skipping")
         return []
     if not settings.web_search_queries:
         log.warning("web_search: no queries configured — skipping")
         return []
 
-    client = AsyncTavilyClient(api_key=settings.tavily_api_key)
+    headers = {
+        "X-API-KEY": settings.serper_api_key,
+        "Content-Type": "application/json",
+    }
+    tbs = _serper_tbs(settings.web_search_days_back)
     items: list[NewsItem] = []
     seen_urls: set[str] = set()
 
-    for query in settings.web_search_queries:
-        try:
-            resp = await client.search(
-                query=query,
-                max_results=settings.web_search_max_per_query,
-                days=settings.web_search_days_back,
-                search_depth="basic",
-                include_domains=settings.web_search_allowed_domains,
-            )
-        except Exception as exc:
-            log.exception("web_search: tavily query %r failed: %s", query, exc)
-            continue
-        results = resp.get("results", []) or []
-        log.info("web_search: query %r → %d results", query, len(results))
-        for hit in results:
-            url = (hit.get("url") or "").strip()
-            if not url or url in seen_urls:
-                continue
-            seen_urls.add(url)
-            domain = _domain_of(url)
-            # Tavily already filters server-side via include_domains;
-            # this is the safety net in case a result slips through
-            # (e.g. cross-domain redirect, allowlist tuning drift).
-            if not any(d in domain for d in settings.web_search_allowed_domains):
-                log.info("web_search: skip off-allowlist %s", domain)
-                continue
-            title = (hit.get("title") or "").strip()
-            content = (hit.get("content") or "").strip()
-            if not title:
-                continue
-            items.append(
-                NewsItem(
-                    url=url[:512],
-                    title=title[:512],
-                    summary=content[:480],
-                    source_name=domain or "web",
-                    source_lang="en",
+    async with httpx.AsyncClient(timeout=SERPER_TIMEOUT) as client:
+        for query in settings.web_search_queries:
+            q = _build_query_with_sites(query, settings.web_search_allowed_domains)
+            payload = {
+                "q": q,
+                "num": settings.web_search_max_per_query,
+                "tbs": tbs,
+            }
+            try:
+                r = await client.post(
+                    SERPER_NEWS_URL, headers=headers, json=payload
                 )
-            )
+                if r.status_code != 200:
+                    log.warning(
+                        "web_search: serper /news → %d for %r: %s",
+                        r.status_code, query, r.text[:200],
+                    )
+                    continue
+                data = r.json()
+            except Exception as exc:
+                log.exception("web_search: serper query %r failed: %s", query, exc)
+                continue
+            results = data.get("news", []) or []
+            log.info("web_search: query %r → %d results", query, len(results))
+            for hit in results:
+                url = (hit.get("link") or "").strip()
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
+                domain = _domain_of(url)
+                # Google `site:` operator already narrows to allowed
+                # domains; this is the safety net for redirects or
+                # operator misses.
+                if not any(d in domain for d in settings.web_search_allowed_domains):
+                    log.info("web_search: skip off-allowlist %s", domain)
+                    continue
+                title = (hit.get("title") or "").strip()
+                snippet = (hit.get("snippet") or "").strip()
+                if not title:
+                    continue
+                # Serper /news bonus: imageUrl + publisher source for
+                # nicer thumbnail fallback. The generic enricher will
+                # override hero_image_url with the page's og:image
+                # later — this seeds it in case the page has no og.
+                image_url = (hit.get("imageUrl") or "").strip()
+                items.append(
+                    NewsItem(
+                        url=url[:512],
+                        title=title[:512],
+                        summary=snippet[:480],
+                        source_name=domain or "web",
+                        source_lang="en",
+                        hero_image_url=image_url[:512] or None,
+                    )
+                )
     log.info(
         "web_search: %d unique items across %d queries",
         len(items),
@@ -135,7 +185,7 @@ async def generic_enrich(item: NewsItem) -> NewsItem:
     registry fallback for any source_name without a per-domain
     enricher. Curl_cffi (Chrome JA3) handles most lightly-protected
     pages; pages behind a JS challenge fall back to whatever the
-    search result already provided (title + Tavily snippet)."""
+    search result already provided (title + snippet)."""
     async with AsyncSession(impersonate="chrome120", timeout=REQUEST_TIMEOUT) as s:
         try:
             r = await s.get(item.url, allow_redirects=True)

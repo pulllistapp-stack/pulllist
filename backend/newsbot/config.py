@@ -42,8 +42,15 @@ class Settings(BaseSettings):
     # Adaptive thinking effort level (low | medium | high | xhigh | max).
     claude_effort: str = "medium"
 
-    # ── Tavily ──
+    # ── Tavily ── (currently used by factcheck.py; web_search now
+    # uses Serper instead, see below)
     tavily_api_key: str = ""
+
+    # ── Serper ── (web_search source, Phase 2 Track A)
+    # Google-results search via google.serper.dev — free tier 2500
+    # credits / month, one credit per /news call. Plenty for our
+    # ~1-3 searches/day.
+    serper_api_key: str = ""
 
     # ── Runtime knobs ──
     daily_post_limit: int = 2
