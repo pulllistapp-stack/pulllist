@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, use } from "react";
 import { Calendar, ChevronLeft, Edit2, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 
 import { AdminGuard } from "@/components/admin/AdminGuard";
@@ -188,6 +189,7 @@ function PreviewContent({ slug }: { slug: string }) {
       <article className="prose-pl max-w-none">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]}
           components={{
             h2: (props) => (
               <h2

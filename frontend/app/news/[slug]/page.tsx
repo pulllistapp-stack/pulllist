@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Calendar, ChevronLeft, Eye, User } from "lucide-react";
 import { Metadata } from "next";
 import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 
 import { categoryLabel, fetchPost } from "@/lib/news";
@@ -131,7 +132,12 @@ export default async function NewsArticlePage({
 
       <article className="prose-pl max-w-none">
         <ReactMarkdown
+          // rehype-raw lets admin-authored HTML (e.g. flex containers
+          // wrapping multiple images for side-by-side layout) render
+          // instead of getting escaped. Body content only comes from
+          // the bot + the admin form, so the XSS surface is internal.
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]}
           components={{
             h2: (props) => (
               <h2

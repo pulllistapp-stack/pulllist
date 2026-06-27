@@ -6,6 +6,7 @@ import { ChevronLeft } from "lucide-react";
 
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import { PostForm } from "@/components/admin/PostForm";
+import { getToken } from "@/lib/auth";
 import { fetchPost, NewsPost } from "@/lib/news";
 
 export default function EditPostPage({
@@ -25,7 +26,9 @@ function EditPostContent({ slug }: { slug: string }) {
   const [post, setPost] = useState<NewsPost | null | undefined>(undefined);
 
   useEffect(() => {
-    fetchPost(slug).then(setPost);
+    // Pass the admin bearer token so the GET resolves drafts too —
+    // without it the public route 404s anything not published yet.
+    fetchPost(slug, getToken() ?? undefined).then(setPost);
   }, [slug]);
 
   return (
