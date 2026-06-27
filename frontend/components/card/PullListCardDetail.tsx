@@ -296,6 +296,18 @@ export function PullListCardDetail({
                 className="pointer-events-none absolute right-[22%] bottom-[8%] h-4 w-4 text-amber-200 opacity-0 drop-shadow-[0_0_6px_rgba(255,203,5,0.7)] group-hover:[animation:pl-sparkle_2s_ease-in-out_infinite_1.4s]"
               />
             </div>
+
+            {/* Report issue trigger — compact, sits below the card image */}
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setReportOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-surface px-2.5 py-1 text-[11px] font-mono text-text-tertiary hover:text-accent-red hover:border-accent-red/40 transition-colors"
+              >
+                <span aria-hidden>🚩</span>
+                Report issue
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-5">
@@ -369,19 +381,6 @@ export function PullListCardDetail({
 
         {/* Live listings (real-time eBay) */}
         <LiveListings cardId={card.id} />
-
-        {/* Report issue trigger — modest text link below live listings so
-            it's visible but doesn't compete with primary CTAs */}
-        <div className="mt-6 flex items-center justify-center">
-          <button
-            type="button"
-            onClick={() => setReportOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-mono text-text-tertiary hover:text-accent-red hover:border-accent-red/40 transition-colors"
-          >
-            <span aria-hidden>🚩</span>
-            Report an issue with this card
-          </button>
-        </div>
 
         {reportOpen && (
           <CardReportModal
