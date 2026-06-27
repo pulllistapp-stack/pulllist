@@ -140,6 +140,9 @@ async def crawl() -> list[NewsItem]:
                 continue
             results = data.get("news", []) or []
             log.info("web_search: query %r → %d results", query, len(results))
+            required_kws = [
+                k.lower() for k in (settings.web_search_required_keywords or [])
+            ]
             for hit in results:
                 url = (hit.get("link") or "").strip()
                 if not url or url in seen_urls:
@@ -156,6 +159,17 @@ async def crawl() -> list[NewsItem]:
                 snippet = (hit.get("snippet") or "").strip()
                 if not title:
                     continue
+                # Topic filter — Target/BestBuy/TCGPlayer also surface
+                # Flesh and Blood, Magic, MLB cards. Require at least
+                # one configured keyword somewhere in title+snippet.
+                if required_kws:
+                    haystack = (title + " " + snippet).lower()
+                    if not any(kw in haystack for kw in required_kws):
+                        log.info(
+                            "web_search: skip off-topic %r (no required keyword in title/snippet)",
+                            title[:80],
+                        )
+                        continue
                 # Serper /news bonus: imageUrl + publisher source for
                 # nicer thumbnail fallback. The generic enricher will
                 # override hero_image_url with the page's og:image

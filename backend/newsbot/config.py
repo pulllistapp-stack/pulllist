@@ -92,6 +92,14 @@ class Settings(BaseSettings):
             "bleedingcool.com",
         ]
     )
+    # Lowercased keyword required in result title or snippet — any
+    # match is enough. Filters out non-Pokemon TCG noise that broad
+    # retailers (Target, BestBuy, TCGPlayer) surface when generic
+    # "TCG preorder" queries match Flesh and Blood / Magic / MLB /
+    # etc. listings. Tunable per environment via the JSON env var.
+    web_search_required_keywords: list[str] = Field(
+        default_factory=lambda: ["pokemon", "pokémon", "pokémon"]
+    )
 
 
 settings = Settings()
