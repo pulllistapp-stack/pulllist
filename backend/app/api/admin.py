@@ -15,11 +15,19 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from datetime import datetime as _datetime
+from datetime import datetime as _datetime, timedelta
 
 from app.auth import get_current_admin
 from app.database import get_db
-from app.models import Card, CardReport, CollectionItem, Set, User, WishlistItem
+from app.models import (
+    Card,
+    CardReport,
+    CollectionItem,
+    Set,
+    User,
+    VisitLog,
+    WishlistItem,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -310,3 +318,158 @@ async def update_card_report(
     resolver = await db.get(User, report.resolved_by) if report.resolved_by else None
 
     return _serialize_report(report, card, set_row, reporter, resolver)
+
+
+# ────────── Visit logs (traffic dashboard) ──────────
+
+
+@router.get("/visits/summary")
+async def visits_summary(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Top-level traffic numbers for the admin dashboard:
+
+      - today / yesterday / last-7d page views (raw count)
+      - today / yesterday / last-7d unique visitors (distinct session_id)
+      - today's country breakdown (top 10)
+      - last-7d daily series (for a tiny sparkline)
+    """
+    now = _datetime.utcnow()
+    # Day windows are UTC — the admin reads "today" relative to server time;
+    # close enough at friends-beta scale, and avoids per-user-tz queries.
+    today_start = _datetime(now.year, now.month, now.day)
+    yest_start = today_start - timedelta(days=1)
+    week_start = today_start - timedelta(days=6)  # inclusive 7-day window
+
+    async def _count(window_start: _datetime, window_end: _datetime) -> int:
+        stmt = select(func.count(VisitLog.id)).where(
+            VisitLog.created_at >= window_start,
+            VisitLog.created_at < window_end,
+        )
+        return int((await db.execute(stmt)).scalar() or 0)
+
+    async def _unique(window_start: _datetime, window_end: _datetime) -> int:
+        stmt = select(func.count(func.distinct(VisitLog.session_id))).where(
+            VisitLog.created_at >= window_start,
+            VisitLog.created_at < window_end,
+        )
+        return int((await db.execute(stmt)).scalar() or 0)
+
+    today_views = await _count(today_start, today_start + timedelta(days=1))
+    yest_views = await _count(yest_start, today_start)
+    week_views = await _count(week_start, today_start + timedelta(days=1))
+
+    today_uniques = await _unique(today_start, today_start + timedelta(days=1))
+    yest_uniques = await _unique(yest_start, today_start)
+    week_uniques = await _unique(week_start, today_start + timedelta(days=1))
+
+    # Today's country breakdown
+    country_stmt = (
+        select(VisitLog.country, func.count(VisitLog.id))
+        .where(VisitLog.created_at >= today_start)
+        .group_by(VisitLog.country)
+        .order_by(func.count(VisitLog.id).desc())
+        .limit(10)
+    )
+    countries = [
+        {"country": c or "??", "count": int(n)}
+        for c, n in (await db.execute(country_stmt)).all()
+    ]
+
+    # 7-day daily series
+    daily_stmt = (
+        select(
+            func.date(VisitLog.created_at).label("day"),
+            func.count(VisitLog.id),
+            func.count(func.distinct(VisitLog.session_id)),
+        )
+        .where(VisitLog.created_at >= week_start)
+        .group_by("day")
+        .order_by("day")
+    )
+    daily = [
+        {"date": str(d), "views": int(v), "uniques": int(u)}
+        for d, v, u in (await db.execute(daily_stmt)).all()
+    ]
+
+    return {
+        "views": {"today": today_views, "yesterday": yest_views, "week": week_views},
+        "uniques": {
+            "today": today_uniques,
+            "yesterday": yest_uniques,
+            "week": week_uniques,
+        },
+        "countries_today": countries,
+        "daily_7d": daily,
+    }
+
+
+@router.get("/visits/by-user")
+async def visits_by_user(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    days: int = Query(1, ge=1, le=30, description="Window in days back from today."),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Per-logged-in-user visit counts within the window, plus their last
+    seen timestamp + last seen country. Lets the admin spot unusual
+    activity (e.g. a brand new account hitting 50 pages from CN today)."""
+    now = _datetime.utcnow()
+    today_start = _datetime(now.year, now.month, now.day)
+    window_start = today_start - timedelta(days=days - 1)
+
+    stmt = (
+        select(
+            VisitLog.user_id,
+            func.count(VisitLog.id).label("views"),
+            func.max(VisitLog.created_at).label("last_seen"),
+        )
+        .where(
+            VisitLog.created_at >= window_start,
+            VisitLog.user_id.is_not(None),
+        )
+        .group_by(VisitLog.user_id)
+        .order_by(func.count(VisitLog.id).desc())
+    )
+    rows = (await db.execute(stmt)).all()
+    user_ids = [uid for uid, _, _ in rows]
+
+    if not user_ids:
+        return {"items": [], "days": days}
+
+    users: dict[str, User] = {}
+    for u in (
+        await db.execute(select(User).where(User.id.in_(user_ids)))
+    ).scalars():
+        users[u.id] = u
+
+    # last-seen country per user (most recent visit's country)
+    last_country: dict[str, str | None] = {}
+    last_country_stmt = (
+        select(VisitLog.user_id, VisitLog.country)
+        .where(
+            VisitLog.user_id.in_(user_ids),
+            VisitLog.created_at >= window_start,
+        )
+        .order_by(VisitLog.user_id, VisitLog.created_at.desc())
+    )
+    for uid, country in (await db.execute(last_country_stmt)).all():
+        if uid not in last_country:
+            last_country[uid] = country
+
+    return {
+        "days": days,
+        "items": [
+            {
+                "user_id": uid,
+                "email": users[uid].email if uid in users else None,
+                "name": users[uid].name if uid in users else None,
+                "is_admin": users[uid].is_admin if uid in users else False,
+                "views": int(views),
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                "last_country": last_country.get(uid),
+            }
+            for uid, views, last_seen in rows
+            if uid in users
+        ],
+    }
