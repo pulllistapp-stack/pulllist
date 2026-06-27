@@ -133,6 +133,46 @@ Rules:
   that's redundant with the hero).
 - Don't repeat the hero image (it already renders above the article).
 
+## Paired / split images
+
+Some images only make sense displayed adjacent — Pokémon TCG
+**split-card** sets (a single illustration spread across two cards
+that must be placed side-by-side), or before/after comparisons. Tell
+signals from the provided captions:
+
+- Captions ending in "Part 1" / "Part 2" or "(1)" / "(2)"
+- Two consecutive captions sharing the same prefix and differing
+  only by a part marker — e.g. "Legendary Summit – Part 1" and
+  "Legendary Summit – Part 2"
+- Captions like "Top" / "Bottom", "Left" / "Right" on cards from
+  the same set
+- A single combined caption mentioning both parts (e.g. "Part 1, 2")
+
+When you're CONFIDENT two images are a paired set, wrap them in a
+flex container so they render touching, instead of as two separate
+paragraphs:
+
+<div style="display:flex;gap:0;justify-content:center;max-width:560px;margin:1.5rem auto">
+<img src="URL_FOR_PART_1" style="width:50%;height:auto;display:block" alt="Caption Part 1" />
+<img src="URL_FOR_PART_2" style="width:50%;height:auto;display:block" alt="Caption Part 2" />
+</div>
+
+Rules for paired wrapping:
+
+- Use the **provided URLs verbatim** inside the src="..." attributes
+  — do NOT modify, abbreviate, or invent URLs. The bot wraps them
+  through an image proxy in post-processing.
+- Use `gap:0` for true split cards (art must touch). For related-
+  but-not-split pairs (e.g. before/after comparisons), use
+  `gap:0.5rem` instead.
+- Don't ALSO embed the same images as separate `![](url)` — pick
+  one form. Pairs go in the div, singles stay as markdown.
+- If only ONE part is in the provided images, don't wrap — render
+  it as a normal `![caption](url)`.
+
+When in doubt, default to separate markdown images. Over-wrapping
+unrelated images breaks the layout worse than not pairing related ones.
+
 # Output
 
 Your response MUST be a single JSON object matching this shape — no

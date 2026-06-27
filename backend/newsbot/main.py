@@ -66,25 +66,44 @@ def _proxy_image(url: str | None) -> str | None:
 
 
 # Matches markdown image syntax — captures the prefix `![alt](`, the
-# URL, and the closing `)` (possibly with an optional title). Multiline
-# bodies are scanned with re.MULTILINE-equivalent default behaviour.
+# URL, and the closing `)` (possibly with an optional title).
 _MARKDOWN_IMG_RE = re.compile(r"(!\[[^\]]*\]\()\s*(\S+?)(\s+\"[^\"]*\")?(\s*\))")
+
+# Matches an <img> tag's src="..." or src='...' attribute. Claude
+# emits raw HTML when wrapping paired/split images in flex containers,
+# so those URLs need the same weserv treatment as markdown images
+# (otherwise cross-origin Referer 403s them in the browser).
+_HTML_IMG_SRC_RE = re.compile(
+    r"(<img[^>]*\s)(src=)([\"'])([^\"']+)(\3)",
+    re.IGNORECASE,
+)
 
 
 def _proxy_inline_images(markdown: str) -> str:
-    """Walk every `![alt](url)` in the markdown body and wrap external
-    URLs through weserv — same hot-link bypass as thumbnail_url.
+    """Walk every image URL in the markdown body — both `![alt](url)`
+    markdown and `<img src="url">` HTML — and wrap external ones
+    through weserv (same hot-link bypass as thumbnail_url).
 
     Skips non-http URLs (relative paths, anchors, mailto: etc) and
     leaves trusted hosts alone. Idempotent on already-wrapped URLs.
     """
-    def _wrap(m: re.Match) -> str:
+    def _wrap_md(m: re.Match) -> str:
         prefix, url, title, suffix = m.group(1), m.group(2), m.group(3) or "", m.group(4)
         if not url.startswith(("http://", "https://")):
             return m.group(0)
         wrapped = _proxy_image(url) or url
         return f"{prefix}{wrapped}{title}{suffix}"
-    return _MARKDOWN_IMG_RE.sub(_wrap, markdown)
+
+    def _wrap_html(m: re.Match) -> str:
+        head, src_eq, quote, url, close_quote = m.groups()
+        if not url.startswith(("http://", "https://")):
+            return m.group(0)
+        wrapped = _proxy_image(url) or url
+        return f"{head}{src_eq}{quote}{wrapped}{close_quote}"
+
+    out = _MARKDOWN_IMG_RE.sub(_wrap_md, markdown)
+    out = _HTML_IMG_SRC_RE.sub(_wrap_html, out)
+    return out
 
 
 def _build_post_payload(
