@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Activity, Globe, Loader2, ShieldAlert } from "lucide-react";
 
 import { AdminGuard } from "@/components/admin/AdminGuard";
-import { AdminNav } from "@/components/admin/AdminNav";
 import {
   getVisitsByUser,
   getVisitsSummary,
@@ -49,8 +48,6 @@ function AdminVisitsContent() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
-      <AdminNav />
-
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-text-primary">
           Visits
