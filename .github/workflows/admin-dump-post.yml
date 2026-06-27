@@ -1,0 +1,35 @@
+name: Admin — dump post body
+
+# Read-only admin tool. Dumps the full body of a post (including
+# drafts) by slug to the workflow log. Useful for debugging which
+# images Claude embedded, what the body markdown looks like, etc.
+
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Slug of the post to dump'
+        required: true
+        type: string
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install httpx
+        run: pip install 'httpx>=0.27,<1.0'
+      - name: Dump post
+        env:
+          PULLLIST_API_BASE: ${{ secrets.PULLLIST_API_BASE || 'https://api.pulllist.org/api/v1' }}
+          NEWSBOT_ADMIN_EMAIL: ${{ secrets.NEWSBOT_ADMIN_EMAIL }}
+          NEWSBOT_ADMIN_PASSWORD: ${{ secrets.NEWSBOT_ADMIN_PASSWORD }}
+          DUMP_SLUG: ${{ inputs.slug }}
+        run: python -m scripts.admin_dump_post
