@@ -71,11 +71,21 @@ _ACCESSORY_PHRASES = [
     # Explicit "not the card" tells
     "card not included", "no card included", "case only",
     "slab only",
+    # Mystery / grab bag scams — sellers bait with an expensive card
+    # photo while actually shipping a random low-value card. The card
+    # name + number ends up in the title for SEO, so card-number match
+    # waves them through; only the noise-phrase filter catches them.
+    "mystery grab", "mystery box", "mystery pack", "mystery bundle",
+    "mystery lot", "card grab", "grab bag",
 ]
 
 # Single-word red flags — strict word-boundary match.
 _ACCESSORY_WORDS = [
     "proxy", "replica",
+    # "DIY Rayquaza VMAX 218/203 Pokemon" — listings shipping a homemade
+    # / printed-out card at $9.99 of a $1k+ card. Always dropable: legit
+    # listings never describe themselves as DIY.
+    "diy",
 ]
 _ACCESSORY_WORD_RE = re.compile(
     r"\b(" + "|".join(_ACCESSORY_WORDS) + r")\b",
@@ -172,6 +182,30 @@ def score_listing(
     # Pairs present, none of them matched our number — that's the
     # signal we want to catch: another print variant of the same Pokemon.
     return MatchResult(0, f"different card_number in title (target {target_n})")
+
+
+def is_low_outlier_price(
+    total_usd: float,
+    reference_usd: float | None,
+    *,
+    floor_usd: float = 50.0,
+    min_fraction: float = 0.25,
+) -> bool:
+    """True when the listing's total is unrealistically below the card's
+    known market price — the typical 'bait scam' signature where a $1500
+    Rayquaza VMAX listing posts at $9.99 with a stolen photo.
+
+    Only applies when the card has a known reference price ≥ `floor_usd`.
+    Below that floor the variance is too wide (a $5 holo legitimately
+    selling for $1 is common). The default 0.25 fraction means anything
+    under a quarter of the reference gets dropped; heavy-damage legit
+    listings rarely cross that line for high-value chase cards.
+    """
+    if reference_usd is None or reference_usd < floor_usd:
+        return False
+    if total_usd <= 0:
+        return False
+    return total_usd < reference_usd * min_fraction
 
 
 def filter_listings(

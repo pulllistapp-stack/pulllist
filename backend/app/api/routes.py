@@ -13,7 +13,12 @@ from app.models import Card, CardPriceSnapshot, CollectionItem, NewsView, Set, U
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
 from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
-from app.services.listing_match import filter_listings, is_suspicious, seller_trust_tier
+from app.services.listing_match import (
+    filter_listings,
+    is_low_outlier_price,
+    is_suspicious,
+    seller_trust_tier,
+)
 
 router = APIRouter()
 
@@ -877,7 +882,10 @@ async def get_live_listings(
         )
 
     listings = []
-    for it in filtered_items[:limit]:
+    dropped_outlier_low = 0
+    for it in filtered_items:
+        if len(listings) >= limit:
+            break
         try:
             price_obj = it.get("price") or {}
             price_v = float(price_obj.get("value", 0))
@@ -892,6 +900,17 @@ async def get_live_listings(
                     ship_cost = float(ship_obj.get("value", 0))
                 except (TypeError, ValueError):
                     ship_cost = 0.0
+            # Bait-scam guard: high-value cards (≥$50 ref) listed at
+            # <25% of reference are almost always stolen-photo scams or
+            # mistitled junk ("DIY", "Mystery Grab", custom prints).
+            # The DIY/Mystery title scrub happens upstream in
+            # filter_listings, but plenty of scams use plain-looking
+            # titles ("Pokemon Rayquaza VMAX 218/203 NM") with a
+            # $9.99 ask — that's where this guard matters.
+            total_usd_check = price_v + ship_cost
+            if is_low_outlier_price(total_usd_check, card.market_price_usd):
+                dropped_outlier_low += 1
+                continue
             seller = it.get("seller") or {}
             # eBay returns `image.imageUrl` for full image + `thumbnailImages[]`
             # for smaller renderable URLs. Prefer thumbnail (CDN-optimized).
@@ -952,6 +971,7 @@ async def get_live_listings(
             "dropped_other_print": dropped.get("different_print", 0),
             "dropped_no_pattern": dropped.get("no_pattern", 0),
             "dropped_accessory": dropped.get("accessory", 0),
+            "dropped_outlier_low": dropped_outlier_low,
         },
     }
 
