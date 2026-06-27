@@ -57,29 +57,23 @@ SEL_FIRST_BODY_IMG = "div.entry-content img::attr(src), article img::attr(src)"
 #      (200x113 suffix on the inner img). Optional figcaption.
 #   2. Bare <img> tags (no figure wrapper) for individual card shots
 #      — these litter the body of any "set reveal" article (10-20+
-#      cards per article). Earlier code missed all of these because
-#      it iterated <figure> only.
-# We now walk every <img> in the body once: if it sits inside a
-# <figure>, use the lightbox/caption metadata; otherwise build the
-# full-size URL by stripping the WP -WxH suffix off the img src.
+#      cards per article).
+# Two-pass strategy avoids walking parents (Scrapling's Selector
+# doesn't expose .parent / .tag — and even the attribute API differs
+# from selectolax's): first collect every figure's lightbox URL +
+# caption; then collect every bare img's stripped src. Dedupe at the
+# end by full-size URL — the bare-img path produces the same URL as
+# the figure path once -WxH is stripped, so figure-wrapped images
+# naturally win (richer caption) and the bare second-pass entry
+# drops out.
+SEL_FIGURE = "figure"
 SEL_FIG_FULL_URL = "a.js-lbImage::attr(href)"
 SEL_FIG_CAPTION = "figcaption"
+SEL_BODY_IMG_SRC = "img::attr(src), img::attr(data-src)"
 MAX_INLINE_IMAGES = 10  # cap so prompts + articles don't bloat
 # WP appends -WxH before the extension on resized thumbnails. Strip
 # to get the full-size original.
 _WP_THUMB_SUFFIX = re.compile(r"-\d+x\d+(?=\.\w+$)")
-
-
-def _enclosing_figure(node):
-    """Walk up the DOM looking for a <figure> ancestor — used to
-    detect whether a bare <img> we found is actually inside a figure
-    so we can pick up its lightbox URL and caption."""
-    p = node.parent
-    while p is not None:
-        if p.tag == "figure":
-            return p
-        p = p.parent
-    return None
 
 
 # Lazy module-level session — opened on first call, reused across the
@@ -177,37 +171,46 @@ async def enrich(item: NewsItem) -> NewsItem:
     seen: set[str] = set()
     if hero:
         seen.add(hero)
-        # Also dedupe against the post-WP-suffix-strip form of the hero
-        # so a thumbnail variant doesn't slip past as "new".
+        # Also block the post-WP-suffix-strip form of the hero so a
+        # bare-img with the thumbnail URL doesn't slip in as "new".
         seen.add(_WP_THUMB_SUFFIX.sub("", hero))
-    imgs = body_matches[0].css("img") if body_matches else []
-    for img in imgs:
-        if len(inline_images) >= MAX_INLINE_IMAGES:
-            break
-        # If wrapped in a <figure>, prefer the lightbox anchor (full
-        # original) over the inner img src (always a sized thumb).
-        fig = _enclosing_figure(img)
-        url = None
-        caption = ""
-        if fig is not None:
-            url = fig.css(SEL_FIG_FULL_URL).get()
+
+    body_node = body_matches[0] if body_matches else None
+
+    # Pass 1: figures — pick up lightbox URL + figcaption.
+    if body_node is not None:
+        for fig in body_node.css(SEL_FIGURE):
+            if len(inline_images) >= MAX_INLINE_IMAGES:
+                break
+            url = (fig.css(SEL_FIG_FULL_URL).get() or "").strip()
+            if not url.startswith(("http://", "https://")) or url in seen:
+                continue
             cap_el = fig.css(SEL_FIG_CAPTION)
-            if cap_el:
-                caption = cap_el[0].get_all_text(separator=" ", strip=True)[:200]
-        if not url:
-            src = (
-                (img.attributes or {}).get("src")
-                or (img.attributes or {}).get("data-src")
-                or ""
+            caption = (
+                cap_el[0].get_all_text(separator=" ", strip=True)[:200]
+                if cap_el
+                else ""
             )
-            url = _WP_THUMB_SUFFIX.sub("", src.strip())
-        url = (url or "").strip()
-        if not url.startswith(("http://", "https://")):
-            continue
-        if url in seen:
-            continue
-        seen.add(url)
-        inline_images.append({"url": url[:512], "caption": caption})
+            seen.add(url)
+            inline_images.append({"url": url[:512], "caption": caption})
+
+    # Pass 2: bare imgs — full-size URL via WP-suffix strip. Pseudo-
+    # element CSS gets us the attribute as a string list without
+    # touching the Selector's attribute API (which differs from
+    # selectolax's). data-src as fallback for lazy-loaded images.
+    if body_node is not None and len(inline_images) < MAX_INLINE_IMAGES:
+        srcs: list[str] = []
+        srcs += [s for s in body_node.css("img::attr(src)").getall() if s]
+        srcs += [s for s in body_node.css("img::attr(data-src)").getall() if s]
+        for raw in srcs:
+            if len(inline_images) >= MAX_INLINE_IMAGES:
+                break
+            url = _WP_THUMB_SUFFIX.sub("", raw.strip())
+            if not url.startswith(("http://", "https://")) or url in seen:
+                continue
+            seen.add(url)
+            inline_images.append({"url": url[:512], "caption": ""})
+
     log.info(
         "pokebeach enrich: %d body images extracted (hero=%s, body=%d chars)",
         len(inline_images), bool(hero), len(body),
