@@ -100,6 +100,21 @@ class Settings(BaseSettings):
     web_search_required_keywords: list[str] = Field(
         default_factory=lambda: ["pokemon", "pokémon", "pokémon"]
     )
+    # Subset of allowed_domains that are Pokemon-exclusive publishers
+    # — results from these bypass the keyword filter entirely (a set
+    # name or character mention in the title is enough; the domain
+    # itself guarantees topic relevance). Without this, posts like
+    # "Storm Emeralda" or "Pikachu Wedding Plush" get false-negatived
+    # because neither title contains the literal word "Pokemon".
+    web_search_trusted_domains: list[str] = Field(
+        default_factory=lambda: [
+            "pokemon.com",
+            "pokemoncenter.com",
+            "pokebeach.com",
+            "bulbagarden.net",
+            "pokemonmillennium.net",
+        ]
+    )
 
 
 settings = Settings()

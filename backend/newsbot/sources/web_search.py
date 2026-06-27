@@ -143,6 +143,7 @@ async def crawl() -> list[NewsItem]:
             required_kws = [
                 k.lower() for k in (settings.web_search_required_keywords or [])
             ]
+            trusted = [d.lower() for d in (settings.web_search_trusted_domains or [])]
             for hit in results:
                 url = (hit.get("link") or "").strip()
                 if not url or url in seen_urls:
@@ -159,14 +160,18 @@ async def crawl() -> list[NewsItem]:
                 snippet = (hit.get("snippet") or "").strip()
                 if not title:
                     continue
-                # Topic filter — Target/BestBuy/TCGPlayer also surface
-                # Flesh and Blood, Magic, MLB cards. Require at least
-                # one configured keyword somewhere in title+snippet.
-                if required_kws:
+                # Topic gate — Pokemon-only publisher domains bypass
+                # the keyword filter (set names + character names are
+                # already topical). Generic retailers (Target, BestBuy,
+                # TCGPlayer) need a Pokemon keyword in title/snippet
+                # to slip past the Flesh-and-Blood / Magic / MLB /
+                # Yu-Gi-Oh / D&D noise we saw in earlier dry-runs.
+                is_trusted = any(t in domain for t in trusted)
+                if not is_trusted and required_kws:
                     haystack = (title + " " + snippet).lower()
                     if not any(kw in haystack for kw in required_kws):
                         log.info(
-                            "web_search: skip off-topic %r (no required keyword in title/snippet)",
+                            "web_search: skip off-topic %r (untrusted domain + no keyword)",
                             title[:80],
                         )
                         continue
