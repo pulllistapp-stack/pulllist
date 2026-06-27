@@ -130,14 +130,19 @@ export function CardPriceHero({
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-border text-text-tertiary hover:text-accent-yellow hover:border-accent-yellow/40 transition-colors disabled:opacity-50"
-              aria-label="Refresh price"
-              title="Refresh price"
+              title="Pull fresh prices from eBay"
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-surface px-2.5 py-1 text-xs font-semibold text-text-secondary hover:border-accent-yellow/60 hover:text-text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {refreshing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Refreshing
+                </>
               ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
+                <>
+                  <RefreshCw className="h-3 w-3" />
+                  Refresh
+                </>
               )}
             </button>
           </div>
