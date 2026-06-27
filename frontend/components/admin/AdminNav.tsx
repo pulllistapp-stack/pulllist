@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Users } from "lucide-react";
+import { FileText, Flag, Users } from "lucide-react";
 
 const ITEMS = [
   { href: "/admin/news", label: "News", icon: FileText },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/reports", label: "Reports", icon: Flag },
 ];
 
 export function AdminNav() {

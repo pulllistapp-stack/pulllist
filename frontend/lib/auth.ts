@@ -206,6 +206,77 @@ export async function deleteCollectionItem(itemId: number): Promise<void> {
   await authFetch<void>(`/collection/items/${itemId}`, { method: "DELETE" });
 }
 
+// ────────── Card data-quality reports ──────────
+
+export type CardReportCategory =
+  | "wrong_price"
+  | "wrong_image"
+  | "wrong_name"
+  | "other";
+
+export type CardReportStatus = "open" | "resolved" | "wontfix";
+
+export type CardReportRow = {
+  id: number;
+  card_id: string;
+  card_name: string | null;
+  card_number: string | null;
+  card_image_small: string | null;
+  set_id: string | null;
+  set_name: string | null;
+  category: CardReportCategory;
+  comment: string | null;
+  status: CardReportStatus;
+  created_at: string;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  reporter: { id: string; email: string; name: string | null } | null;
+  resolver: { id: string; email: string; name: string | null } | null;
+};
+
+/** Public — anonymous OK (token is forwarded if present so logged-in
+ *  reports get attributed to the user). */
+export async function submitCardReport(
+  cardId: string,
+  payload: { category: CardReportCategory; comment?: string | null },
+): Promise<{ id: number; status: string }> {
+  return authFetch(`/cards/${cardId}/reports`, {
+    method: "POST",
+    body: JSON.stringify({
+      category: payload.category,
+      comment: payload.comment ?? null,
+    }),
+  });
+}
+
+export async function listCardReports(opts: {
+  status?: CardReportStatus | "all";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{
+  items: CardReportRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}> {
+  const qs = new URLSearchParams();
+  if (opts.status) qs.set("status", opts.status);
+  if (opts.page) qs.set("page", String(opts.page));
+  if (opts.pageSize) qs.set("page_size", String(opts.pageSize));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return authFetch(`/admin/card-reports${suffix}`);
+}
+
+export async function updateCardReport(
+  reportId: number,
+  payload: { status: CardReportStatus; resolution_note?: string | null },
+): Promise<CardReportRow> {
+  return authFetch(`/admin/card-reports/${reportId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function toggleOwned(
   cardId: string,
   variant: CardVariant = "normal",

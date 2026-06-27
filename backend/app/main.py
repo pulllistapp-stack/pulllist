@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
+from app.api.card_reports import router as card_reports_router
 from app.api.collection import router as collection_router
 from app.api.filters import router as filters_router
 from app.api.news import router as news_router
@@ -45,6 +46,7 @@ app.include_router(wishlist_router, prefix="/api/v1")
 app.include_router(scan_router, prefix="/api/v1")
 app.include_router(sharing_router, prefix="/api/v1")
 app.include_router(news_router, prefix="/api/v1")
+app.include_router(card_reports_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 
 

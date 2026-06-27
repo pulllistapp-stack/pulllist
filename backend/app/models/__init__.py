@@ -1,4 +1,5 @@
 from app.models.card import Card
+from app.models.card_report import CardReport
 from app.models.collection import CollectionItem
 from app.models.news_post import NewsPost
 from app.models.news_view import NewsView
@@ -11,6 +12,7 @@ from app.models.wishlist import WishlistItem
 __all__ = [
     "Card",
     "CardPriceSnapshot",
+    "CardReport",
     "CollectionItem",
     "NewsPost",
     "NewsView",

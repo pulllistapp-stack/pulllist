@@ -15,9 +15,11 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from datetime import datetime as _datetime
+
 from app.auth import get_current_admin
 from app.database import get_db
-from app.models import CollectionItem, User, WishlistItem
+from app.models import Card, CardReport, CollectionItem, Set, User, WishlistItem
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -156,3 +158,155 @@ async def restore_user(
     target.deleted_at = None
     await db.commit()
     return _serialize_user(target, 0, 0)
+
+
+# ────────── Card reports (data-quality triage) ──────────
+
+
+def _serialize_report(
+    report: CardReport,
+    card: Card | None,
+    set_row: Set | None,
+    reporter: User | None,
+    resolver: User | None,
+) -> dict:
+    return {
+        "id": report.id,
+        "card_id": report.card_id,
+        "card_name": card.name if card else None,
+        "card_number": card.number if card else None,
+        "card_image_small": card.image_small if card else None,
+        "set_id": card.set_id if card else None,
+        "set_name": set_row.name if set_row else None,
+        "category": report.category,
+        "comment": report.comment,
+        "status": report.status,
+        "created_at": report.created_at.isoformat(),
+        "resolved_at": report.resolved_at.isoformat() if report.resolved_at else None,
+        "resolution_note": report.resolution_note,
+        "reporter": (
+            {"id": reporter.id, "email": reporter.email, "name": reporter.name}
+            if reporter
+            else None
+        ),
+        "resolver": (
+            {"id": resolver.id, "email": resolver.email, "name": resolver.name}
+            if resolver
+            else None
+        ),
+    }
+
+
+@router.get("/card-reports")
+async def list_card_reports(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    status_filter: str | None = Query(
+        "open",
+        alias="status",
+        description="Filter by status. Pass '' or 'all' for everything.",
+    ),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List recent card reports for triage. Defaults to status=open so the
+    inbox shows what needs attention; pass status=all to see history."""
+    stmt = select(CardReport).order_by(CardReport.created_at.desc())
+    show_all = status_filter in (None, "", "all")
+    if not show_all:
+        stmt = stmt.where(CardReport.status == status_filter)
+
+    total_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(total_stmt)).scalar_one()
+
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+    reports = (await db.execute(stmt)).scalars().all()
+
+    card_ids = {r.card_id for r in reports}
+    user_ids = {r.user_id for r in reports if r.user_id} | {
+        r.resolved_by for r in reports if r.resolved_by
+    }
+
+    cards: dict[str, Card] = {}
+    sets: dict[str, Set] = {}
+    if card_ids:
+        rows = (
+            await db.execute(select(Card).where(Card.id.in_(card_ids)))
+        ).scalars()
+        for c in rows:
+            cards[c.id] = c
+        set_rows = (
+            await db.execute(
+                select(Set).where(Set.id.in_({c.set_id for c in cards.values()}))
+            )
+        ).scalars()
+        for s in set_rows:
+            sets[s.id] = s
+
+    users: dict[str, User] = {}
+    if user_ids:
+        for u in (
+            await db.execute(select(User).where(User.id.in_(user_ids)))
+        ).scalars():
+            users[u.id] = u
+
+    return {
+        "items": [
+            _serialize_report(
+                r,
+                cards.get(r.card_id),
+                sets.get(cards[r.card_id].set_id) if r.card_id in cards else None,
+                users.get(r.user_id) if r.user_id else None,
+                users.get(r.resolved_by) if r.resolved_by else None,
+            )
+            for r in reports
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+class CardReportResolve(BaseModel):
+    status: str  # 'resolved' / 'wontfix' / 'open' (re-open)
+    resolution_note: str | None = None
+
+
+@router.patch("/card-reports/{report_id}")
+async def update_card_report(
+    report_id: int,
+    payload: CardReportResolve,
+    admin: Annotated[User, Depends(get_current_admin)],
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mark a report resolved/wontfix or re-open it. Stamps resolved_at +
+    resolved_by when transitioning to a terminal status; clears them on
+    re-open so the inbox count stays honest."""
+    if payload.status not in ("open", "resolved", "wontfix"):
+        raise HTTPException(
+            status_code=400,
+            detail="status must be one of open / resolved / wontfix",
+        )
+
+    report = await db.get(CardReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    report.status = payload.status
+    report.resolution_note = payload.resolution_note
+    if payload.status == "open":
+        report.resolved_at = None
+        report.resolved_by = None
+    else:
+        report.resolved_at = _datetime.utcnow()
+        report.resolved_by = admin.id
+
+    await db.commit()
+    await db.refresh(report)
+
+    card = await db.get(Card, report.card_id)
+    set_row = await db.get(Set, card.set_id) if card else None
+    reporter = await db.get(User, report.user_id) if report.user_id else None
+    resolver = await db.get(User, report.resolved_by) if report.resolved_by else None
+
+    return _serialize_report(report, card, set_row, reporter, resolver)
