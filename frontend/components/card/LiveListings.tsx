@@ -304,12 +304,17 @@ function ListingCard({
         : listing.url;
 
   // Stack badges in the upper-left so they never overlap. Cheapest sits
-  // at the top when present, then Graded; Suspicious *replaces* both —
-  // a flagged listing isn't the cheapest of anything we trust.
-  const topBadges: Array<"cheapest" | "graded" | "suspicious"> = [];
+  // at the top when present, then Graded/Ungraded; Suspicious *replaces*
+  // cheapest — a flagged listing isn't the cheapest of anything we trust.
+  // Ungraded gets its own corner badge (matching graded's position) so
+  // the bottom row stays clean — previously "UNGRADED" sat next to the
+  // seller feedback %, and users read the percentage as some kind of
+  // "ungraded probability". Corner separation kills that ambiguity.
+  const topBadges: Array<"cheapest" | "graded" | "ungraded" | "suspicious"> =
+    [];
   if (suspicious) topBadges.push("suspicious");
   else if (isCheapest) topBadges.push("cheapest");
-  if (graded) topBadges.push("graded");
+  topBadges.push(graded ? "graded" : "ungraded");
 
   // Compact carousel card — eBay-style horizontal strip. The whole tile is the
   // outbound link; no separate Buy button needed.
@@ -383,15 +388,30 @@ function ListingCard({
               </span>
             );
           }
+          if (kind === "graded") {
+            return (
+              <span
+                key={kind}
+                className={cn(
+                  "absolute left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                  top,
+                )}
+              >
+                Graded
+              </span>
+            );
+          }
+          // ungraded — neutral slate badge so it reads as informational
+          // rather than competing with Graded's premium violet
           return (
             <span
               key={kind}
               className={cn(
-                "absolute left-1 inline-flex items-center rounded-full bg-violet-500/95 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                "absolute left-1 inline-flex items-center rounded-full bg-slate-500/90 text-white px-1.5 py-0.5 text-[9px] font-semibold uppercase",
                 top,
               )}
             >
-              Graded
+              Raw
             </span>
           );
         })}
@@ -421,11 +441,10 @@ function ListingCard({
         {listing.title}
       </p>
 
-      {/* Bottom: condition (when ungraded) + seller trust */}
-      <div className="mt-auto flex items-center justify-between gap-1 text-[10px] text-text-tertiary">
-        {!graded && (
-          <span className="font-mono uppercase truncate">{listing.condition}</span>
-        )}
+      {/* Bottom: seller trust only. Condition / Raw vs Graded moved to
+          the corner badge stack to stop users reading the feedback %
+          as an "ungraded probability". */}
+      <div className="mt-auto flex items-center justify-end gap-1 text-[10px] text-text-tertiary">
         <SellerTrust pct={feedback} />
       </div>
     </a>
