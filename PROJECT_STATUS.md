@@ -183,8 +183,9 @@ core platform stabilizes.
 - `/admin/news` — list, create, edit, delete posts (Markdown body, category dropdown)
 - `/admin/users` — paginated user list, search, include-deleted toggle, role chip, card+wishlist counts, Promote/Demote, Soft Delete, Restore
 - `/admin/reports` — user-submitted card data-quality reports (Wrong price / Wrong image / Wrong name / Other); status tabs (Open/Resolved/Won't fix/All), inline resolution note, per-row Resolve/Won't fix/Re-open actions
+- `/admin/visits` — self-hosted traffic dashboard: today/yesterday/7d views + unique-visitor counts (anon + signed-in), 7-day daily bar chart, country breakdown w/ flag emoji + CN/RU/KP/IR ShieldAlert surfacing, per-user table with 1d/7d/30d windows (views, last seen, last country)
 - Self-action guards (admin can't demote or delete themself)
-- Shared `<AdminNav>` strip (News / Users / Reports)
+- Shared `<AdminNav>` strip (News / Users / Reports / Visits)
 - `<AdminGuard>` wraps each page — client redirect for non-admins
 - Backend `get_current_admin` dependency — 403 for non-admins
 - Edge middleware on `/admin/*` — noindex + no-store headers
@@ -560,6 +561,7 @@ Rough chronological summary of major work landed in this push:
 12. **Anti-bot Phase 1** — honeypot + per-IP rate limit + disposable email blocklist on `/auth/signup`
 13. **Portfolio polish pass** — variant chips for non-default prints, Manage mode w/ checkbox bulk-delete + type-DELETE confirm, full-options "+ I have this" modal (variant/condition/grade/qty/purchase price/source/notes) replacing the 1-click toggle, per-row ▼ Details expand panel surfacing the metadata inline with ±% ROI band + ✎ Edit modal for write access; `collection_items` gains `purchase_price_usd` + `acquisition_type` columns for ROI tracking
 14. **Card data-quality reports** — "🚩 Report an issue" on every card detail page → 4-category modal (price/image/name/other) → `card_reports` table → `/admin/reports` triage UI with status tabs + inline resolution notes. Anonymous OK; signed-in submissions attributed to the user.
+15. **Visit tracking (self-hosted analytics)** — `visit_logs` table + `<TrackVisit/>` client component + `/api/track-visit` route handler that lifts country/region/city from Vercel edge headers (no external geo API, no IPs stored). `/admin/visits` dashboard shows today's views/uniques, 7-day bar chart, country grid (with CN/RU/KP/IR flagging), and per-user table with last-seen country. Anonymous visitors get a localStorage UUID so unique counts cover non-signed-in traffic too. Skips `/admin/*` paths to avoid polluting numbers with triage browsing.
 
 ---
 
