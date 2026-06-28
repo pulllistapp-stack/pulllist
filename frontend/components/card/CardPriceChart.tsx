@@ -317,6 +317,26 @@ export function CardPriceChart({ cardId, isOnFire = false }: Props) {
   }, [tcg, ebay, tab, range]);
 
   const segments = useMemo(() => getSegments(data, RANGE_META[range].gapDays), [data, range]);
+
+  // Quick stats summary for the selected range. Median (mid) is the
+  // signal collectors care about; low/high feed the chart band already.
+  // Volatility = coefficient of variation (stddev / mean) — a single
+  // adjective is easier to read at a glance than a raw number.
+  const rangeStats = useMemo(() => {
+    const mids = data.map((p) => p.mid).filter((v) => v > 0);
+    if (mids.length < 2) return null;
+    const min = Math.min(...mids);
+    const max = Math.max(...mids);
+    const avg = mids.reduce((a, b) => a + b, 0) / mids.length;
+    const variance =
+      mids.reduce((sum, v) => sum + (v - avg) ** 2, 0) / mids.length;
+    const stddev = Math.sqrt(variance);
+    const cv = avg > 0 ? stddev / avg : 0;
+    const volatility: "low" | "moderate" | "high" =
+      cv < 0.1 ? "low" : cv < 0.25 ? "moderate" : "high";
+    return { min, max, avg, volatility, points: mids.length };
+  }, [data]);
+
   const ticks = useMemo(() => getTicks(range), [range]);
   const yearBoundaries = useMemo(() => getYearBoundaries(range), [range]);
 
@@ -701,6 +721,33 @@ export function CardPriceChart({ cardId, isOnFire = false }: Props) {
           Low–High range
         </span>
       </div>
+
+      {/* Quick range stats — numeric companion to the chart's visual band */}
+      {rangeStats && (
+        <p className="mt-2 text-[11px] font-mono text-text-tertiary">
+          <span className="text-text-secondary font-semibold">
+            {RANGE_META[range].label}
+          </span>
+          {" · min "}
+          <span className="text-text-primary">{fmtMoney(rangeStats.min)}</span>
+          {" · avg "}
+          <span className="text-text-primary">{fmtMoney(rangeStats.avg)}</span>
+          {" · max "}
+          <span className="text-text-primary">{fmtMoney(rangeStats.max)}</span>
+          {" · volatility "}
+          <span
+            className={
+              rangeStats.volatility === "high"
+                ? "text-accent-red font-semibold"
+                : rangeStats.volatility === "moderate"
+                  ? "text-accent-yellow font-semibold"
+                  : "text-accent-green font-semibold"
+            }
+          >
+            {rangeStats.volatility}
+          </span>
+        </p>
+      )}
     </div>
   );
 }
