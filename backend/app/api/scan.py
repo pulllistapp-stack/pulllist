@@ -28,6 +28,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Card, Set, User
+from app.services.image_hash import (
+    bump_hit,
+    compute_phash,
+    find_cache_hit,
+    write_cache,
+)
 
 log = logging.getLogger("scan")
 router = APIRouter(prefix="/cards", tags=["cards"])
@@ -123,6 +129,51 @@ async def scan_card(
 
     media_type = payload.media_type or "image/jpeg"
 
+    # ── pHash cache lookup ──────────────────────────────────────────────
+    # Same image (or very close) scanned before → skip the Claude call.
+    # The cache stores (image_hash → card_id) for successful identifications
+    # at high/medium confidence. Low-confidence Claude calls aren't cached so
+    # a shaky guess can't propagate.
+    image_phash = compute_phash(img)
+    if image_phash:
+        hit = await find_cache_hit(db, image_phash)
+        if hit is not None:
+            cached_card = await db.get(Card, hit.card_id)
+            if cached_card is not None:
+                set_row = await db.get(Set, cached_card.set_id)
+                set_name = set_row.name if set_row else cached_card.set_id
+                candidate = CardCandidate(
+                    id=cached_card.id,
+                    name=cached_card.name,
+                    number=cached_card.number,
+                    set_id=cached_card.set_id,
+                    set_name=set_name,
+                    rarity=cached_card.rarity,
+                    image_small=cached_card.image_small,
+                    market_price_usd=float(cached_card.market_price_usd)
+                    if cached_card.market_price_usd is not None
+                    else None,
+                )
+                await bump_hit(db, hit.image_hash)
+                log.info(
+                    "User %s scan: cache hit %s → %s (hit_count now %d)",
+                    user.id[:8],
+                    hit.image_hash,
+                    cached_card.id,
+                    hit.hit_count + 1,
+                )
+                return ScanResponse(
+                    identification=ScanIdentification(
+                        card_name=cached_card.name,
+                        card_number=cached_card.number,
+                        set_name=set_name,
+                        confidence="high",
+                        notes="(cached from a previous scan)",
+                    ),
+                    candidates=[candidate],
+                    matched_card_id=cached_card.id,
+                )
+
     client = anthropic.AsyncAnthropic()
     try:
         response = await client.messages.create(
@@ -202,6 +253,15 @@ async def scan_card(
         len(candidates),
         matched,
     )
+
+    # Cache successful high/medium-confidence identifications. Low/no-match
+    # scans aren't cached — we don't want a shaky guess to short-circuit
+    # the next scan of a different card that happens to look similar.
+    if image_phash and matched and identification.confidence in ("high", "medium"):
+        try:
+            await write_cache(db, image_phash, matched, identification.confidence)
+        except Exception as e:
+            log.warning("scan cache write failed (non-fatal): %s", e)
 
     return ScanResponse(
         identification=identification,
