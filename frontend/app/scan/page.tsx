@@ -1,126 +1,250 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { ArrowLeft, Camera, ScanLine, Smartphone } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
-import { CardScanner } from "@/components/scan/CardScanner";
+import { useCamera } from "@/hooks/useCamera";
+import {
+  ScanCamera,
+  type LastScanned,
+} from "@/components/scan/ScanCamera";
+import {
+  ScanConfirm,
+  type MatchedCardForConfirm,
+} from "@/components/scan/ScanConfirm";
+import {
+  createCollectionItem,
+} from "@/lib/auth";
+import { scanCard, type ScanCandidate, type ScanResponse } from "@/lib/auth";
+
+type Mode = "camera" | "confirm";
+
+const LAST_SCAN_KEY = "pulllist:last_scanned";
+
+function readLastScan(): LastScanned | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(LAST_SCAN_KEY);
+    return raw ? (JSON.parse(raw) as LastScanned) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastScan(card: LastScanned): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LAST_SCAN_KEY, JSON.stringify(card));
+  } catch {
+    // localStorage full / private mode — silent fail
+  }
+}
+
+function candidateToConfirm(
+  c: ScanCandidate,
+  language: string | null,
+): MatchedCardForConfirm {
+  return {
+    cardId: c.id,
+    name: c.name,
+    number: c.number,
+    setName: c.set_name,
+    imageUrl: c.image_small,
+    marketPriceUsd: c.market_price_usd,
+    language,
+  };
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      // "data:image/jpeg;base64,XXX" → "XXX"
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
 
 export default function ScanPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const camera = useCamera();
 
+  const [mode, setMode] = useState<Mode>("camera");
+  const [flashOn, setFlashOn] = useState(false);
+  const [photoSrc, setPhotoSrc] = useState<string | null>(null);
+  const [matched, setMatched] = useState<MatchedCardForConfirm | null>(null);
+  const [scanResp, setScanResp] = useState<ScanResponse | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [addedSuccess, setAddedSuccess] = useState(false);
+  const [lastScanned, setLastScanned] = useState<LastScanned | null>(null);
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hydrate last-scanned from localStorage on mount
   useEffect(() => {
-    if (!loading && !user) {
+    setLastScanned(readLastScan());
+  }, []);
+
+  // Auth gate
+  useEffect(() => {
+    if (!authLoading && !user) {
       router.replace("/login?redirect=/scan");
     }
-  }, [loading, user, router]);
+  }, [authLoading, user, router]);
 
-  if (loading || !user) {
+  // Start camera when entering camera mode; stop on confirm
+  useEffect(() => {
+    if (mode === "camera") {
+      void camera.start();
+    } else {
+      camera.stop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // Clean up object URLs + timers on unmount
+  useEffect(() => {
+    return () => {
+      if (photoSrc && photoSrc.startsWith("blob:")) URL.revokeObjectURL(photoSrc);
+      if (successTimer.current) clearTimeout(successTimer.current);
+    };
+  }, [photoSrc]);
+
+  const runScan = async (blob: Blob) => {
+    const previewUrl = URL.createObjectURL(blob);
+    setPhotoSrc(previewUrl);
+    setMode("confirm");
+    setMatched(null);
+    setScanResp(null);
+
+    try {
+      const b64 = await blobToBase64(blob);
+      const resp = await scanCard(b64, blob.type || "image/jpeg");
+      setScanResp(resp);
+      const pick =
+        resp.candidates.find((c) => c.id === resp.matched_card_id) ??
+        resp.candidates[0] ??
+        null;
+      if (pick) setMatched(candidateToConfirm(pick, null));
+    } catch (e) {
+      console.error(e);
+      setMatched(null);
+    }
+  };
+
+  const onShutter = async () => {
+    const blob = await camera.capture();
+    if (!blob) return;
+    await runScan(blob);
+  };
+
+  const onGalleryUpload = async (file: File) => {
+    await runScan(file);
+  };
+
+  const onAdd = async ({
+    grader,
+    condition,
+  }: {
+    grader: "PSA" | "BGS" | "CGC" | "Raw";
+    condition: "NM" | "LP" | "MP" | "HP" | "DMG";
+  }) => {
+    if (!matched) return;
+    setSubmitting(true);
+    try {
+      await createCollectionItem({
+        card_id: matched.cardId,
+        qty: 1,
+        condition,
+        is_graded: grader !== "Raw",
+        grade: grader !== "Raw" ? `${grader} ?` : null,
+      });
+
+      const next: LastScanned = {
+        cardId: matched.cardId,
+        name: matched.name,
+        number: matched.number,
+        priceUsd: matched.marketPriceUsd,
+        thumbUrl: matched.imageUrl,
+      };
+      setLastScanned(next);
+      writeLastScan(next);
+
+      setAddedSuccess(true);
+      if (successTimer.current) clearTimeout(successTimer.current);
+      successTimer.current = setTimeout(() => {
+        setAddedSuccess(false);
+        setMode("camera");
+        setPhotoSrc(null);
+        setMatched(null);
+        setScanResp(null);
+      }, 1800);
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Add failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onDiscard = () => {
+    setMode("camera");
+    setPhotoSrc(null);
+    setMatched(null);
+    setScanResp(null);
+  };
+
+  const onSearchManually = () => {
+    const q = scanResp?.identification.card_name ?? matched?.name ?? "";
+    router.push(`/search?q=${encodeURIComponent(q)}`);
+  };
+
+  const onLastScannedTap = () => {
+    if (lastScanned) router.push(`/cards/${lastScanned.cardId}`);
+  };
+
+  if (authLoading || !user) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-16">
-        <p className="text-text-tertiary text-sm">Checking session…</p>
+      <main className="mx-auto max-w-md px-4 py-16 text-center text-text-tertiary text-sm">
+        Checking session…
       </main>
     );
   }
 
-  return (
-    <main className="mx-auto max-w-2xl px-4 py-6 sm:py-10">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <Link
-          href="/portfolio"
-          className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Link>
-        <div className="text-right">
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-text-primary inline-flex items-center gap-2">
-            <ScanLine className="h-5 w-5 text-accent-yellow" />
-            Scan a card
-          </h1>
-          <p className="hidden sm:block text-xs text-text-tertiary mt-0.5">
-            Point at the card · Tap capture · Confirm
-          </p>
-        </div>
-      </div>
-
-      {/* Mobile: full camera scanner */}
-      <div className="md:hidden">
-        <CardScanner />
-        <div className="mt-6 text-center text-[11px] text-text-tertiary font-mono">
-          Powered by Claude Vision
-        </div>
-      </div>
-
-      {/* Desktop: mobile-only message + QR */}
-      <div className="hidden md:block">
-        <DesktopFallback />
-      </div>
-    </main>
-  );
-}
-
-function DesktopFallback() {
-  // Use a public QR generator API — avoids adding a JS library for one icon.
-  const scanUrl = "https://pulllist.org/scan";
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(scanUrl)}`;
+  if (mode === "confirm") {
+    return (
+      <ScanConfirm
+        photoSrc={photoSrc ?? ""}
+        matched={matched}
+        addedSuccess={addedSuccess}
+        submitting={submitting}
+        onAdd={onAdd}
+        onDiscard={onDiscard}
+        onSearchManually={onSearchManually}
+        onBack={onDiscard}
+      />
+    );
+  }
 
   return (
-    <div className="rounded-3xl border border-border bg-bg-surface p-8 sm:p-12 text-center">
-      <div className="mx-auto mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-accent-yellow/15 text-accent-yellow">
-        <Smartphone className="h-8 w-8" />
-      </div>
-      <h2 className="text-2xl font-extrabold text-text-primary">
-        Card scanning is mobile-only
-      </h2>
-      <p className="mt-2 text-sm text-text-secondary max-w-md mx-auto">
-        Hold your phone&apos;s camera up to a card — that&apos;s the whole flow.
-        Desktop doesn&apos;t have the rear camera or the framing UX that makes
-        this work, so we kept the scanner phone-first.
-      </p>
-
-      <div className="mt-8 flex flex-col items-center gap-3">
-        <div className="rounded-2xl bg-white p-3 shadow-md">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={qrSrc}
-            alt="Scan QR to open PullList on phone"
-            width={220}
-            height={220}
-            className="block"
-          />
-        </div>
-        <p className="text-xs text-text-tertiary font-mono">
-          Point your phone&apos;s camera at this QR → open the link
-        </p>
-        <p className="text-[11px] text-text-tertiary">
-          Or visit{" "}
-          <span className="font-mono text-text-secondary">
-            pulllist.org/scan
-          </span>{" "}
-          on your phone directly.
-        </p>
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left max-w-md mx-auto">
-        <Tip num="1" text="Install PullList to your home screen first (Share → Add to Home Screen)" />
-        <Tip num="2" text="Tap the floating yellow scan button bottom-right" />
-        <Tip num="3" text="Camera opens → align the card → tap Capture" />
-      </div>
-    </div>
-  );
-}
-
-function Tip({ num, text }: { num: string; text: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-bg p-3">
-      <p className="text-[10px] font-mono uppercase tracking-wider text-accent-yellow">
-        Step {num}
-      </p>
-      <p className="mt-1 text-xs text-text-secondary leading-snug">{text}</p>
-    </div>
+    <ScanCamera
+      videoRef={camera.videoRef}
+      cameraReady={camera.ready}
+      cameraError={camera.error}
+      flashOn={flashOn}
+      lastScanned={lastScanned}
+      pendingCount={0}
+      onShutter={onShutter}
+      onGalleryUpload={onGalleryUpload}
+      onFlashToggle={() => setFlashOn((f) => !f)}
+      onFlipCamera={camera.flip}
+      onBack={() => router.back()}
+      onLastScannedTap={onLastScannedTap}
+    />
   );
 }
