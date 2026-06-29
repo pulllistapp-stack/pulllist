@@ -175,6 +175,113 @@ def _proxy_inline_images(markdown: str) -> str:
     return out
 
 
+# TCG-card priority — LO's PullList is a TCG card site, so card-
+# related news (set reveals, booster releases, card-spec mechanics)
+# should win selection over generic merch. Substring match against
+# title + summary, case-insensitive. Hitting any keyword bumps the
+# item once (no stacking — the bump is "this is on-topic", not
+# "how on-topic"). Drift in set names is fine; the generic terms
+# (booster/etb/preorder) catch most TCG news on their own.
+_CARD_PRIORITY_KEYWORDS = (
+    "tcg",
+    "trading card",
+    "booster",
+    "elite trainer box",
+    "etb",
+    "premium collection",
+    "preorder",
+    "card reveal",
+    "set release",
+    "secret rare",
+    "alternate art",
+    "special illustration",
+    "illustration rare",
+    "vmax",
+    "vstar",
+    " ex ",
+    " ex.",
+    " v ",
+    # current/recent set names (cheap heuristic — extend as new sets ship)
+    "mega evolution",
+    "ascended heroes",
+    "storm emeralda",
+    "prismatic evolutions",
+    "surging sparks",
+    "stellar crown",
+    "black bolt",
+    "white flare",
+    "destined rivals",
+    "journey together",
+    "heavy hitters",
+)
+
+# Non-card merchandise — LO cares less about these for a TCG-focused
+# feed. Doesn't reject (plush drops still count as Pokémon news),
+# just downranks vs card content so card items win when both are
+# fresh on the same day.
+_NON_CARD_PENALTIES = (
+    "plush",
+    "stationery",
+    "apparel",
+    "keychain",
+    "figurine",
+    " doll",  # leading space — don't match "card holders" etc
+    "mug",
+    "blanket",
+    "pillow",
+    "playmat",
+)
+
+
+def _score_item(item: NewsItem, source_counts: dict[str, int]) -> int:
+    """Composite ranking signal. Higher = picked first.
+
+    Mix:
+      + 10 if any TCG card keyword hit
+      -  5 if any non-card merch keyword hit
+      +  3 default bonus for editor-written PokeBeach articles
+         (their hit rate on TCG-relevance is near-100% historically)
+      -  4 per prior item already selected from the same source
+         (round-robin: prevents the daily slate filling with one site)
+
+    Tie-broken on input order — so within the same score bucket,
+    the crawler's emit order wins (PokeBeach by-recency, Serper by
+    relevance)."""
+    haystack = (item.title + " " + (item.summary or "")).lower()
+    score = 0
+    if any(kw in haystack for kw in _CARD_PRIORITY_KEYWORDS):
+        score += 10
+    if any(kw in haystack for kw in _NON_CARD_PENALTIES):
+        score -= 5
+    if "pokebeach" in item.source_name.lower():
+        score += 3
+    prior = source_counts.get(item.source_name.lower(), 0)
+    score -= prior * 4
+    return score
+
+
+def _select_for_publishing(
+    fresh: list[NewsItem], limit: int
+) -> list[NewsItem]:
+    """Pick `limit` items from `fresh` favoring TCG card content and
+    source diversity. Greedy: each round recompute source_counts
+    against the already-picked slate, score everyone, take the
+    leader. Recomputing per round is what makes the round-robin
+    behavior emerge — without it the highest-default-bonus source
+    would still monopolize the slate."""
+    selected: list[NewsItem] = []
+    pool = list(fresh)
+    while pool and len(selected) < limit:
+        source_counts: dict[str, int] = {}
+        for s in selected:
+            k = s.source_name.lower()
+            source_counts[k] = source_counts.get(k, 0) + 1
+        # Stable sort + reverse — same-score ties preserve input order.
+        pool.sort(key=lambda i: _score_item(i, source_counts), reverse=True)
+        selected.append(pool.pop(0))
+    return selected
+
+
 def _build_post_payload(
     item: NewsItem, article, category: str
 ) -> dict:
@@ -312,8 +419,13 @@ async def _run_body() -> int:
         log.info("nothing new today — exiting cleanly")
         return 0
 
-    selected = fresh[: settings.daily_post_limit]
-    log.info("processing %d / %d fresh items", len(selected), len(fresh))
+    selected = _select_for_publishing(fresh, settings.daily_post_limit)
+    log.info(
+        "processing %d / %d fresh items (selection: %s)",
+        len(selected),
+        len(fresh),
+        ", ".join(f"{s.source_name}=1" for s in selected) or "none",
+    )
 
     publish_token = None if settings.dry_run else token
     results = []
