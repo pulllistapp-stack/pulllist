@@ -14,6 +14,18 @@ Adding a new set: append to PROMO_SETS below with the TCGCSV
 group_id + your chosen short slug + display name + series + release
 date. TCGCSV group ids come from
 https://tcgcsv.com/tcgplayer/3/groups (filter by name).
+
+⚠️  Re-run caveat:
+    Several entries below seed sets whose cards were later merged
+    into a legacy pokemontcg.io equivalent via:
+      cleanup_duplicate_promos      (product_id dedup)
+      cleanup_padded_promo_dupes    (same-set zero-pad dedup)
+      cleanup_mcdonalds_promos      (md* → mcd* migration)
+    Re-running --only on any of these set_ids will re-introduce
+    duplicates because seed_promo_group inserts with zero-padded ids
+    that don't collide with the canonical legacy unpadded ids:
+      bop, wotcp, hgssp, swsd, md11..md22, md25anniv
+    If you must re-seed, run the matching cleanup_*.py script after.
 """
 
 from __future__ import annotations

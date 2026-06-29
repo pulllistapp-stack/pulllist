@@ -46,6 +46,7 @@ type SetSummary = {
   series?: string | null;
   card_count?: number | null;
   total_value_usd?: number | null;
+  total_value_mid_usd?: number | null;
   total_value_low_usd?: number | null;
   total_value_high_usd?: number | null;
   released_at?: string | null;
@@ -359,10 +360,10 @@ function fmtCompactPrice(v: number | null | undefined): string | null {
 }
 
 function SetCard({ set }: { set: SetSummary }) {
-  const lo = fmtCompactPrice(set.total_value_low_usd);
-  const hi = fmtCompactPrice(set.total_value_high_usd);
-  const rangeLabel =
-    lo && hi ? (lo === hi ? lo : `${lo} – ${hi}`) : lo ?? hi;
+  // Mid sum is the headline; falls back to market sum when the set's
+  // cards haven't been backfilled yet. high captures graded-slab
+  // outliers and overstates what a raw collector would actually pay.
+  const valueLabel = fmtCompactPrice(set.total_value_mid_usd ?? set.total_value_usd);
 
   return (
     <Link
@@ -373,9 +374,9 @@ function SetCard({ set }: { set: SetSummary }) {
         <p className="text-[11px] font-mono uppercase tracking-wider text-text-tertiary">
           {set.series ?? "Pokémon TCG"}
         </p>
-        {rangeLabel && (
+        {valueLabel && (
           <span className="text-[11px] font-mono text-accent-yellow font-bold">
-            {rangeLabel}
+            {valueLabel}
           </span>
         )}
       </div>

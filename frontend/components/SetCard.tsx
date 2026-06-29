@@ -30,24 +30,15 @@ function fmtPrice(v: number | null | undefined): string | null {
   return `$${v.toFixed(2)}`;
 }
 
-/** "$0.05 – $480" style range. Falls back to a single value when min
- *  and max collapse (set with only one priced card). */
-function fmtRange(min: number | null, max: number | null): string | null {
-  const lo = fmtPrice(min);
-  const hi = fmtPrice(max);
-  if (!lo && !hi) return null;
-  if (lo && hi && lo === hi) return lo;
-  if (lo && hi) return `${lo} – ${hi}`;
-  return lo ?? hi;
-}
-
 export function SetCard({ set }: Props) {
   const displayName = set.name;
   const releaseLabel = formatReleaseDate(set.release_date);
-  const rangeLabel = fmtRange(
-    set.total_value_low_usd,
-    set.total_value_high_usd,
-  );
+  // Sum of TCGplayer mid (midpoint listing). market is sales-driven
+  // and jitters; high catches graded slabs and overstates. mid is
+  // the steady "what's this set listed at" number. Falls back to
+  // market_usd only when mid total is missing (e.g. set of cards
+  // imported pre-mid-backfill that haven't synced yet).
+  const valueLabel = fmtPrice(set.total_value_mid_usd ?? set.total_value_usd);
   const progress = set.owned_unique != null && set.card_count > 0
     ? (set.owned_unique / set.card_count) * 100
     : null;
@@ -135,13 +126,13 @@ export function SetCard({ set }: Props) {
         </div>
       )}
 
-      {rangeLabel && (
+      {valueLabel && (
         <div className="mt-3 flex items-center justify-between text-xs px-1">
           <span className="font-mono uppercase tracking-wider text-text-tertiary">
             Set value
           </span>
           <span className="font-mono font-bold text-accent-yellow">
-            {rangeLabel}
+            {valueLabel}
           </span>
         </div>
       )}

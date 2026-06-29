@@ -12,6 +12,7 @@ export type SetWithCardCount = {
   logo_url: string | null;
   card_count: number;
   total_value_usd: number | null;
+  total_value_mid_usd: number | null;
   total_value_low_usd: number | null;
   total_value_high_usd: number | null;
   owned_unique: number | null;
@@ -155,6 +156,16 @@ export async function suggestCards(q: string, limit = 8): Promise<Suggestion[]> 
   return apiFetch<Suggestion[]>(
     `/cards/suggest?q=${encodeURIComponent(q)}&limit=${limit}`,
   );
+}
+
+export type PopularPokemon = {
+  name: string;
+  count: number;
+  image_small: string | null;
+};
+
+export async function getPopularPokemon(limit = 10): Promise<PopularPokemon[]> {
+  return apiFetch<PopularPokemon[]>(`/cards/popular-pokemon?limit=${limit}`);
 }
 
 export type CardSearchSort =

@@ -152,6 +152,28 @@ def _market_from_prices(prices: dict) -> float | None:
     return None
 
 
+def _mid_from_prices(prices: dict) -> float | None:
+    """Pick the base variant's TCGplayer 'mid' (midpoint listing price),
+    never falling back to market. The set-value headline sums these so
+    the total reads as a literal "what's this set listed at" number,
+    untouched by graded slab outliers (which inflate `high`) and free
+    of the sales-driven jitter on `market`."""
+    for key in VARIANT_PRIORITY:
+        variant = prices.get(key)
+        if not isinstance(variant, dict):
+            continue
+        m = variant.get("mid")
+        if isinstance(m, (int, float)) and m > 0:
+            return float(m)
+    for variant in prices.values():
+        if not isinstance(variant, dict):
+            continue
+        m = variant.get("mid")
+        if isinstance(m, (int, float)) and m > 0:
+            return float(m)
+    return None
+
+
 def _group_rows_by_product(rows: list[dict]) -> dict[int, dict]:
     """Collapse TCGCSV's flat (product, subType) rows into our nested
     per-variant tcgplayer_prices format:
@@ -326,6 +348,7 @@ async def sync(
     dry_run: bool,
     group_limit: int | None,
     tier: str = "daily",
+    only_groups: set[int] | None = None,
 ) -> None:
     await init_db()
     async with SessionLocal() as db:
@@ -346,6 +369,8 @@ async def sync(
 
     async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}) as client:
         groups = await _list_pokemon_groups(client)
+        if only_groups:
+            groups = [g for g in groups if g.get("groupId") in only_groups]
         if group_limit:
             groups = groups[:group_limit]
         log.info(f"{len(groups)} pokemon groups to sync")
@@ -406,6 +431,7 @@ async def sync(
                         # market field is gated.
                         existing.low_price_usd = lo
                         existing.high_price_usd = hi
+                        existing.mid_price_usd = _mid_from_prices(prices)
 
                     stats["cards_refreshed"] += 1
                     snapshot_batch.extend(
@@ -445,6 +471,16 @@ def main() -> None:
         help="Process only the first N groups (smoke testing).",
     )
     parser.add_argument(
+        "--only-groups",
+        default=None,
+        help=(
+            "Comma-separated TCGCSV group ids to sync, e.g. "
+            "'24451,22872,2545'. Used for targeted backfills after a "
+            "promo seed run — keeps wall-clock to minutes instead of "
+            "the full ~600-group sweep."
+        ),
+    )
+    parser.add_argument(
         "--tier",
         choices=("daily", "monthly", "all"),
         default="daily",
@@ -457,8 +493,17 @@ def main() -> None:
     )
     args = parser.parse_args()
     snapshot_date = args.snapshot_date or date.today().isoformat()
+    only_set: set[int] | None = None
+    if args.only_groups:
+        only_set = {int(g) for g in args.only_groups.split(",") if g.strip()}
     asyncio.run(
-        sync(snapshot_date, args.dry_run, args.limit_groups, tier=args.tier)
+        sync(
+            snapshot_date,
+            args.dry_run,
+            args.limit_groups,
+            tier=args.tier,
+            only_groups=only_set,
+        )
     )
 
 

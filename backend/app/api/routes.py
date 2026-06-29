@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import date, datetime, timedelta
 
@@ -111,6 +112,7 @@ async def list_sets(
             Set,
             func.count(Card.id).label("card_count"),
             func.sum(Card.market_price_usd).label("total_value"),
+            func.sum(Card.mid_price_usd).label("total_mid"),
             func.sum(Card.low_price_usd).label("total_low"),
             func.sum(Card.high_price_usd).label("total_high"),
         )
@@ -161,11 +163,12 @@ async def list_sets(
             **SetRead.model_validate(set_row).model_dump(),
             card_count=count,
             total_value_usd=float(total_value) if total_value is not None else None,
+            total_value_mid_usd=float(total_mid) if total_mid is not None else None,
             total_value_low_usd=float(total_low) if total_low is not None else None,
             total_value_high_usd=float(total_high) if total_high is not None else None,
             owned_unique=owned_map.get(set_row.id) if current_user else None,
         )
-        for set_row, count, total_value, total_low, total_high in rows
+        for set_row, count, total_value, total_mid, total_low, total_high in rows
     ]
 
 
@@ -178,6 +181,7 @@ async def get_set(
             Set,
             func.count(Card.id).label("card_count"),
             func.sum(Card.market_price_usd).label("total_value"),
+            func.sum(Card.mid_price_usd).label("total_mid"),
             func.sum(Card.low_price_usd).label("total_low"),
             func.sum(Card.high_price_usd).label("total_high"),
         )
@@ -189,11 +193,12 @@ async def get_set(
     row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Set not found")
-    set_row, count, total_value, total_low, total_high = row
+    set_row, count, total_value, total_mid, total_low, total_high = row
     return SetWithCardCount(
         **SetRead.model_validate(set_row).model_dump(),
         card_count=count,
         total_value_usd=float(total_value) if total_value is not None else None,
+        total_value_mid_usd=float(total_mid) if total_mid is not None else None,
         total_value_low_usd=float(total_low) if total_low is not None else None,
         total_value_high_usd=float(total_high) if total_high is not None else None,
     )
@@ -445,6 +450,114 @@ async def suggest_cards(
         }
         for c, set_name in rows
     ]
+
+
+# Base Pokémon name extraction for the empty-search suggestion list.
+# A single physical Pokémon often appears across dozens of cards under
+# different SKU names: "Charizard", "Charizard ex", "Mega Charizard EX",
+# "Dark Charizard", "Shining Charizard". Stripping the variant
+# prefixes + suffixes lets us group them under one chip so clicking
+# "Charizard" runs a plain text search that surfaces them all.
+#
+# Order in _SUFFIX_RE matters: VMAX must match before V so "Charizard
+# VMAX" doesn't get reduced to "Charizard MAX".
+_PAREN_RE = re.compile(r"\s*\([^)]*\)\s*$")
+_SUFFIX_RE = re.compile(
+    r"\s+(?:VMAX|VSTAR|V-UNION|BREAK|LV\.X|Prime|ex|EX|GX|V|☆|\*|δ)$"
+)
+_PREFIX_RE = re.compile(
+    r"^(?:Mega\s|M-|Dark\s|Light\s|Alolan\s|Galarian\s|Hisuian\s|"
+    r"Paldean\s|Radiant\s|Shining\s|Origin\s+Forme\s|"
+    r"Rocket's\s|Team\s+Rocket's\s|Team\s+Magma's\s|Team\s+Aqua's\s|"
+    r"N's\s|Hop's\s|Marnie's\s|Cynthia's\s|Lance's\s|Misty's\s|"
+    r"Brock's\s|Sabrina's\s|Erika's\s|Blaine's\s|Koga's\s|Giovanni's\s|"
+    r"Hau's\s|Iono's\s)"
+)
+
+
+def _base_pokemon_name(name: str) -> str:
+    s = (name or "").strip()
+    s = _PAREN_RE.sub("", s).strip()
+    # Multiple passes because "Mega Charizard ex" → strip suffix →
+    # "Mega Charizard" → strip prefix → "Charizard"
+    for _ in range(3):
+        prev = s
+        s = _SUFFIX_RE.sub("", s).strip()
+        s = _PREFIX_RE.sub("", s).strip()
+        if s == prev:
+            break
+    return s
+
+
+_POPULAR_POKEMON_CACHE: tuple[float, list[dict]] | None = None
+_POPULAR_POKEMON_TTL_SEC = 3600
+
+
+@router.get("/cards/popular-pokemon")
+async def popular_pokemon(
+    limit: int = Query(10, ge=1, le=30),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Top-N Pokémon by variant count, for the empty-search dropdown.
+
+    The catalog has many cards per Pokémon (Charizard alone has 60+
+    English printings spanning Base Set through Mega Evolution). For
+    a "what should I search?" prompt, sorting by variant-richness
+    surfaces the Pokémon users are most likely to actually be
+    hunting — collector value tracks count more reliably than raw
+    market price (a single SIR can swamp the list otherwise).
+
+    Catalog scan is cached in-process for an hour; refreshed on the
+    next request after expiry. The daily TCGCSV sync changes ranking
+    glacially, so a fresh per-request scan adds nothing.
+    """
+    global _POPULAR_POKEMON_CACHE
+    now = time.time()
+    cached = _POPULAR_POKEMON_CACHE
+    if cached and now - cached[0] < _POPULAR_POKEMON_TTL_SEC:
+        return cached[1][:limit]
+
+    rows = (
+        await db.execute(
+            select(Card.name, Card.image_small, Card.market_price_usd)
+            .where(
+                Card.supertype.in_(["Pokémon", "Pokemon"]),
+                Card.language == "en",
+            )
+        )
+    ).all()
+
+    by_base: dict[str, dict] = {}
+    for name, img, price in rows:
+        base = _base_pokemon_name(name or "")
+        if not base or len(base) > 32:
+            continue
+        e = by_base.setdefault(
+            base,
+            {"name": base, "count": 0, "image_small": None, "max_price": 0.0},
+        )
+        e["count"] += 1
+        price_f = float(price) if price is not None else 0.0
+        # Prefer the thumbnail of the variant priciest for visual
+        # appeal — chase cards have nicer art than commons.
+        if img and price_f >= e["max_price"]:
+            e["image_small"] = img
+            e["max_price"] = price_f
+        elif img and not e["image_small"]:
+            e["image_small"] = img
+
+    ranked = sorted(
+        by_base.values(),
+        key=lambda d: (-d["count"], -d["max_price"]),
+    )
+    # Drop the residual max_price field — it was only a tiebreaker, not
+    # something the client should display.
+    cleaned = [
+        {"name": d["name"], "count": d["count"], "image_small": d["image_small"]}
+        for d in ranked
+    ]
+    _POPULAR_POKEMON_CACHE = (now, cleaned)
+    return cleaned[:limit]
 
 
 @router.get("/cards/{card_id}/neighbors")
