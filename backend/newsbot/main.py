@@ -20,6 +20,8 @@ import sys
 import urllib.parse
 from datetime import datetime, timezone
 
+import httpx
+
 from .classify import classify, slugify
 from .config import settings
 from .dedupe import filter_unseen
@@ -41,9 +43,70 @@ def _today_iso() -> str:
 
 _WESERV = "https://images.weserv.nl/?url={}"
 # Anything matching one of these hosts in an image URL bypasses the
-# weserv wrap — already proxied, or hosted on a domain we trust to
-# allow cross-origin loads (our own frontend, Vercel preview deploys).
-_TRUSTED_IMAGE_HOSTS = ("images.weserv.nl", "pulllist.org", "vercel.app")
+# weserv wrap — already proxied, hosted on a domain we trust to allow
+# cross-origin loads (our own frontend, Vercel preview deploys), or
+# explicitly blocked by weserv policy so wrapping would 400.
+#
+# pokemoncenter.com: weserv responds 400 "Domain or TLD blocked by
+# policy" for this host. Their image CDN serves hot-link-friendly
+# images directly off Amazon S3 (Referer-independent 200), so skipping
+# the wrap is both necessary and safe.
+_TRUSTED_IMAGE_HOSTS = (
+    "images.weserv.nl",
+    "pulllist.org",
+    "vercel.app",
+    "pokemoncenter.com",
+)
+
+# HEAD-check timeout for the pre-flight thumbnail verifier. Kept tight
+# so a hung CDN never delays the whole run; failing the check just
+# drops the item (no Claude tokens spent), which is the safer default.
+THUMBNAIL_VERIFY_TIMEOUT = 10.0
+
+
+async def _verify_thumbnail(url: str | None) -> bool:
+    """Pre-flight HEAD check on the URL we're about to publish as the
+    post thumbnail. Returns True only if the response is 200 AND the
+    Content-Type is an image — guards against:
+
+      - weserv 400 'Domain or TLD blocked by policy' (broke Pokemon
+        Center thumbs before pokemoncenter.com was added to TRUSTED)
+      - 404s when a hot-link source returns HTML error pages
+      - non-image responses (login walls, captcha pages)
+      - hung CDNs (10s timeout)
+
+    A False here means we drop the item BEFORE Claude is called,
+    so a broken-image source never burns generation tokens.
+
+    Sends a browser-like Referer so origin CDNs with hot-link
+    whitelists don't 403 a no-referer probe (the user's browser
+    will send one too, so this matches what they'd actually see).
+    """
+    if not url:
+        return False
+    headers = {"Referer": "https://pulllist.org/"}
+    try:
+        async with httpx.AsyncClient(
+            timeout=THUMBNAIL_VERIFY_TIMEOUT, follow_redirects=True
+        ) as client:
+            r = await client.head(url, headers=headers)
+            # Some CDNs reject HEAD with 405 but answer GET. Fall back
+            # to a 1-byte ranged GET so we don't false-negative those.
+            if r.status_code in (403, 405):
+                r = await client.get(
+                    url, headers={**headers, "Range": "bytes=0-0"}
+                )
+    except Exception as exc:
+        log.warning("thumbnail HEAD failed for %s: %s", url[:80], exc)
+        return False
+    ctype = r.headers.get("content-type", "").lower()
+    ok = r.status_code in (200, 206) and ctype.startswith("image/")
+    if not ok:
+        log.warning(
+            "thumbnail verify reject: %s → %d %s",
+            url[:80], r.status_code, ctype[:40],
+        )
+    return ok
 
 
 def _proxy_image(url: str | None) -> str | None:
@@ -146,6 +209,20 @@ async def _process_item(
             "enrich produced no body for %s — generator will work off title+summary",
             item.url,
         )
+
+    # Pre-flight thumbnail check — drop items that won't render an
+    # image BEFORE Claude is called. LO doesn't want a draft sitting
+    # in admin with a broken thumbnail (post-mortem of toy/Pokemon
+    # Center runs that ate tokens for posts later deleted manually).
+    # The proxied URL is what actually gets published, so verifying
+    # *that* matches the user-browser fetch path exactly.
+    candidate_thumb = _proxy_image(item.hero_image_url)
+    if not await _verify_thumbnail(candidate_thumb):
+        log.warning(
+            "skip %s — no usable thumbnail (hero=%s)",
+            item.url, (item.hero_image_url or "")[:80],
+        )
+        return None
 
     try:
         article = await generate_article(item)
