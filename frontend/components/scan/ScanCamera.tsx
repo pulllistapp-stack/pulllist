@@ -26,12 +26,13 @@ type Props = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   cameraReady: boolean;
   cameraError: string | null;
-  flashOn: boolean;
+  torchSupported: boolean;
+  torchOn: boolean;
   lastScanned: LastScanned | null;
   pendingCount: number;
   onShutter: () => void;
   onGalleryUpload: (file: File) => void;
-  onFlashToggle: () => void;
+  onTorchToggle: () => void;
   onFlipCamera: () => void;
   onBack: () => void;
   onLastScannedTap?: () => void;
@@ -51,12 +52,13 @@ export function ScanCamera({
   videoRef,
   cameraReady,
   cameraError,
-  flashOn,
+  torchSupported,
+  torchOn,
   lastScanned,
   pendingCount,
   onShutter,
   onGalleryUpload,
-  onFlashToggle,
+  onTorchToggle,
   onFlipCamera,
   onBack,
   onLastScannedTap,
@@ -94,16 +96,25 @@ export function ScanCamera({
 
         <button
           type="button"
-          onClick={onFlashToggle}
-          aria-label={flashOn ? "Turn flash off" : "Turn flash on"}
+          onClick={onTorchToggle}
+          disabled={!torchSupported}
+          aria-label={torchOn ? "Turn flash off" : "Turn flash on"}
+          title={
+            torchSupported
+              ? torchOn
+                ? "Flash on"
+                : "Flash off"
+              : "Flash not supported on this camera"
+          }
           className={cn(
             "w-10 h-10 rounded-full shadow-sm flex items-center justify-center border transition active:scale-95",
-            flashOn
+            torchOn
               ? "bg-[#FACC15] border-[#FACC15]"
               : "bg-white border-[#FDE2C7]",
+            !torchSupported && "opacity-40 cursor-not-allowed",
           )}
         >
-          {flashOn ? (
+          {torchOn ? (
             <Zap className="w-5 h-5 text-[#2D2A26] fill-[#2D2A26]" />
           ) : (
             <ZapOff className="w-5 h-5 text-[#8A7E72]" />
@@ -231,11 +242,17 @@ export function ScanCamera({
         >
           <ImageIcon className="w-6 h-6 text-[#14B8A6]" />
         </button>
+        {/*
+          NO `capture` attr — the bug was that capture="environment"
+          forces iOS/Android to open the camera UI again instead of
+          letting the user pick from their photo library. Plain
+          accept="image/*" gives the native picker (Photo Library /
+          Take Photo / Choose File) the user expects.
+        */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={onFilePicked}
           className="hidden"
         />

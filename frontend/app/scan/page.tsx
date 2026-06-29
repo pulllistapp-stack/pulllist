@@ -76,7 +76,6 @@ export default function ScanPage() {
   const camera = useCamera();
 
   const [mode, setMode] = useState<Mode>("camera");
-  const [flashOn, setFlashOn] = useState(false);
   const [photoSrc, setPhotoSrc] = useState<string | null>(null);
   const [matched, setMatched] = useState<MatchedCardForConfirm | null>(null);
   const [scanResp, setScanResp] = useState<ScanResponse | null>(null);
@@ -148,21 +147,31 @@ export default function ScanPage() {
   };
 
   const onAdd = async ({
+    variant,
     grader,
     condition,
+    qty,
+    pricePaidUsd,
   }: {
-    grader: "PSA" | "BGS" | "CGC" | "Raw";
+    variant: "normal" | "reverseHolofoil";
+    grader: "Raw" | "PSA" | "BGS" | "CGC" | "TAG" | "AGS";
     condition: "NM" | "LP" | "MP" | "HP" | "DMG";
+    qty: number;
+    pricePaidUsd: number | null;
   }) => {
     if (!matched) return;
     setSubmitting(true);
     try {
       await createCollectionItem({
         card_id: matched.cardId,
-        qty: 1,
+        qty,
+        variant,
         condition,
         is_graded: grader !== "Raw",
-        grade: grader !== "Raw" ? `${grader} ?` : null,
+        // Grade value unknown until user goes to Edit modal post-add —
+        // the grader brand alone goes in here so the row knows it's slabbed.
+        grade: grader !== "Raw" ? grader : null,
+        purchase_price_usd: pricePaidUsd,
       });
 
       const next: LastScanned = {
@@ -236,12 +245,13 @@ export default function ScanPage() {
       videoRef={camera.videoRef}
       cameraReady={camera.ready}
       cameraError={camera.error}
-      flashOn={flashOn}
+      torchSupported={camera.torchSupported}
+      torchOn={camera.torchOn}
       lastScanned={lastScanned}
       pendingCount={0}
       onShutter={onShutter}
       onGalleryUpload={onGalleryUpload}
-      onFlashToggle={() => setFlashOn((f) => !f)}
+      onTorchToggle={() => void camera.toggleTorch()}
       onFlipCamera={camera.flip}
       onBack={() => router.back()}
       onLastScannedTap={onLastScannedTap}

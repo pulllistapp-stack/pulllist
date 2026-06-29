@@ -7,10 +7,21 @@ type CameraState = {
   error: string | null;
   facingMode: "environment" | "user";
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  torchSupported: boolean;
+  torchOn: boolean;
   start: () => Promise<void>;
   stop: () => void;
   flip: () => void;
   capture: () => Promise<Blob | null>;
+  toggleTorch: () => Promise<void>;
+};
+
+/** MediaTrackCapabilities + Constraints types in lib.dom.d.ts don't
+ * include `torch` yet (it's still in W3C draft) — augment locally
+ * so TS doesn't complain when we call applyConstraints({advanced:[{torch}]}).
+ */
+type TorchCapableTrack = MediaStreamTrack & {
+  getCapabilities?: () => MediaTrackCapabilities & { torch?: boolean };
 };
 
 /**
@@ -29,6 +40,8 @@ export function useCamera(): CameraState {
   const [facingMode, setFacingMode] = useState<"environment" | "user">(
     "environment",
   );
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const stop = useCallback(() => {
     if (streamRef.current) {
@@ -59,6 +72,15 @@ export function useCamera(): CameraState {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      // Check torch support — only rear cameras on most phones; null
+      // on desktop webcams. The capability check returns undefined on
+      // browsers that haven't shipped MediaTrackCapabilities.torch.
+      const track = stream.getVideoTracks()[0] as TorchCapableTrack | undefined;
+      const caps = track?.getCapabilities?.() as
+        | { torch?: boolean }
+        | undefined;
+      setTorchSupported(!!caps?.torch);
+      setTorchOn(false);
       setReady(true);
     } catch (e) {
       const msg =
@@ -75,6 +97,26 @@ export function useCamera(): CameraState {
   const flip = useCallback(() => {
     setFacingMode((m) => (m === "environment" ? "user" : "environment"));
   }, []);
+
+  const toggleTorch = useCallback(async () => {
+    if (!torchSupported || !streamRef.current) return;
+    const track = streamRef.current
+      .getVideoTracks()[0] as TorchCapableTrack | undefined;
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      // The W3C draft puts torch under `advanced` constraints — same
+      // shape Safari/Chrome both accept today.
+      await track.applyConstraints({
+        advanced: [{ torch: next }] as unknown as MediaTrackConstraintSet[],
+      });
+      setTorchOn(next);
+    } catch (e) {
+      // Silently no-op if the device rejected (e.g. switched to a
+      // camera mid-stream that doesn't actually support torch).
+      console.warn("torch toggle failed", e);
+    }
+  }, [torchOn, torchSupported]);
 
   const capture = useCallback(async (): Promise<Blob | null> => {
     const video = videoRef.current;
@@ -108,5 +150,17 @@ export function useCamera(): CameraState {
     return () => stop();
   }, [stop]);
 
-  return { ready, error, facingMode, videoRef, start, stop, flip, capture };
+  return {
+    ready,
+    error,
+    facingMode,
+    videoRef,
+    torchSupported,
+    torchOn,
+    start,
+    stop,
+    flip,
+    capture,
+    toggleTorch,
+  };
 }

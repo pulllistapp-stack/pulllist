@@ -41,6 +41,8 @@ function ThemeToggle() {
   );
 }
 
+const HIDE_NAV_ON = ["/scan"];
+
 export function TopNav() {
   const { user, loading, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -50,6 +52,13 @@ export function TopNav() {
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  // Scan flow is an immersive full-screen experience (camera viewfinder
+  // overflows the safe area). The site-wide nav would overlap the
+  // page's own back button + header pill.
+  if (pathname && HIDE_NAV_ON.some((p) => pathname.startsWith(p))) {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/80 border-b border-border">
