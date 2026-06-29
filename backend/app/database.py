@@ -36,6 +36,7 @@ async def init_db() -> None:
         news_post,
         news_view,
         portfolio,
+        processed_url,
         set as set_model,
         snapshot,
         user,

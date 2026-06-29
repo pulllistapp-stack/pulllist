@@ -61,9 +61,12 @@ class Settings(BaseSettings):
     dry_run: bool = False
     # Bot's by-line on the public post. Override via env to change it.
     bot_author_name: str = "PullList Bot"
-    # When True, skip Tavily entirely (useful for CI dry runs that
-    # don't have a TAVILY_API_KEY secret available).
-    skip_factcheck: bool = False
+    # When True, skip Tavily entirely. We don't have a Tavily key
+    # provisioned and friends-beta doesn't justify a second-pass
+    # cost gate — LO reviews every draft before publishing anyway.
+    # Flipped on to silence the "api_key_set=False" warning that
+    # otherwise fires for every item every run.
+    skip_factcheck: bool = True
 
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.

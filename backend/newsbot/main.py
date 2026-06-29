@@ -24,7 +24,7 @@ import httpx
 
 from .classify import classify, slugify
 from .config import settings
-from .dedupe import filter_unseen
+from .dedupe import filter_unseen, mark_processed
 from .factcheck import verify_claims
 from .generator import generate_article
 from .publisher import PublisherError, login, publish_draft
@@ -197,7 +197,11 @@ def _build_post_payload(
 async def _process_item(
     item: NewsItem, api_base: str, token: str | None
 ) -> dict | None:
-    """Returns a summary dict on success, None on reject."""
+    """Returns a summary dict on success, None on reject. Every
+    terminal state (publish, reject, error) logs the source_url to
+    the persistent dedupe table so a future run never re-spends
+    Claude tokens on a URL we've already decided about, even if the
+    resulting draft was later deleted."""
     category = classify(item)
     log.info("classify %r → %s", item.title, category)
 
@@ -222,12 +226,16 @@ async def _process_item(
             "skip %s — no usable thumbnail (hero=%s)",
             item.url, (item.hero_image_url or "")[:80],
         )
+        if token:
+            await mark_processed(api_base, token, item.url, "thumbnail_failed")
         return None
 
     try:
         article = await generate_article(item)
     except Exception as exc:
         log.exception("generator failed for %s: %s", item.url, exc)
+        if token:
+            await mark_processed(api_base, token, item.url, "generator_error")
         return None
 
     verdict = await verify_claims(article.claims)
@@ -237,6 +245,8 @@ async def _process_item(
             article.title,
             len(article.claims),
         )
+        if token:
+            await mark_processed(api_base, token, item.url, "factcheck_failed")
         return None
 
     payload = _build_post_payload(item, article, category)
@@ -255,9 +265,15 @@ async def _process_item(
         resp = await publish_draft(api_base, token, payload)
     except PublisherError as exc:
         log.error("publish failed for %s: %s", payload["slug"], exc)
+        if token:
+            await mark_processed(api_base, token, item.url, "publish_error")
         return None
 
     log.info("published draft slug=%s", resp.get("slug"))
+    # The post row already records the source_url, but we mirror it
+    # to processed_urls so the dedupe set stays consistent even after
+    # LO deletes the draft from the admin UI.
+    await mark_processed(api_base, token, item.url, "published")
     return {"slug": resp.get("slug"), "title": resp.get("title"), "dry_run": False}
 
 
