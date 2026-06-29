@@ -326,6 +326,7 @@ async def sync(
     dry_run: bool,
     group_limit: int | None,
     tier: str = "daily",
+    only_groups: set[int] | None = None,
 ) -> None:
     await init_db()
     async with SessionLocal() as db:
@@ -346,6 +347,8 @@ async def sync(
 
     async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}) as client:
         groups = await _list_pokemon_groups(client)
+        if only_groups:
+            groups = [g for g in groups if g.get("groupId") in only_groups]
         if group_limit:
             groups = groups[:group_limit]
         log.info(f"{len(groups)} pokemon groups to sync")
@@ -445,6 +448,16 @@ def main() -> None:
         help="Process only the first N groups (smoke testing).",
     )
     parser.add_argument(
+        "--only-groups",
+        default=None,
+        help=(
+            "Comma-separated TCGCSV group ids to sync, e.g. "
+            "'24451,22872,2545'. Used for targeted backfills after a "
+            "promo seed run — keeps wall-clock to minutes instead of "
+            "the full ~600-group sweep."
+        ),
+    )
+    parser.add_argument(
         "--tier",
         choices=("daily", "monthly", "all"),
         default="daily",
@@ -457,8 +470,17 @@ def main() -> None:
     )
     args = parser.parse_args()
     snapshot_date = args.snapshot_date or date.today().isoformat()
+    only_set: set[int] | None = None
+    if args.only_groups:
+        only_set = {int(g) for g in args.only_groups.split(",") if g.strip()}
     asyncio.run(
-        sync(snapshot_date, args.dry_run, args.limit_groups, tier=args.tier)
+        sync(
+            snapshot_date,
+            args.dry_run,
+            args.limit_groups,
+            tier=args.tier,
+            only_groups=only_set,
+        )
     )
 
 
