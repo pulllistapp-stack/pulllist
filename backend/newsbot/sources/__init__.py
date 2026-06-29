@@ -86,8 +86,9 @@ _stealth_lock = asyncio.Lock()
 async def get_stealth_session():
     """Lazy module-level singleton. Reuses the same headless Chromium
     + Cloudflare clearance cookie across every fetch in this process.
-    Leaked at process exit (one-shot script — no shutdown plumbing
-    needed)."""
+    Call close_stealth_session() before asyncio.run() returns or the
+    Chromium subprocess leaks past the event loop close, producing a
+    noisy 'RuntimeError: Event loop is closed' on GC."""
     global _stealth_session, _stealth_session_ctx
     async with _stealth_lock:
         if _stealth_session is None:
@@ -98,6 +99,24 @@ async def get_stealth_session():
             )
             _stealth_session = await _stealth_session_ctx.__aenter__()
         return _stealth_session
+
+
+async def close_stealth_session() -> None:
+    """Tear down the shared Stealth session if one was opened. Safe
+    to call when no session was ever created (the lock + None-check
+    make it a no-op). Swallows any close-time exceptions because
+    teardown errors shouldn't poison the success of a bot run that
+    has already finished publishing."""
+    global _stealth_session, _stealth_session_ctx
+    async with _stealth_lock:
+        if _stealth_session_ctx is None:
+            return
+        try:
+            await _stealth_session_ctx.__aexit__(None, None, None)
+        except Exception as exc:
+            log.warning("close_stealth_session: ignored %s", exc)
+        _stealth_session = None
+        _stealth_session_ctx = None
 
 
 # Import side-effects register sources + their enrichers. Add new

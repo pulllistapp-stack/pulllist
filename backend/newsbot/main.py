@@ -26,7 +26,7 @@ from .dedupe import filter_unseen
 from .factcheck import verify_claims
 from .generator import generate_article
 from .publisher import PublisherError, login, publish_draft
-from .sources import NewsItem, crawl_all, enrich_item
+from .sources import NewsItem, close_stealth_session, crawl_all, enrich_item
 
 logging.basicConfig(
     level=logging.INFO,
@@ -178,7 +178,7 @@ async def _process_item(
     return {"slug": resp.get("slug"), "title": resp.get("title"), "dry_run": False}
 
 
-async def run() -> int:
+async def _run_body() -> int:
     log.info(
         "newsbot starting dry_run=%s limit=%d api=%s",
         settings.dry_run,
@@ -232,6 +232,19 @@ async def run() -> int:
         settings.dry_run,
     )
     return 0
+
+
+async def run() -> int:
+    # Wrap the body so the shared Scrapling Stealth session (Chromium
+    # subprocess) gets closed cleanly before asyncio.run() tears down
+    # the event loop. Without this, Python's GC tries to clean up
+    # the leaked subprocess after loop close → noisy 'RuntimeError:
+    # Event loop is closed' in CI logs. Doesn't affect actual
+    # publishing, just makes the log readable.
+    try:
+        return await _run_body()
+    finally:
+        await close_stealth_session()
 
 
 if __name__ == "__main__":
