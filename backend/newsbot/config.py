@@ -53,7 +53,11 @@ class Settings(BaseSettings):
     serper_api_key: str = ""
 
     # ── Runtime knobs ──
-    daily_post_limit: int = 2
+    # 5 / day is the friends-beta cadence — matches what active
+    # Pokémon TCG communities post (3-4 drop alerts + 1-2 editorial)
+    # without overwhelming a small reader list. Each post averages
+    # ~$0.012 (Sonnet 4.6 medium), so 5/day ≈ $1.80/month.
+    daily_post_limit: int = 5
     dry_run: bool = False
     # Bot's by-line on the public post. Override via env to change it.
     bot_author_name: str = "PullList Bot"
@@ -69,27 +73,52 @@ class Settings(BaseSettings):
     #   WEB_SEARCH_QUERIES='["Pokemon TCG preorder 2026"]'
     web_search_queries: list[str] = Field(
         default_factory=lambda: [
+            # Editorial / general — PokeBeach / Pokemon.com / Bulbapedia
+            # tend to win these.
             "Pokemon TCG new set release 2026",
             "Pokemon TCG preorder drop 2026",
             "Pokemon Center exclusive release 2026",
+            # Retailer-named — without the retailer in the query,
+            # Google /news surfaces generic round-up blogs instead
+            # of the actual SKU page. Naming the retailer pulls the
+            # deal post itself.
+            "Pokemon TCG Sam's Club exclusive bundle",
+            "Pokemon TCG Costco bundle release",
+            "Pokemon TCG Walmart exclusive set",
+            "Pokemon TCG Best Buy preorder",
         ]
     )
     web_search_days_back: int = 3
-    web_search_max_per_query: int = 5
+    # 10 / query gives the topic + domain filters more raw material
+    # to chew through — most queries get filtered down hard by the
+    # retailer / topic gates so a tight 5 was leaving real drops on
+    # the table. Serper free tier is 2500 credits/month; 7 queries
+    # × 30 days = 210/month, well under cap.
+    web_search_max_per_query: int = 10
     # Hosts (substring match) we trust enough to scrape + summarize.
     # Other hosts surface in results are ignored. Conservative initial
     # set — broaden once we see real result quality.
     web_search_allowed_domains: list[str] = Field(
         default_factory=lambda: [
+            # Pokemon-exclusive publishers — bypass topic filter via
+            # web_search_trusted_domains below.
             "pokemon.com",
             "pokemoncenter.com",
             "pokebeach.com",
             "bulbagarden.net",
-            "bestbuy.com",
-            "target.com",
-            "tcgplayer.com",
             "pokemonmillennium.net",
             "bleedingcool.com",
+            # Big-box retailers — these stock more than Pokemon so
+            # the topic filter (must contain "pokemon") fires here.
+            # Catches Sam's Club / Costco / Walmart / Target / Best
+            # Buy exclusives that editorial sites rarely cover.
+            "samsclub.com",
+            "costco.com",
+            "walmart.com",
+            "target.com",
+            "bestbuy.com",
+            "tcgplayer.com",
+            "gamestop.com",
         ]
     )
     # Lowercased keyword required in result title or snippet — any
