@@ -43,7 +43,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
@@ -102,10 +102,14 @@ async def main(dry_run: bool) -> None:
                         printed_total=9,
                         total=9,
                         language="en",
-                        # Mirror fpic-s1's release_date until LO has a
-                        # more accurate one; cosmetic field, easy to
-                        # update later via a one-liner.
-                        release_date=date(2026, 3, 20),
+                        # NULL release_date so the /sets listing
+                        # (release_date DESC nullslast) drops both
+                        # fpic-* sets below the dated promo sets. We
+                        # don't have a reliable date for these and
+                        # leaving the column null is more honest than
+                        # picking one — see also the matching update
+                        # applied to fpic-s1.
+                        release_date=None,
                         logo_url="/set-logos/fps2.jpg",
                         symbol_url=None,
                     )
