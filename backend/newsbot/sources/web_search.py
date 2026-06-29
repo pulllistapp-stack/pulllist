@@ -250,7 +250,23 @@ async def crawl() -> list[NewsItem]:
                 # nicer thumbnail fallback. The generic enricher will
                 # override hero_image_url with the page's og:image
                 # later — this seeds it in case the page has no og.
-                image_url = (hit.get("imageUrl") or "").strip()
+                #
+                # Discard: data: URIs (Serper sometimes returns the
+                # base64-encoded thumbnail inline instead of a URL —
+                # weserv can't proxy those, the post then renders as
+                # a broken image), non-http(s) schemes, and anything
+                # not URL-shaped. The enricher will fill the real
+                # og:image later if there is one.
+                raw_image = (hit.get("imageUrl") or "").strip()
+                if raw_image.startswith(("http://", "https://")):
+                    image_url = raw_image
+                else:
+                    if raw_image:
+                        log.info(
+                            "web_search: discard non-http imageUrl for %r (got %s...)",
+                            title[:60], raw_image[:30],
+                        )
+                    image_url = ""
                 items.append(
                     NewsItem(
                         url=url[:512],

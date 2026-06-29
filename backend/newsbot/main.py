@@ -59,6 +59,12 @@ def _proxy_image(url: str | None) -> str | None:
     """
     if not url:
         return None
+    # Safety net for data: / javascript: / file: etc. — weserv can
+    # only fetch http(s). Earlier in the pipeline (Serper imageUrl
+    # ingest) we already drop these, but anything that slipped past
+    # would render as a broken image here.
+    if not url.startswith(("http://", "https://")):
+        return None
     if any(h in url for h in _TRUSTED_IMAGE_HOSTS):
         return url
     stripped = url.split("://", 1)[-1]
