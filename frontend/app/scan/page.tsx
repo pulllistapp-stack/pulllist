@@ -80,6 +80,7 @@ export default function ScanPage() {
   const [matched, setMatched] = useState<MatchedCardForConfirm | null>(null);
   const [scanResp, setScanResp] = useState<ScanResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [lastScanned, setLastScanned] = useState<LastScanned | null>(null);
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,6 +121,7 @@ export default function ScanPage() {
     setMode("confirm");
     setMatched(null);
     setScanResp(null);
+    setScanning(true);
 
     try {
       const b64 = await blobToBase64(blob);
@@ -133,6 +135,8 @@ export default function ScanPage() {
     } catch (e) {
       console.error(e);
       setMatched(null);
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -230,6 +234,7 @@ export default function ScanPage() {
       <ScanConfirm
         photoSrc={photoSrc ?? ""}
         matched={matched}
+        scanning={scanning}
         addedSuccess={addedSuccess}
         submitting={submitting}
         onAdd={onAdd}

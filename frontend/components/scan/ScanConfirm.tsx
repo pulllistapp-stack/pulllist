@@ -32,6 +32,10 @@ export type ScanCondition = "NM" | "LP" | "MP" | "HP" | "DMG";
 type Props = {
   photoSrc: string;
   matched: MatchedCardForConfirm | null;
+  /** True while the backend scan call is in flight — distinguishes
+   *  "still working" from "tried and failed". Both states currently
+   *  have matched=null. */
+  scanning: boolean;
   /** Whether a successful add has fired — drives the "Got one! ✨" peek */
   addedSuccess: boolean;
   submitting: boolean;
@@ -68,6 +72,7 @@ function fmtPrice(v: number | null): string {
 export function ScanConfirm({
   photoSrc,
   matched,
+  scanning,
   addedSuccess,
   submitting,
   onAdd,
@@ -139,7 +144,7 @@ export function ScanConfirm({
 
           <div className="flex flex-col items-center gap-1.5">
             <span className="text-[10px] font-black uppercase text-[#14B8A6] tracking-[0.2em]">
-              Matched
+              {scanning ? "Scanning…" : "Matched"}
             </span>
             <div className="w-28 aspect-[3/4] rounded-2xl bg-white border-[3px] border-[#FACC15] overflow-hidden rotate-2 shadow-xl relative">
               {matched?.imageUrl ? (
@@ -151,6 +156,31 @@ export function ScanConfirm({
                   className="w-full h-full object-cover"
                   unoptimized
                 />
+              ) : scanning ? (
+                <div className="w-full h-full bg-[#FFF3DE] flex flex-col items-center justify-center gap-1.5 px-2 text-center">
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+                    transition={{ duration: 1.4, repeat: Infinity }}
+                  >
+                    <Image
+                      src="/pullist-mascot.png"
+                      alt=""
+                      width={40}
+                      height={40}
+                      className="rounded-full"
+                      unoptimized
+                    />
+                  </motion.div>
+                  <p className="text-[10px] font-black text-[#14B8A6] uppercase tracking-wider">
+                    Reading
+                    <motion.span
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                    >
+                      …
+                    </motion.span>
+                  </p>
+                </div>
               ) : (
                 <div className="w-full h-full bg-[#FFF3DE]" />
               )}
@@ -171,7 +201,18 @@ export function ScanConfirm({
 
         {/* Card info + form */}
         <div className="bg-white p-5 rounded-[2rem] border border-[#FDE2C7] shadow-sm space-y-4">
-          {matched ? (
+          {scanning ? (
+            <div className="py-4 flex flex-col items-center gap-3 text-center">
+              <Loader2 className="w-6 h-6 animate-spin text-[#FACC15]" />
+              <p className="text-sm font-bold text-[#2D2A26]">
+                Scanning your card…
+              </p>
+              <p className="text-xs text-[#8A7E72]">
+                Reading the card name + number with vision AI.
+                Takes a couple seconds.
+              </p>
+            </div>
+          ) : matched ? (
             <>
               <div className="flex justify-between items-start gap-3">
                 <div className="min-w-0 flex-1">
