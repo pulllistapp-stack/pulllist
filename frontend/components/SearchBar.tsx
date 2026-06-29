@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import type { Suggestion } from "@/lib/api";
-import { suggestCards } from "@/lib/api";
+import type { PopularPokemon, Suggestion } from "@/lib/api";
+import { getPopularPokemon, suggestCards } from "@/lib/api";
 
 export function SearchBar({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
@@ -19,6 +19,25 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
   const [items, setItems] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+  const [popular, setPopular] = useState<PopularPokemon[]>([]);
+
+  // Fetch the "popular Pokémon" chip list once on mount. The endpoint
+  // is server-cached for 1h so this is cheap; doing it here (rather
+  // than on first focus) makes the dropdown feel instant the moment
+  // the user clicks in.
+  useEffect(() => {
+    let cancelled = false;
+    getPopularPokemon(10)
+      .then((res) => {
+        if (!cancelled) setPopular(res);
+      })
+      .catch(() => {
+        if (!cancelled) setPopular([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Sync the input across route changes. On /search we echo the URL's
   // ?q= so the user sees their query reflected; anywhere else we clear
@@ -120,6 +139,34 @@ export function SearchBar({ compact = false }: { compact?: boolean }) {
           className="w-full rounded-btn bg-bg-surface border border-border pl-9 pr-4 py-2 text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent-yellow/50 transition-colors"
         />
       </div>
+
+      {open && q.trim().length === 0 && popular.length > 0 && (
+        <div className="absolute z-50 mt-2 w-full rounded-card bg-bg-elevated border border-border shadow-xl overflow-hidden">
+          <div className="px-4 py-2 text-xs font-mono uppercase tracking-wider text-text-tertiary border-b border-border">
+            Popular Pokémon
+          </div>
+          <div className="flex flex-wrap gap-1.5 p-3">
+            {popular.map((p) => (
+              <button
+                key={p.name}
+                type="button"
+                onMouseDown={(e) => {
+                  // onMouseDown beats the input's blur → keeps the
+                  // dropdown from closing before router.push fires.
+                  e.preventDefault();
+                  submit(p.name);
+                }}
+                className="px-3 py-1.5 text-sm rounded-full bg-bg-surface border border-border hover:border-accent-yellow/60 hover:bg-accent-yellow/5 transition-colors"
+              >
+                {p.name}
+                <span className="ml-1.5 text-xs text-text-tertiary">
+                  {p.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {open && q.trim().length >= 2 && (
         <div className="absolute z-50 mt-2 w-full rounded-card bg-bg-elevated border border-border shadow-xl overflow-hidden">

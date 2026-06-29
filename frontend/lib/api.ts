@@ -157,6 +157,16 @@ export async function suggestCards(q: string, limit = 8): Promise<Suggestion[]> 
   );
 }
 
+export type PopularPokemon = {
+  name: string;
+  count: number;
+  image_small: string | null;
+};
+
+export async function getPopularPokemon(limit = 10): Promise<PopularPokemon[]> {
+  return apiFetch<PopularPokemon[]>(`/cards/popular-pokemon?limit=${limit}`);
+}
+
 export type CardSearchSort =
   | "relevance"
   | "price_desc"
