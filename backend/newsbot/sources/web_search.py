@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import re
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from curl_cffi.requests import AsyncSession
@@ -64,6 +64,77 @@ _WS_RE = re.compile(r"\s+")
 
 REQUEST_TIMEOUT = 30
 GENERIC_BODY_CAP = 8000  # chars of plain text — caps Claude input cost
+
+# Inline body image extraction — used by generic_enrich to feed the
+# generator's "Reference images" list (pokebeach.py has its own,
+# more site-specific extractor; this one's the catch-all for every
+# other host Serper hands us). Heuristics:
+#   - skip hero (already the thumbnail)
+#   - skip data: URIs, tiny layout chrome (icons/logos/spacers)
+#   - skip width/height-attr tiny images (icons declared <200px)
+#   - relative src -> absolute via urljoin
+#   - cap at MAX_INLINE_IMAGES so the generator prompt stays small
+MAX_INLINE_IMAGES = 5
+MIN_INLINE_DIM = 200  # px — anything smaller is layout chrome
+
+_IMG_TAG_RE = re.compile(r"<img\b([^>]+)>", re.IGNORECASE | re.DOTALL)
+_ATTR_RE = re.compile(r"""(\w[\w-]*)\s*=\s*(['"])(.*?)\2""", re.DOTALL)
+_BAD_PATH_RE = re.compile(
+    r"(logo|icon|avatar|sprite|placeholder|spacer|tracking|pixel|emoji|badge|favicon)",
+    re.IGNORECASE,
+)
+
+
+def _parse_img_attrs(tag_inner: str) -> dict[str, str]:
+    return {
+        m.group(1).lower(): m.group(3) for m in _ATTR_RE.finditer(tag_inner)
+    }
+
+
+def _extract_inline_images(
+    html: str, base_url: str, hero_url: str | None
+) -> list[dict[str, str]]:
+    """Pull up to MAX_INLINE_IMAGES body images from generic HTML.
+    Returns the same {url, caption} shape pokebeach.py produces so
+    the generator + main.py inline-image proxy stay source-agnostic."""
+    hero_path = (hero_url or "").split("?")[0]
+    seen: set[str] = set()
+    out: list[dict[str, str]] = []
+    for m in _IMG_TAG_RE.finditer(html):
+        if len(out) >= MAX_INLINE_IMAGES:
+            break
+        attrs = _parse_img_attrs(m.group(1))
+        src = attrs.get("src") or attrs.get("data-src")
+        if not src or src.startswith("data:"):
+            continue
+        try:
+            abs_url = urljoin(base_url, src)
+        except Exception:
+            continue
+        if not abs_url.startswith("http"):
+            continue
+        # Compare path-only so a query-string-resized hero (?w=800)
+        # still matches its origin URL we already stored as the hero.
+        if hero_path and abs_url.split("?")[0] == hero_path:
+            continue
+        if abs_url in seen:
+            continue
+        if _BAD_PATH_RE.search(urlparse(abs_url).path.lower()):
+            continue
+        try:
+            w = int(attrs.get("width", "0") or 0)
+            h = int(attrs.get("height", "0") or 0)
+        except ValueError:
+            w = h = 0
+        # Both dimensions known AND both small → layout chrome. If
+        # the attributes are missing (common — CSS sizes the image)
+        # we give the image the benefit of the doubt and keep it.
+        if 0 < w < MIN_INLINE_DIM and 0 < h < MIN_INLINE_DIM:
+            continue
+        caption = (attrs.get("alt") or "").strip()[:120]
+        out.append({"url": abs_url[:512], "caption": caption})
+        seen.add(abs_url)
+    return out
 
 
 def _domain_of(url: str) -> str:
@@ -258,13 +329,22 @@ async def generic_enrich(item: NewsItem) -> NewsItem:
     desc = (
         desc_m.group(1).strip()[:480] if desc_m else item.summary
     )
+    inline_images = _extract_inline_images(html_text, item.url, hero)
     body = _SCRIPT_STYLE_RE.sub(" ", html_text)
     body = _TAG_RE.sub(" ", body)
     body = _WS_RE.sub(" ", body).strip()[:GENERIC_BODY_CAP]
+    log.info(
+        "generic_enrich: %s → hero=%s body=%d inline=%d",
+        urlparse(item.url).hostname,
+        bool(hero),
+        len(body),
+        len(inline_images),
+    )
     return item.model_copy(
         update={
             "raw_text": body,
             "hero_image_url": hero,
             "summary": desc,
+            "inline_images": inline_images,
         }
     )
