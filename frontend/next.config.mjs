@@ -26,6 +26,11 @@ const nextConfig = {
       // standardise on either.
       { protocol: "https", hostname: "www.pokemon.com" },
       { protocol: "https", hostname: "assets.pokemon.com" },
+      // TCGplayer CDN — promo / supplemental cards seeded via TCGCSV's
+      // /tcgplayer/3/{group}/products feed (see seed_promo_group.py).
+      // Used for MEP "ME: Mega Evolution Promo" and other promo sets
+      // pokemontcg.io doesn't index.
+      { protocol: "https", hostname: "tcgplayer-cdn.tcgplayer.com" },
     ],
   },
   async rewrites() {
