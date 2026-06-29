@@ -30,8 +30,12 @@ class SetRead(SetBase):
 class SetWithCardCount(SetBase):
     card_count: int
     total_value_usd: float | None = None
-    """Sum of market_price_usd across all cards in the set. Kept for
-    backwards-compat — UI now displays the completion price range instead."""
+    """Sum of market_price_usd across all cards in the set. Sales-driven
+    and noisier than mid; kept on the response for charts/back-compat."""
+    total_value_mid_usd: float | None = None
+    """Sum of every card's `mid_price_usd` — the TCGplayer midpoint
+    listing price. This is the headline 'set value' the UI shows;
+    avoids market's sales jitter and high's graded-slab inflation."""
     total_value_low_usd: float | None = None
     """Sum of every card's `low_price_usd` — the cheapest possible set
     completion if you bought every card at its current floor."""

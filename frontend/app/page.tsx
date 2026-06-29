@@ -46,6 +46,7 @@ type SetSummary = {
   series?: string | null;
   card_count?: number | null;
   total_value_usd?: number | null;
+  total_value_mid_usd?: number | null;
   total_value_low_usd?: number | null;
   total_value_high_usd?: number | null;
   released_at?: string | null;
@@ -359,10 +360,10 @@ function fmtCompactPrice(v: number | null | undefined): string | null {
 }
 
 function SetCard({ set }: { set: SetSummary }) {
-  // Show market sum, not low–high range. high captures graded-slab
-  // outliers and overstates what a raw collector would actually pay
-  // for the set.
-  const valueLabel = fmtCompactPrice(set.total_value_usd);
+  // Mid sum is the headline; falls back to market sum when the set's
+  // cards haven't been backfilled yet. high captures graded-slab
+  // outliers and overstates what a raw collector would actually pay.
+  const valueLabel = fmtCompactPrice(set.total_value_mid_usd ?? set.total_value_usd);
 
   return (
     <Link

@@ -33,12 +33,12 @@ function fmtPrice(v: number | null | undefined): string | null {
 export function SetCard({ set }: Props) {
   const displayName = set.name;
   const releaseLabel = formatReleaseDate(set.release_date);
-  // Show the market sum, not the low–high range. high frequently
-  // catches graded slab listings (PSA 10 etc.) and inflates the
-  // total way past anything a raw collector would actually pay.
-  // market is the sanitised TCGplayer "market" / mid value, which
-  // is what people expect to see for a "set value" headline.
-  const valueLabel = fmtPrice(set.total_value_usd);
+  // Sum of TCGplayer mid (midpoint listing). market is sales-driven
+  // and jitters; high catches graded slabs and overstates. mid is
+  // the steady "what's this set listed at" number. Falls back to
+  // market_usd only when mid total is missing (e.g. set of cards
+  // imported pre-mid-backfill that haven't synced yet).
+  const valueLabel = fmtPrice(set.total_value_mid_usd ?? set.total_value_usd);
   const progress = set.owned_unique != null && set.card_count > 0
     ? (set.owned_unique / set.card_count) * 100
     : null;

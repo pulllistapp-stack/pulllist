@@ -152,6 +152,28 @@ def _market_from_prices(prices: dict) -> float | None:
     return None
 
 
+def _mid_from_prices(prices: dict) -> float | None:
+    """Pick the base variant's TCGplayer 'mid' (midpoint listing price),
+    never falling back to market. The set-value headline sums these so
+    the total reads as a literal "what's this set listed at" number,
+    untouched by graded slab outliers (which inflate `high`) and free
+    of the sales-driven jitter on `market`."""
+    for key in VARIANT_PRIORITY:
+        variant = prices.get(key)
+        if not isinstance(variant, dict):
+            continue
+        m = variant.get("mid")
+        if isinstance(m, (int, float)) and m > 0:
+            return float(m)
+    for variant in prices.values():
+        if not isinstance(variant, dict):
+            continue
+        m = variant.get("mid")
+        if isinstance(m, (int, float)) and m > 0:
+            return float(m)
+    return None
+
+
 def _group_rows_by_product(rows: list[dict]) -> dict[int, dict]:
     """Collapse TCGCSV's flat (product, subType) rows into our nested
     per-variant tcgplayer_prices format:
@@ -409,6 +431,7 @@ async def sync(
                         # market field is gated.
                         existing.low_price_usd = lo
                         existing.high_price_usd = hi
+                        existing.mid_price_usd = _mid_from_prices(prices)
 
                     stats["cards_refreshed"] += 1
                     snapshot_batch.extend(

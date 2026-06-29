@@ -50,6 +50,14 @@ class Card(Base):
     capped by the rarity ceiling (drops outlier $10k-asks). Pairs with
     low_price_usd to render the set-completion price band."""
 
+    mid_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    """TCGplayer 'mid' (midpoint between low and high listing) for the
+    base variant, mirroring market_price_usd's variant-priority pick
+    but pulled from the `mid` field only — never falls back to market.
+    Used for set-value totals: market can be sales-driven and high
+    catches graded slabs, so a sum-of-mids reads as a stable
+    "what's this set listed at" headline without spike contamination."""
+
     set_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("sets.id", ondelete="CASCADE"), index=True
     )

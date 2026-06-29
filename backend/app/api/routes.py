@@ -112,6 +112,7 @@ async def list_sets(
             Set,
             func.count(Card.id).label("card_count"),
             func.sum(Card.market_price_usd).label("total_value"),
+            func.sum(Card.mid_price_usd).label("total_mid"),
             func.sum(Card.low_price_usd).label("total_low"),
             func.sum(Card.high_price_usd).label("total_high"),
         )
@@ -162,11 +163,12 @@ async def list_sets(
             **SetRead.model_validate(set_row).model_dump(),
             card_count=count,
             total_value_usd=float(total_value) if total_value is not None else None,
+            total_value_mid_usd=float(total_mid) if total_mid is not None else None,
             total_value_low_usd=float(total_low) if total_low is not None else None,
             total_value_high_usd=float(total_high) if total_high is not None else None,
             owned_unique=owned_map.get(set_row.id) if current_user else None,
         )
-        for set_row, count, total_value, total_low, total_high in rows
+        for set_row, count, total_value, total_mid, total_low, total_high in rows
     ]
 
 
@@ -179,6 +181,7 @@ async def get_set(
             Set,
             func.count(Card.id).label("card_count"),
             func.sum(Card.market_price_usd).label("total_value"),
+            func.sum(Card.mid_price_usd).label("total_mid"),
             func.sum(Card.low_price_usd).label("total_low"),
             func.sum(Card.high_price_usd).label("total_high"),
         )
@@ -190,11 +193,12 @@ async def get_set(
     row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Set not found")
-    set_row, count, total_value, total_low, total_high = row
+    set_row, count, total_value, total_mid, total_low, total_high = row
     return SetWithCardCount(
         **SetRead.model_validate(set_row).model_dump(),
         card_count=count,
         total_value_usd=float(total_value) if total_value is not None else None,
+        total_value_mid_usd=float(total_mid) if total_mid is not None else None,
         total_value_low_usd=float(total_low) if total_low is not None else None,
         total_value_high_usd=float(total_high) if total_high is not None else None,
     )
