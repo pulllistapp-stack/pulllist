@@ -359,10 +359,10 @@ function fmtCompactPrice(v: number | null | undefined): string | null {
 }
 
 function SetCard({ set }: { set: SetSummary }) {
-  const lo = fmtCompactPrice(set.total_value_low_usd);
-  const hi = fmtCompactPrice(set.total_value_high_usd);
-  const rangeLabel =
-    lo && hi ? (lo === hi ? lo : `${lo} – ${hi}`) : lo ?? hi;
+  // Show market sum, not low–high range. high captures graded-slab
+  // outliers and overstates what a raw collector would actually pay
+  // for the set.
+  const valueLabel = fmtCompactPrice(set.total_value_usd);
 
   return (
     <Link
@@ -373,9 +373,9 @@ function SetCard({ set }: { set: SetSummary }) {
         <p className="text-[11px] font-mono uppercase tracking-wider text-text-tertiary">
           {set.series ?? "Pokémon TCG"}
         </p>
-        {rangeLabel && (
+        {valueLabel && (
           <span className="text-[11px] font-mono text-accent-yellow font-bold">
-            {rangeLabel}
+            {valueLabel}
           </span>
         )}
       </div>

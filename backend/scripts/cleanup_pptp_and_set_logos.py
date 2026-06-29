@@ -6,9 +6,11 @@ LO spotted in the UI after the promo seed:
      they're invisible in our card grid. Drop the whole set.
 
   2. `mep` (ME: Mega Evolution Promo) — no logo/symbol because
-     pokemontcg.io never indexed it. Borrow the `me1` ("Mega
-     Evolution") set's logo + symbol so the set-detail header has
-     the right ME era branding.
+     pokemontcg.io never indexed it. Use `svp` ("Scarlet & Violet
+     Black Star Promos") art — LO wants the generic "star" promo
+     logo here, not the main-set ME banner that me1 would supply.
+     Era mismatch on a small banner is fine; visual category
+     consistency (this is a Promo set, not a main set) wins.
 
   3. `swsd` (SWSH: Sword & Shield Promo Cards) — same gap; reuse
      `swshp` (SWSH Black Star Promos) art so it visually slots in
@@ -51,8 +53,11 @@ log = logging.getLogger("cleanup_pptp_and_set_logos")
 
 
 LOGO_DONORS = {
-    "mep": "me1",     # ME: Mega Evolution Promo  ← Mega Evolution
-    "swsd": "swshp",  # SWSH: S&S Promo Cards     ← SWSH Black Star Promos
+    # mep keeps SVP's "Black Star Promos" star branding rather than
+    # me1's fancy "Mega Evolution" main-set banner — LO wants the
+    # promo-category visual signal, not era branding.
+    "mep": "svp",
+    "swsd": "swshp",
 }
 
 
@@ -134,7 +139,12 @@ async def main(dry_run: bool) -> None:
                 )
                 continue
             touched = False
-            if not target.logo_url and donor.logo_url:
+            # Overwrite for the LOGO_DONORS map even if a logo is
+            # already set — this script is the source of truth for
+            # the mep/swsd backfills, and tweaking the donor here
+            # should propagate on re-run rather than getting blocked
+            # by a stale earlier value.
+            if donor.logo_url and target.logo_url != donor.logo_url:
                 log.info(
                     "  %s.logo_url ← %s (%s)",
                     target_sid, donor_sid, donor.logo_url,
@@ -142,7 +152,7 @@ async def main(dry_run: bool) -> None:
                 if not dry_run:
                     target.logo_url = donor.logo_url
                 touched = True
-            if not target.symbol_url and donor.symbol_url:
+            if donor.symbol_url and target.symbol_url != donor.symbol_url:
                 log.info(
                     "  %s.symbol_url ← %s (%s)",
                     target_sid, donor_sid, donor.symbol_url,
