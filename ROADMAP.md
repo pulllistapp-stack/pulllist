@@ -91,6 +91,44 @@
 - **레이어**: 프론트 전부 (디자인 → React + Tailwind 매핑)
 - **블록**: LO가 v0/Variant 결과 가져오기 대기 중
 
+### #10.5 JP 카탈로그 Playwright 백필 — pokemon-card.com 풀스윕 ⏸️
+
+**무엇**: Playwright 기반 pokemon-card.com 스크레이퍼를 새로 만들어서 두 가지 갭을 한 번에 해결.
+
+- **갭 A — 빈티지 이미지 (~1,861장)**
+  - 세트: PMCG1-6, VS1, web1, E1-E5, PCG1-9, JPP-DP / JPP-XY / JPP-BW
+  - 카드는 DB에 있는데 `image_small`이 NULL. TCGdex/Limitless 둘 다 못 들고있음
+  - 컬렉터 시장 핵심 (No.1 Trainer, 베이스 리자몽 JP 1996 등)
+- **갭 B — 신규 import rarity (~3,392장)**
+  - 세트: 2026-06-29 Limitless로 import한 SM0~SM12a, XY2~XY10, CP1~CP6, SMP2
+  - 카드는 다 들어왔고 이미지도 있는데 `rarity`가 모두 NULL
+  - UI 필터 (SR/SAR/HR 등)에서 누락된 것처럼 보임
+
+**왜 같은 세션**: 두 갭이 같은 소스(pokemon-card.com)로 해결됨. Playwright 의존성 설치 + JS SPA 대응 + rate limit / retry 로직은 한 번에 작성하는 게 cohesive.
+
+**기존 참고 코드**:
+- `backend/scripts/scrape_jp_promos.py` — Playwright + pokemon-card.com 이미 사용. 베이스 패턴 따라가.
+- `backend/scripts/scrape_limitless_jp.py` — `_upsert(images_only=True)` 패턴 참고 (기존 row의 NULL 필드만 패치).
+- `backend/scripts/import_jp_catalog.py` — JP 카드 모델 매핑 참고.
+
+**작업 단계 (예상 3~4시간)**:
+1. Playwright deps 설치 (`pip install playwright && playwright install chromium`) — 5분
+2. pokemon-card.com 검색 URL → 카드 detail page 매핑 함수 — 30~45분
+3. 카드별 이미지 URL + rarity 추출 함수 — 45분
+4. 두 모드 지원 (vintage image-only / rarity-fill) — 30분
+5. 배치 모드 + 진행률 표시 + 실패 retry — 30분
+6. dry-run + commit + 실제 풀스윕 runtime — 1~2시간
+
+**리스크**:
+- pokemon-card.com이 pre-DP 빈티지 카드를 자체 DB에서 dropped 했을 가능성 → 빈티지 coverage 60~70% 일 수도
+- Cloudflare 등 봇 차단 가능성 → User-Agent / cookie 우회 필요할 수도
+- 둘 다 첫 30분 probe 후 대응 판단
+
+**커밋 / 푸시 / 업데이트 로그**: 평소대로 — 작업 완료 시 `frontend/lib/updates.ts` 맨 위에 KR + EN 한 줄 추가.
+
+**새 세션 부트스트랩** (LO가 새 세션에서 이거 그대로 붙여넣기):
+> PullList JP 카탈로그 Playwright 백필 진행. `ROADMAP.md`의 "#10.5 JP 카탈로그 Playwright 백필" 섹션 읽고 그대로 시작해. 기존 `scrape_jp_promos.py` 베이스 참고.
+
 ---
 
 ## 3. 정식 오픈 직전 (오픈 1-2주 전)
