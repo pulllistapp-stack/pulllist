@@ -166,18 +166,30 @@ export default async function NewsArticlePage({
                 {...props}
               />
             ),
-            img: ({ src, alt }) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              // Bot-embedded card / product shots come in tall portrait
-              // (~1200×1500). w-full made them dominate the article;
-              // max-h caps them at a comfortable size, max-w stops them
-              // overflowing, mx-auto + block centers horizontally.
-              <img
-                src={src as string}
-                alt={alt ?? ""}
-                className="my-6 mx-auto block max-h-80 w-auto max-w-full rounded-2xl border border-border"
-              />
-            ),
+            img: ({ src, alt }) => {
+              const href = src as string;
+              // Wrap the inline body image in an <a> so a click opens
+              // the full-resolution source in a new tab. The src URL
+              // already points at the original via weserv (no resize
+              // params) so the new-tab view = native asset size. The
+              // in-article render stays capped at max-h-80 for layout.
+              return (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="my-6 mx-auto block w-fit max-w-full cursor-zoom-in"
+                  aria-label={alt ? `Open full-size image: ${alt}` : "Open full-size image"}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={href}
+                    alt={alt ?? ""}
+                    className="mx-auto block max-h-80 w-auto max-w-full rounded-2xl border border-border transition-opacity hover:opacity-90"
+                  />
+                </a>
+              );
+            },
             code: ({ inline, className, children, ...props }: {
               inline?: boolean;
               className?: string;
