@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-06-30 ─────────────────────────────────────────────────
   {
     date: "2026-06-30",
+    emoji: "🎴",
+    kr: "일본판 e-Card 시대 (E1-E5, 2001-2002) 카드 이미지 489장 채워짐 — nazonobasho.com 출처. E1은 기존 영문판 이미지에서 일본판 네이티브 스캔으로 교체. JP 이미지 커버리지 97.4% → 99.94% (잔여 9장만). 1996년부터 현재까지 모든 일본판 빈티지 시대 카드 이미지 라이브러리 완성.",
+    en: "Japanese e-Card era (E1-E5, 2001-2002) — 489 card images filled via nazonobasho.com. E1 swapped from the EN variant to native JP scans. JP image coverage 97.4% → 99.94% (only 9 cards remain). The vintage Japanese illustration library is now complete from 1996 through the modern era.",
+  },
+  {
+    date: "2026-06-30",
     emoji: "🃏",
     kr: "일본판 PCG 시리즈 (홀론의 연구탑부터 さいはての攻防까지, 2004-2006) 카드 이미지 720장 채워짐 — learn-book.com 출처. JP 이미지 커버리지 92.4% → 97.4%. e-Card 시대 4세트 (E2-E5)만 남음.",
     en: "Japanese PCG series (Holon Research Tower through Battle at Furthest Ends, 2004-2006) — 720 card images filled via learn-book.com. JP image coverage 92.4% → 97.4%. Only 4 e-Card era sets (E2-E5) remain.",

@@ -158,25 +158,28 @@
 
 **결과**: **720/722 PCG 카드** image 채움. PCG2(1), PCG6(1) 잔여 = page에 그 number 없음 (사실상 100%).
 
-### #10.6.2 JP 빈티지 image — E2-E5 (364장, open) 🔍
+### #10.6.2 JP 빈티지 image — E1-E5 ✅ (2026-06-30, nazonobasho.com)
 
-**잔여**: E2 (92) / E3 (90) / E4 (91) / E5 (91) = **364장**. e-Card era JP sets, EN equivalent split:
-- E2 (地図にない町) + E3 (海からの風) ↔ Aquapolis (EN, ~150 cards)
-- E4 (裂けた大地) + E5 (神秘なる山) ↔ Skyridge (EN, ~150 cards)
+**LO 제보**: nazonobasho.com이 e-Card era JP 카드 (E1-E5) 풀 indexed. URL pattern 매우 깨끗: `e{N}_{rarity}_{NUM:03d}_{name}_copy.jpg` (예: `e1_B_128_airmd_copy.jpg`). 정적 HTML — httpx만으로 OK (Playwright 불필요).
 
-**시도된 source — E series 모두 dead end**:
-- learn-book.com `/pokemon-cardlist-e1/` ~ `/e5/` → 404
-- Bulbapedia card-wiki (Aquapolis/Skyridge slug) → number range split 필요, naive 1:1 위험 (이미 PCG4 bug 케이스 있음)
-- pokemon-card.com / TCGdex / pkmncards → 모두 빈티지 안 indexed
-- Cardrush / Pokellector / Fandom → 403/404
+**해법 — `backfill_jp_images_nazonobasho.py`** 신규:
+- 각 `/cardlist-e{N}/` page fetch
+- tighter regex `e{N}_[A-Za-z]+_(\d{1,3})_` 로 number 추출 (thumbnail size suffix `-WxH` 노이즈 제거)
+- DB upsert `WHERE set_id=:s AND language='ja' AND number_int=:n AND image_small IS NULL`
 
-**다음 시도 후보**:
-- Bulbapedia Aquapolis/Skyridge에서 number range split mapping (E2 #1-92 → Aquapolis 첫 92장 등) + per-card verification
-- 또 다른 JP 컬렉터 사이트 (LO 제보 환영)
-- placeholder UI fallback — image NULL이면 set logo + JP/EN cross-link
+**결과**: E1 (128) + E2 (90) + E3 (90) + E4 (91) + E5 (90) = **489장 채움**. E1은 기존 Bulbapedia EN variant → **JP native scan으로 swap** (텍스트 일본어). 3장만 page에 없음 (`needed but not on page`).
 
-**새 세션 부트스트랩**:
-> PullList §10.6.2: e-Card era (E2-E5, 364장) image backfill. Aquapolis/Skyridge split mapping 또는 새 source.
+**최종 JP image coverage: 99.94%** (14,353/14,362, NULL 9장 잔여 — VS1 3 / E2 2 / E5 1 / PCG2 1 / PCG6 1 / web1 1)
+
+### ✅ JP 카탈로그 백필 정리 (2026-06-30 종료)
+
+- JP rarity coverage: **97.5%** (NULL 366)
+- JP image coverage: **99.94%** (NULL 9)
+- 빈티지 source 매핑 정리 (모두 set name JP→EN audit script로 검증):
+  - PMCG1-6, E1 → Bulbapedia (Base/Jungle/Fossil/Team Rocket/Gym Heroes/Gym Challenge/Expedition_Base_Set)
+  - VS1, web1 → Bulbapedia JP-only pages
+  - PCG1-9 → learn-book.com Playwright render
+  - E1-E5 → nazonobasho.com httpx (E1는 nazonobasho JP native로 swap)
 
 ---
 
