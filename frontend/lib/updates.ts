@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-06-29 ─────────────────────────────────────────────────
   {
     date: "2026-06-29",
+    emoji: "🗺️",
+    kr: "일본판 카탈로그 25개 세트 신규 노출 (PMCG / VS / web / E-card / PCG 빈티지 + SV 스타터) — 약 1,949장 추가 브라우즈 가능",
+    en: "Japanese catalog: 25 sets newly visible (vintage PMCG / VS / web / E-card / PCG + modern SV starters) — ~1,949 more browseable cards",
+  },
+  {
+    date: "2026-06-29",
     emoji: "💰",
     kr: "세트 가치 표시 = TCGplayer 미드 합계로 변경 (그레이드 슬랩이 잡히는 high 대신)",
     en: "Set value headline now sums TCGplayer mid prices (instead of high, which catches graded slabs)",

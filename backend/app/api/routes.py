@@ -124,24 +124,21 @@ async def list_sets(
     if series:
         stmt = stmt.where(Set.series == series)
 
-    # JP region default: hide sets that don't have a logo, but exempt
-    # the promo eras (JPP-*) which intentionally have no logo - those
-    # are virtual buckets that group promo cards. Combined: every JP
-    # row visible to users is either a logo'd expansion or a promo era
-    # bucket with at least one card under it.
-    if language == "ja":
-        stmt = stmt.where(
-            (Set.logo_url.is_not(None)) | (Set.id.like("JPP-%"))
-        )
-
     rows = (await db.execute(stmt)).all()
 
-    # For JP, hide promo eras that ended up with zero cards (old eras
-    # like PCG-P, ADV-P, World Collection — we have set rows but no
-    # source provides card data for them). A logo'd expansion with zero
-    # cards stays visible: that's a content gap worth surfacing.
+    # JP visibility rule: show a set when it carries either a logo or
+    # at least one card. The old rule hid every logo-less row (a swath
+    # of vintage E-card / PMCG / PCG / VS / web-era expansions with
+    # ~1,500 cards already in the DB never reached the UI). Now those
+    # land in the grid with the placeholder logo and a real card list.
+    #
+    # The carve-out: TCGdex returns stub rows for prehistoric promo
+    # buckets (JPP-MCD / JPP-SI / JPP-VM / etc.) and a few never-
+    # populated expansion shells (ADV1-5, L1a, LL) — no source has
+    # ever filled them with cards, and surfacing them creates empty
+    # tiles. Hide the no-logo-AND-no-cards intersection only.
     if language == "ja":
-        rows = [r for r in rows if not (r[0].id.startswith("JPP-") and r[1] == 0)]
+        rows = [r for r in rows if r[0].logo_url is not None or r[1] > 0]
 
     # Per-user owned counts in one query if logged in
     owned_map: dict[str, int] = {}
