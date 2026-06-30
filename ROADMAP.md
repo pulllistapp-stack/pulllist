@@ -110,27 +110,54 @@
 - "8 missing sets (SM1-5/SM11/XY5/XY8)" → JP 명명 컨벤션상 SM1 = SM1M+SM1S+SM1+ 같이 sub-set으로 쪼개져있고, 모두 이미 DB에 import 됨. Missing 0.
 - "Gap A 1,861장 vintage image" → 여전히 갭. §10.6으로 이관.
 
-### #10.6 JP 빈티지 image backfill 🔍 (open)
+### #10.6 JP 빈티지 image backfill ✅ (2026-06-30)
 
 **문제**: PMCG1-6 / VS1 / web1 / E1-E5 / PCG1-9 = **1,861장 `image_small IS NULL`**. 컬렉터 시장 핵심 (베이스 리자몽 JP 1996, No.1 Trainer 등).
 
-**시도된 source — 다 dead end (2026-06-29)**:
+**Dead end 확인된 source**:
 | Source | 결과 |
 |---|---|
 | pokemon-card.com search | 빈티지 indexed 안 됨 (현 regulation only) |
 | TCGdex /v2/ja sets + 단건 | 404 |
-| Bulbapedia 카드 wiki | EN/JP variant 한 페이지 동거, image 1개만 표시 (분리 불가) |
+| Bulbapedia 카드 list page | row마다 generic placeholder thumbnail만 |
 | pkmncards.com | vintage set queries returns "no results" |
+| Cardrush JP | Cloudflare 403 (playwright-stealth로도 막힘) |
+| yuyu-tei JP | URL pattern dead, base 페이지만 200 |
+| Pokellector | 모든 JP era 슬러그 `/sets` 로 redirect |
+| pokemon.fandom.com | 카드 페이지 403 (Wikia 차단) |
+| Bulbapedia archives File: 직검색 | 추측 파일명 다 404, search API 0 results |
 
-**다음 시도 후보** (LO 결정 대기):
-- **Cardrush / yuyu-tei JP** — Japanese-only retail 카탈로그, 매물 image 있을 수도
-- **Bulbapedia archives 파일 직접 검색** — `File:리자돈Base_Expansion_PackXX.jpg` 같은 컨벤션 가능성
-- **Pokellector** — 컬렉터 사이트, 빈티지 JP image 일부 hosted
-- **수동 sourcing** — 1,861장 분량은 너무 큼; 컬렉터 가치 top 200장만 우선 채우는 옵션
-- **포기 후 placeholder 디자인** — 카드 detail에서 image 없으면 set logo + JP/EN cross-reference 표시
+**해법 — Bulbapedia 카드 wiki 페이지 deep crawl**:
+- Set 페이지 (`/wiki/Base_Set_(TCG)` 등)에서 `_(SetName_NNN)$` 패턴 anchor만 정확히 추출
+- 각 카드 wiki 페이지 fetch → `<a href=/wiki/File:...> class="mw-file-description"` candidates 다 모음
+- **set-token 매칭 preference** — anchor href의 SetName ("Base_Set" → "BaseSet")이 image filename에 포함되는 candidate 선택. 카드 페이지가 promo / cross-set reprint image 먼저 보여줘도 정확한 base set image pick (정확도 75% → 98%).
+- thumb URL → original full-res 자동 변환
+- `images_only=True` 패턴: `WHERE set_id=:s AND language='ja' AND number_int=:n AND image_small IS NULL` (idempotent)
+- **`backfill_jp_images_bulbapedia.py`** 신규 작성
+
+**중간에 잡힌 critical bug (2026-06-30)**: 초기 PMCG/E/PCG mapping이 EN equivalent에 잘못 매핑되어 (PMCG1=Base_Expansion_Pack은 사실 e-Card Expedition, 진짜는 Base_Set; PCG4="金の空、銀の海"인데 Mirage_Forest로 매핑됨 등) **1,296장 잘못된 카드 image** 채워질 뻔. Audit 스크립트가 set.name JP ↔ EN equivalent cross-check로 발견. 즉시 rollback 후 `vintage_audit.json` 기반 정확한 매핑으로 재작성.
+
+**최종 결과**:
+- ✅ PMCG1 (Base Set 1996, 102장) / PMCG2 (Jungle, 48장) / PMCG3 (Fossil, 48장) / PMCG4 (Team Rocket, 65장) / PMCG5 (Gym Heroes, 96장) / PMCG6 (Gym Challenge, 98장)
+- ✅ E1 (Expedition Base Set, 128장)
+- ✅ VS1 (140장, JP-only) / web1 (46장, JP-only) — 첫 풀스윕에서 채워짐, mapping 정확
+- **합계 ~775장 image_small 채움**, JP image coverage 87% → **92.4%** (1,090 → 1,090 NULL 잔여)
+
+**카드 image 출처 주의**: PMCG/E1 sets는 Bulbapedia가 EN variant image를 surface — JP 디자인 거의 동일하지만 텍스트만 영어. VS1/web1는 자동으로 JP image. 컬렉터에게 placeholder보다는 훨씬 의미 있음.
+
+### #10.6.1 JP 빈티지 image — E2-E5 + PCG1-9 (1,082장, open) 🔍
+
+**문제**: E2-E5와 PCG1-9는 EN-JP cross-mapping이 **multi-set split**이라 naive 1:1 매핑 불가:
+- E2-E5 (4 JP sets, 360장) ↔ Aquapolis + Skyridge (2 EN sets) — number range split 필요
+- PCG1-9 (9 JP sets, 722장) ↔ EX-series (EX Hidden Legends ~ EX Power Keepers) — JP-EN numbering 1:1 안 맞고 release 순서도 shift
+
+**다음 시도** (별도 세션):
+- 각 set의 number range별 EN equivalent + number offset 계산 (예: E2 #1-92 → Aquapolis #1-92, E3 #1-87 → Aquapolis #93-179)
+- 매핑 verification: 카드 한 장씩 sample 후 정확한 image 잡히는지 확인
+- 잡으면 자동 backfill, 못 잡으면 set page anchor 자체에서 image pick (현재 default behavior)
 
 **새 세션 부트스트랩**:
-> PullList JP 빈티지 image backfill 진행. `ROADMAP.md` §10.6 읽고 다음 source 후보 중 하나 prob → 결정 → 풀스윕.
+> PullList JP 빈티지 §10.6.1: E2-E5, PCG1-9의 EN-JP cross-mapping 작성 + image backfill. ROADMAP.md §10.6.1 + backfill_jp_images_bulbapedia.py 참고.
 
 ---
 

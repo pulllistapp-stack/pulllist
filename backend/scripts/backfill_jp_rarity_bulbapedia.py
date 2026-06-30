@@ -136,25 +136,25 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     "JPP-DP": "DPt-P_Promotional_cards_(TCG)",
     "JPP-BW": "BW-P_Promotional_cards_(TCG)",
     "JPP-XY": "XY-P_Promotional_cards_(TCG)",
-    # Vintage JP (PMCG = e-Card-era JP, PCG = EX-era JP)
-    "PMCG1": "Base_Expansion_Pack_(TCG)",
-    "PMCG2": "Expedition_Base_Set_(TCG)",
-    "PMCG3": "Aquapolis_(TCG)",
-    "PMCG4": "Skyridge_(TCG)",
+    # Vintage JP — verified mappings via set.name JP → EN equivalent
+    # cross-check (2026-06-30 audit). PMCG = original WoTC-era JP
+    # (1996-1999), 1:1 mapped to the matching EN expansion.
+    "PMCG1": "Base_Set_(TCG)",        # 拡張パック / Base Set 1996
+    "PMCG2": "Jungle_(TCG)",          # ポケモンジャングル
+    "PMCG3": "Fossil_(TCG)",          # 化石の秘密
+    "PMCG4": "Team_Rocket_(TCG)",     # ロケット団
+    "PMCG5": "Gym_Heroes_(TCG)",      # リーダーズスタジアム
+    "PMCG6": "Gym_Challenge_(TCG)",   # 闇からの挑戦
+    # JP-only sets (no EN equivalent) — Bulbapedia hosts JP scans
     "VS1":   "Pok%C3%A9mon_VS_(TCG)",
     "web1":  "Pok%C3%A9mon_Web_(TCG)",
-    "E1":    "Base_Expansion_Pack_(TCG)",
-    "E2":    "The_Town_on_No_Map_(TCG)",
-    "E3":    "Mysterious_Mountains_(TCG)",
-    "E4":    "Split_Earth_(TCG)",
-    "E5":    "Wind_from_the_Sea_(TCG)",
-    "PCG1":  "Holon_Research_Tower_(TCG)",
-    "PCG3":  "Holon_Phantoms_(TCG)",
-    "PCG4":  "Mirage_Forest_(TCG)",
-    "PCG6":  "World_Champions_Pack_(TCG)",
-    "PCG7":  "Dragon_Frontiers_(TCG)",
-    "PCG8":  "Power_Keepers_(TCG)",
-    "PCG9":  "Mysterious_Treasures_(TCG)",
+    # E1 = 基本拡張パック = Expedition Base Set (clean 1:1 e-Card mapping)
+    "E1":    "Expedition_Base_Set_(TCG)",
+    # E2-E5 and PCG1-9 NOT mapped here — verified during 2026-06-30
+    # audit that the EN equivalents are multi-set splits (Aquapolis
+    # covers E2+E3 JP, Skyridge covers E4+E5; EX-era EN starts later
+    # than PCG-era JP so PCG↔EX numbering shifts). Image backfill via
+    # naive set-page mapping yields wrong cards. See ROADMAP §10.6.1.
 }
 
 
@@ -221,6 +221,18 @@ _RARITY_MAP: dict[str, str] = {
     "Common": "Common",
     "Uncommon": "Uncommon",
     "Rare": "Rare",
+    # Recent additions surfaced by unknown-codes probe (2026-06-30):
+    # 158 cards across modern SV/SM sets had these labels and were
+    # falling through. Most impactful: Shiny Rare (120 cards across
+    # Shiny Treasure ex / Shiny Star V etc.) and Rare Radiant (18
+    # across SwSh radiant cards).
+    "Shiny Rare": "Shiny Rare",
+    "Shiny Ultra Rare": "Shiny Ultra Rare",
+    "Rare Radiant": "Radiant Rare",
+    "Rare BREAK": "Rare BREAK",
+    "Rare Prism": "Prism Star Rare",
+    "Rare Prism Star": "Prism Star Rare",
+    "Secret Rare": "Rare Secret",
 }
 
 

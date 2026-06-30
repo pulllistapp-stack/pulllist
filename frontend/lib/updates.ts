@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-06-30 ─────────────────────────────────────────────────
+  {
+    date: "2026-06-30",
+    emoji: "🖼️",
+    kr: "일본판 빈티지 카탈로그 이미지 ~775장 새로 채워짐 (PMCG1-6 / E1 / VS1 / web1) — 1996년 1세대 베이스세트부터 e-Card 시대까지 카드 일러스트 라이브러리 완성. 영문 1:1 매핑 카드는 EN variant 이미지 (디자인 동일, 텍스트만 영어), JP-only 세트는 일본판 스캔. JP 이미지 커버리지 87% → 92.4%.",
+    en: "Japanese vintage catalog: ~775 card images newly filled (PMCG1-6 / E1 / VS1 / web1) — illustrations now in place for the 1996 Base Set through the e-Card era. 1:1 EN-equivalent sets use the EN variant image (same artwork, English text); JP-only sets use native JP scans. JP image coverage 87% → 92.4%.",
+  },
   // ── 2026-06-29 ─────────────────────────────────────────────────
   {
     date: "2026-06-29",
