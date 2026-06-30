@@ -201,6 +201,25 @@ async def mark_processed_url(
     await db.commit()
 
 
+@router.delete("/posts/processed-urls", status_code=204)
+async def delete_processed_url(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    db: AsyncSession = Depends(get_db),
+    source_url: str = Query(min_length=1, max_length=512),
+) -> None:
+    """Remove a single URL from the persistent dedupe log so the
+    newsbot will pick it up again on the next run. Use when the
+    earlier-published draft was bad (prompt was wrong, or quality was
+    sub-par) and we want to regenerate from the same source under the
+    fixed pipeline. Returns 204 whether the row existed or not —
+    idempotent."""
+    from sqlalchemy import delete as sql_delete
+    await db.execute(
+        sql_delete(ProcessedUrl).where(ProcessedUrl.source_url == source_url)
+    )
+    await db.commit()
+
+
 @router.get("/posts/{slug}")
 async def get_post(
     slug: str,

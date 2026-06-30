@@ -1,0 +1,43 @@
+name: Admin — unprocess URL
+
+# Removes URLs from the newsbot's persistent dedupe log so the next
+# bot run re-discovers and re-generates them. Use when an earlier
+# draft was bad (old prompt, source enricher miss, etc.) and we
+# want the bot to redo the work under the fixed pipeline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pattern:
+        description: 'Substring match against processed URLs (e.g. "30th-celebration"). Empty if using exact URL.'
+        required: false
+        type: string
+        default: ''
+      url:
+        description: 'Exact URL to remove. Empty if using substring pattern.'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  unprocess:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install 'httpx>=0.27,<1.0' 'pydantic-settings>=2,<3' 'pydantic>=2,<3'
+      - name: Unprocess
+        env:
+          PULLLIST_API_BASE: ${{ secrets.PULLLIST_API_BASE || 'https://api.pulllist.org/api/v1' }}
+          NEWSBOT_ADMIN_EMAIL: ${{ secrets.NEWSBOT_ADMIN_EMAIL }}
+          NEWSBOT_ADMIN_PASSWORD: ${{ secrets.NEWSBOT_ADMIN_PASSWORD }}
+          UNPROCESS_PATTERN: ${{ inputs.pattern }}
+          UNPROCESS_URL: ${{ inputs.url }}
+        run: python -m scripts.admin_unprocess_url
