@@ -155,7 +155,12 @@ async def _upsert_card(db, raw: dict, set_id: str) -> Card | None:
     row.hp = str(raw.get("hp")) if raw.get("hp") is not None else None
     row.hp_int = _coerce_int(raw.get("hp"))
     row.artist = raw.get("illustrator")
-    row.national_pokedex_numbers = raw.get("dexId")
+    # TCGdex occasionally returns dex ids as floats (e.g. 384.1 to flag a
+    # delta-species variant of #384 Rayquaza). Our schema is list[int] and
+    # the API serializer rejects floats — coerce to int here so the
+    # decimal annotation never reaches the column.
+    raw_dex = raw.get("dexId") or []
+    row.national_pokedex_numbers = [int(n) for n in raw_dex] or None
     row.image_small = img_small
     row.image_large = img_large
     row.cardmarket_prices = cardmarket
