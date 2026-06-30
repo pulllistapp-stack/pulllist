@@ -30,6 +30,12 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-06-29",
     emoji: "🗺️",
+    kr: "일본판 SM / XY / CP 시리즈 44개 세트 신규 import (3,392장, Limitless TCG 출처) — JP 카탈로그 14,362장 / 135 세트로 확장",
+    en: "Japanese catalog: 44 SM / XY / CP sets imported (3,392 cards via Limitless TCG) — total JP now 14,362 cards across 135 sets",
+  },
+  {
+    date: "2026-06-29",
+    emoji: "🗺️",
     kr: "일본판 카탈로그 25개 세트 신규 노출 (PMCG / VS / web / E-card / PCG 빈티지 + SV 스타터) — 약 1,949장 추가 브라우즈 가능",
     en: "Japanese catalog: 25 sets newly visible (vintage PMCG / VS / web / E-card / PCG + modern SV starters) — ~1,949 more browseable cards",
   },

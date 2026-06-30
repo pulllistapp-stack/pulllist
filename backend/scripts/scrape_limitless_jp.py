@@ -46,11 +46,16 @@ class CardInfo:
 
 
 async def _empty_visible_sets(db) -> list[str]:
+    # The s.logo_url IS NOT NULL gate used to live here — back when the
+    # /sets endpoint hid logo-less JP rows. Filter is now lifted at the
+    # API layer (logo OR cards > 0), so this script is free to chase any
+    # empty JP set. Limitless silently returns "empty list" for sets it
+    # doesn't index, so even running against TCGdex stubs (ADV1-5, L1a,
+    # XY1a-XY2 etc.) is cheap.
     rows = (await db.execute(text("""
         SELECT s.id FROM sets s
         LEFT JOIN cards c ON c.set_id=s.id AND c.language='ja'
         WHERE s.language='ja'
-          AND s.logo_url IS NOT NULL
         GROUP BY s.id
         HAVING COUNT(c.id) = 0
         ORDER BY s.id
@@ -59,13 +64,14 @@ async def _empty_visible_sets(db) -> list[str]:
 
 
 async def _sets_with_missing_images(db) -> list[str]:
-    """Visible JP sets whose card rows exist but lack image URLs — happens
-    when TCGdex per-card returns image=null (M-series, SV11B/W)."""
+    """JP sets whose card rows exist but lack image URLs. Covers both
+    the modern TCGdex-image-null case (M-series, SV11B/W) and the
+    vintage gap (PMCG / VS / E-card / PCG / web sets, ~1,500 cards
+    missing images even though name/number/rarity are populated)."""
     rows = (await db.execute(text("""
         SELECT s.id FROM sets s
         JOIN cards c ON c.set_id=s.id AND c.language='ja'
         WHERE s.language='ja'
-          AND s.logo_url IS NOT NULL
           AND (c.image_small IS NULL OR c.image_large IS NULL)
         GROUP BY s.id
         ORDER BY s.id
