@@ -171,15 +171,44 @@
 
 **최종 JP image coverage: 99.94%** (14,353/14,362, NULL 9장 잔여 — VS1 3 / E2 2 / E5 1 / PCG2 1 / PCG6 1 / web1 1)
 
+### #10.6.3 JP 빈티지 image — PMCG2-6 (354장, open) 🔍
+
+**문제**: PMCG2 (ポケモンジャングル) / PMCG3 (化石の秘密) / PMCG4 (ロケット団) / PMCG5 (リーダーズスタジアム) / PMCG6 (闇からの挑戦) = **354장 image NULL** (2026-06-30 audit 후 rollback).
+
+**rollback 사유**: 처음에 naive EN equivalent mapping (PMCG6 → Gym_Challenge 등) 적용 → audit 결과:
+- PMCG2 Jungle: 2/10 mismatch
+- PMCG3 Fossil: 3/10
+- PMCG4 Team Rocket: 3/10
+- PMCG5 Gym Heroes: 3/10
+- **PMCG6 Gym Challenge: 7/10** ← naive 매핑 명백히 fail
+
+핵심 원인: **JP Gym era는 96+98=194장**으로 EN Gym Heroes+Challenge 132+132=264장과 numbering 완전 다름. JP "Leaders' Stadium" + "Challenge from Darkness" 는 EN Gym과 cross-mapping이 split. Jungle/Fossil/Team Rocket도 partial mismatch.
+
+**시도된 source — 다 dead end**:
+- learn-book.com sitemap 검사 → modern only (SV/XY/SM/PCG), PMCG era 없음
+- nazonobasho.com → e-Card only, PMCG era 없음
+- pokemon-card.com / TCGdex → 빈티지 indexed 안 됨
+- pkparaiso/pokebeach/pokemonpedia/etc 5+ 사이트 → 403/dead/EN-centric
+
+**남은 가능성**:
+- **Wayback Machine** — 옛 pokemon-card.com 빈티지 카드 image (2002-2005년 archive)
+- **Bulbapedia JP-specific File: 검색** — `File:KogasArbokChallengefromDarkness.jpg` 같은 패턴
+- **수동 sourcing** — top 50 가치 카드만 일본 옥션/eBay listing image
+- **placeholder UI** — set logo + JP name only
+
+**새 세션 부트스트랩**:
+> PullList §10.6.3: PMCG2-6 (354장) JP image. Bulbapedia JP-specific search 또는 Wayback Machine 시도.
+
 ### ✅ JP 카탈로그 백필 정리 (2026-06-30 종료)
 
 - JP rarity coverage: **97.5%** (NULL 366)
-- JP image coverage: **99.94%** (NULL 9)
-- 빈티지 source 매핑 정리 (모두 set name JP→EN audit script로 검증):
-  - PMCG1-6, E1 → Bulbapedia (Base/Jungle/Fossil/Team Rocket/Gym Heroes/Gym Challenge/Expedition_Base_Set)
-  - VS1, web1 → Bulbapedia JP-only pages
-  - PCG1-9 → learn-book.com Playwright render
-  - E1-E5 → nazonobasho.com httpx (E1는 nazonobasho JP native로 swap)
+- JP image coverage: **97.47%** (NULL 364 — 거의 다 PMCG2-6, +미세 9장)
+- 빈티지 source 매핑 정리 (audit-verified):
+  - **PMCG1** (Base Set, 102장) + **E1** (Expedition, 128장) → Bulbapedia
+  - **VS1** (143장), **web1** (47장) → Bulbapedia JP-only pages
+  - **PCG1-9** (720장) → learn-book.com Playwright render
+  - **E2-E5** (361장) → nazonobasho.com httpx native JP scans
+  - **PMCG2-6** (354장) → **open §10.6.3** (모든 public source dead end)
 
 ---
 

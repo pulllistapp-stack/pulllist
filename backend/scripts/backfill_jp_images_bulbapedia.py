@@ -48,12 +48,15 @@ SEM = 6  # polite — wiki shared infra
 # the rarity-bulbapedia mapping by default; --only-vintage trims to
 # the known-NULL-image cohort to save ~1,400 unnecessary set-page hits.
 VINTAGE_SETS = [
-    # PMCG = WoTC-era JP 1:1 mapping (verified 2026-06-30)
-    "PMCG1", "PMCG2", "PMCG3", "PMCG4", "PMCG5", "PMCG6",
+    # PMCG1 only — Base Set 1996, true 1:1 EN/JP numbering. PMCG2-6
+    # rolled back 2026-06-30 after audit caught JP-EN number mismatch
+    # (esp. Gym era: 96+98 JP cards vs 132+132 EN cards). See
+    # ROADMAP §10.6.3.
+    "PMCG1",
     # JP-only sets — natural JP scans on Bulbapedia
     "VS1", "web1",
-    # E1 = Expedition Base Set 1:1; E2-E5 and PCG1-9 deliberately
-    # omitted (EN sets cover multiple JP sets; see ROADMAP §10.6.1).
+    # E1 = Expedition Base Set 1:1; E2-E5 + PCG1-9 covered by
+    # nazonobasho/learn-book backfills instead.
     "E1",
 ]
 

@@ -137,14 +137,15 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     "JPP-BW": "BW-P_Promotional_cards_(TCG)",
     "JPP-XY": "XY-P_Promotional_cards_(TCG)",
     # Vintage JP — verified mappings via set.name JP → EN equivalent
-    # cross-check (2026-06-30 audit). PMCG = original WoTC-era JP
-    # (1996-1999), 1:1 mapped to the matching EN expansion.
-    "PMCG1": "Base_Set_(TCG)",        # 拡張パック / Base Set 1996
-    "PMCG2": "Jungle_(TCG)",          # ポケモンジャングル
-    "PMCG3": "Fossil_(TCG)",          # 化石の秘密
-    "PMCG4": "Team_Rocket_(TCG)",     # ロケット団
-    "PMCG5": "Gym_Heroes_(TCG)",      # リーダーズスタジアム
-    "PMCG6": "Gym_Challenge_(TCG)",   # 闇からの挑戦
+    # cross-check (2026-06-30 audit).
+    # ONLY PMCG1 (Base Set) is true 1:1 with its EN expansion. The
+    # later PMCG sets look like 1:1 by name but have DIFFERENT card
+    # numbering than the EN equivalent — Bulbapedia's image at JP #N
+    # is actually EN card #N, which is a different Pokémon. See
+    # ROADMAP §10.6.3 for the audit (PMCG6 had 7/10 mismatch).
+    "PMCG1": "Base_Set_(TCG)",        # 拡張パック / Base Set 1996 ✓
+    # PMCG2-PMCG6 deliberately omitted — naive 1:1 mapping was wrong
+    # (Jungle/Fossil partial mismatch; Gym era 96+98 JP ≠ 132+132 EN).
     # JP-only sets (no EN equivalent) — Bulbapedia hosts JP scans
     "VS1":   "Pok%C3%A9mon_VS_(TCG)",
     "web1":  "Pok%C3%A9mon_Web_(TCG)",
