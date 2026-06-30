@@ -89,6 +89,7 @@ class Settings(BaseSettings):
             "Pokemon TCG Costco bundle release",
             "Pokemon TCG Walmart exclusive set",
             "Pokemon TCG Best Buy preorder",
+            "Pokemon TCG GameStop preorder",
         ]
     )
     web_search_days_back: int = 3

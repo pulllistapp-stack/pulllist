@@ -56,6 +56,14 @@ _TRUSTED_IMAGE_HOSTS = (
     "pulllist.org",
     "vercel.app",
     "pokemoncenter.com",
+    # pokemon.com news + press.pokemon.com both serve hero images
+    # from these CDNs, and weserv 400s 'Domain or TLD blocked by
+    # policy' on both — so we skip the wrap and use direct URLs,
+    # which their CDNs serve hot-link-friendly off Amazon S3 /
+    # Cloudfront. Added after dump showed 4 / 5 fresh items being
+    # rejected with these hosts as the unwrap-able hero.
+    "mcdn.pokemon.com",
+    "imguscdn.gamespress.com",
 )
 
 # HEAD-check timeout for the pre-flight thumbnail verifier. Kept tight
@@ -84,7 +92,19 @@ async def _verify_thumbnail(url: str | None) -> bool:
     """
     if not url:
         return False
-    headers = {"Referer": "https://pulllist.org/"}
+    # Browser-shaped headers so origin CDNs that filter on UA don't
+    # answer with their HTML default page (Pokemon Center's S3 image
+    # CDN was returning 200/text/html for python-httpx requests
+    # while returning 200/image/jpeg for curl — pure UA-gated).
+    headers = {
+        "Referer": "https://pulllist.org/",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/130.0.0.0 Safari/537.36"
+        ),
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    }
     try:
         async with httpx.AsyncClient(
             timeout=THUMBNAIL_VERIFY_TIMEOUT, follow_redirects=True
@@ -100,7 +120,17 @@ async def _verify_thumbnail(url: str | None) -> bool:
         log.warning("thumbnail HEAD failed for %s: %s", url[:80], exc)
         return False
     ctype = r.headers.get("content-type", "").lower()
-    ok = r.status_code in (200, 206) and ctype.startswith("image/")
+    # Trust an image extension in the URL even when the server's
+    # content-type is wrong/missing — some CDNs return text/html on
+    # HEAD for image paths (Pokemon Center S3 default page) but the
+    # GET would still serve image bytes. Status filter (200/206) is
+    # the real broken-vs-OK gate; content-type is a quality signal.
+    url_path = url.lower().split("?", 1)[0]
+    has_image_ext = url_path.endswith(
+        (".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif")
+    )
+    is_image = ctype.startswith("image/") or has_image_ext
+    ok = r.status_code in (200, 206) and is_image
     if not ok:
         log.warning(
             "thumbnail verify reject: %s → %d %s",

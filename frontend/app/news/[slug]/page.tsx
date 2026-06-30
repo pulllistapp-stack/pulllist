@@ -116,18 +116,30 @@ export default async function NewsArticlePage({
         // object-cover. Use object-contain inside a flex-centered
         // container so landscape and portrait sources both display in
         // full; max-h caps the rare giant portrait from dominating.
-        <div className="mb-8 flex justify-center overflow-hidden rounded-2xl bg-bg-surface">
-          <Image
-            src={post.thumbnail_url}
-            alt=""
-            width={1600}
-            height={900}
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="h-auto max-h-[32rem] w-auto max-w-full object-contain"
-            unoptimized
-            priority
-          />
-        </div>
+        // Wrap in <a target=_blank> so a click opens the source URL
+        // at full native resolution — matches the inline-image
+        // lightbox behavior so LO doesn't have to remember which
+        // images are clickable.
+        <a
+          href={post.thumbnail_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open full-size hero image"
+          className="mb-8 block overflow-hidden rounded-2xl bg-bg-surface cursor-zoom-in"
+        >
+          <div className="flex justify-center">
+            <Image
+              src={post.thumbnail_url}
+              alt=""
+              width={1600}
+              height={900}
+              sizes="(max-width: 768px) 100vw, 768px"
+              className="h-auto max-h-[32rem] w-auto max-w-full object-contain transition-opacity hover:opacity-95"
+              unoptimized
+              priority
+            />
+          </div>
+        </a>
       )}
 
       <article className="prose-pl max-w-none">
