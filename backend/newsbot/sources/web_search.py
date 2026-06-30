@@ -89,6 +89,24 @@ _BAD_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# WordPress + most CMS media libraries generate auto-resized
+# thumbnails as `<basename>-<W>x<H>.<ext>`. The bare path
+# `<basename>.<ext>` is always the original at full resolution.
+# Article body <img> tags usually carry the thumbnail variant so the
+# page loads fast; we want the full-res for our post since readers
+# expect to see the card / product at viewable quality.
+_WP_THUMB_SUFFIX_RE = re.compile(
+    r"-\d+x\d+(\.(?:jpe?g|png|gif|webp|avif))(?=$|\?)",
+    re.IGNORECASE,
+)
+
+
+def _strip_wp_thumb_suffix(url: str) -> str:
+    """`/foo-300x200.jpg` → `/foo.jpg`. The size suffix pattern is
+    specific enough that false positives are rare; safe to apply
+    unconditionally."""
+    return _WP_THUMB_SUFFIX_RE.sub(r"\1", url)
+
 
 def _parse_img_attrs(tag_inner: str) -> dict[str, str]:
     return {
@@ -118,6 +136,10 @@ def _extract_inline_images(
             continue
         if not abs_url.startswith("http"):
             continue
+        # Flip WP-thumbnail URLs to their full-resolution originals
+        # BEFORE the dedupe + size + hero comparisons so we don't
+        # accidentally collect both a -300x200 and a full-size copy.
+        abs_url = _strip_wp_thumb_suffix(abs_url)
         # Compare path-only so a query-string-resized hero (?w=800)
         # still matches its origin URL we already stored as the hero.
         if hero_path and abs_url.split("?")[0] == hero_path:
@@ -346,7 +368,10 @@ async def generic_enrich(item: NewsItem) -> NewsItem:
         return item
     hero_m = _OG_IMAGE_RE.search(html_text)
     desc_m = _OG_DESC_RE.search(html_text)
-    hero = hero_m.group(1).strip()[:512] if hero_m else item.hero_image_url
+    hero = (
+        _strip_wp_thumb_suffix(hero_m.group(1).strip())[:512]
+        if hero_m else item.hero_image_url
+    )
     desc = (
         desc_m.group(1).strip()[:480] if desc_m else item.summary
     )
