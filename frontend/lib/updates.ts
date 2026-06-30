@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-06-30 ─────────────────────────────────────────────────
   {
     date: "2026-06-30",
+    emoji: "🃏",
+    kr: "일본판 PCG 시리즈 (홀론의 연구탑부터 さいはての攻防까지, 2004-2006) 카드 이미지 720장 채워짐 — learn-book.com 출처. JP 이미지 커버리지 92.4% → 97.4%. e-Card 시대 4세트 (E2-E5)만 남음.",
+    en: "Japanese PCG series (Holon Research Tower through Battle at Furthest Ends, 2004-2006) — 720 card images filled via learn-book.com. JP image coverage 92.4% → 97.4%. Only 4 e-Card era sets (E2-E5) remain.",
+  },
+  {
+    date: "2026-06-30",
     emoji: "🖼️",
     kr: "일본판 빈티지 카탈로그 이미지 ~775장 새로 채워짐 (PMCG1-6 / E1 / VS1 / web1) — 1996년 1세대 베이스세트부터 e-Card 시대까지 카드 일러스트 라이브러리 완성. 영문 1:1 매핑 카드는 EN variant 이미지 (디자인 동일, 텍스트만 영어), JP-only 세트는 일본판 스캔. JP 이미지 커버리지 87% → 92.4%.",
     en: "Japanese vintage catalog: ~775 card images newly filled (PMCG1-6 / E1 / VS1 / web1) — illustrations now in place for the 1996 Base Set through the e-Card era. 1:1 EN-equivalent sets use the EN variant image (same artwork, English text); JP-only sets use native JP scans. JP image coverage 87% → 92.4%.",

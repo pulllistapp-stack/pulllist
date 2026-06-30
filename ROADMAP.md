@@ -145,19 +145,38 @@
 
 **카드 image 출처 주의**: PMCG/E1 sets는 Bulbapedia가 EN variant image를 surface — JP 디자인 거의 동일하지만 텍스트만 영어. VS1/web1는 자동으로 JP image. 컬렉터에게 placeholder보다는 훨씬 의미 있음.
 
-### #10.6.1 JP 빈티지 image — E2-E5 + PCG1-9 (1,082장, open) 🔍
+### #10.6.1 JP 빈티지 image — PCG1-9 ✅ (2026-06-30, learn-book.com)
 
-**문제**: E2-E5와 PCG1-9는 EN-JP cross-mapping이 **multi-set split**이라 naive 1:1 매핑 불가:
-- E2-E5 (4 JP sets, 360장) ↔ Aquapolis + Skyridge (2 EN sets) — number range split 필요
-- PCG1-9 (9 JP sets, 722장) ↔ EX-series (EX Hidden Legends ~ EX Power Keepers) — JP-EN numbering 1:1 안 맞고 release 순서도 shift
+**LO 제보**: learn-book.com이 일본판 카드 list를 portrait grid로 hosting. PCG1-9 (`/pokemon-cardlist-pcg{N}/`) 모두 indexed, 파일명 패턴 매우 깨끗 (`pcg9001.jpg` = PCG9 #001).
 
-**다음 시도** (별도 세션):
-- 각 set의 number range별 EN equivalent + number offset 계산 (예: E2 #1-92 → Aquapolis #1-92, E3 #1-87 → Aquapolis #93-179)
-- 매핑 verification: 카드 한 장씩 sample 후 정확한 image 잡히는지 확인
-- 잡으면 자동 backfill, 못 잡으면 set page anchor 자체에서 image pick (현재 default behavior)
+**해법 — `backfill_jp_images_learnbook.py`** 신규:
+- Playwright `wait_until="domcontentloaded"` + 30 scrolls (lazy-load 강제, networkidle은 PCG3에서 timeout)
+- 356x500 portrait images (`img.wp-image-*` class) 추출
+- 파일명 regex `/pcg(\d+)(\d{3})\.(jpg|png)` → set_num + card_num 추출
+- expected set_num match만 사용 (cross-set embedded image 차단)
+- DB upsert `WHERE set_id=:s AND language='ja' AND number_int=:n AND image_small IS NULL`
+
+**결과**: **720/722 PCG 카드** image 채움. PCG2(1), PCG6(1) 잔여 = page에 그 number 없음 (사실상 100%).
+
+### #10.6.2 JP 빈티지 image — E2-E5 (364장, open) 🔍
+
+**잔여**: E2 (92) / E3 (90) / E4 (91) / E5 (91) = **364장**. e-Card era JP sets, EN equivalent split:
+- E2 (地図にない町) + E3 (海からの風) ↔ Aquapolis (EN, ~150 cards)
+- E4 (裂けた大地) + E5 (神秘なる山) ↔ Skyridge (EN, ~150 cards)
+
+**시도된 source — E series 모두 dead end**:
+- learn-book.com `/pokemon-cardlist-e1/` ~ `/e5/` → 404
+- Bulbapedia card-wiki (Aquapolis/Skyridge slug) → number range split 필요, naive 1:1 위험 (이미 PCG4 bug 케이스 있음)
+- pokemon-card.com / TCGdex / pkmncards → 모두 빈티지 안 indexed
+- Cardrush / Pokellector / Fandom → 403/404
+
+**다음 시도 후보**:
+- Bulbapedia Aquapolis/Skyridge에서 number range split mapping (E2 #1-92 → Aquapolis 첫 92장 등) + per-card verification
+- 또 다른 JP 컬렉터 사이트 (LO 제보 환영)
+- placeholder UI fallback — image NULL이면 set logo + JP/EN cross-link
 
 **새 세션 부트스트랩**:
-> PullList JP 빈티지 §10.6.1: E2-E5, PCG1-9의 EN-JP cross-mapping 작성 + image backfill. ROADMAP.md §10.6.1 + backfill_jp_images_bulbapedia.py 참고.
+> PullList §10.6.2: e-Card era (E2-E5, 364장) image backfill. Aquapolis/Skyridge split mapping 또는 새 source.
 
 ---
 
