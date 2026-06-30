@@ -63,7 +63,12 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
 
 REQUEST_TIMEOUT = 30
-GENERIC_BODY_CAP = 8000  # chars of plain text — caps Claude input cost
+# 25k chars (~6k tokens) lets Claude see the whole article for big
+# editorial pieces (30th Celebration set lineup type) instead of a
+# truncated first-third. Sonnet 4.6's 200k window has tons of room;
+# the cost delta is a few cents per article for the worst case and
+# zero for short ones.
+GENERIC_BODY_CAP = 25000
 
 # Inline body image extraction — used by generic_enrich to feed the
 # generator's "Reference images" list (pokebeach.py has its own,
@@ -74,7 +79,7 @@ GENERIC_BODY_CAP = 8000  # chars of plain text — caps Claude input cost
 #   - skip width/height-attr tiny images (icons declared <200px)
 #   - relative src -> absolute via urljoin
 #   - cap at MAX_INLINE_IMAGES so the generator prompt stays small
-MAX_INLINE_IMAGES = 5
+MAX_INLINE_IMAGES = 20
 MIN_INLINE_DIM = 200  # px — anything smaller is layout chrome
 
 _IMG_TAG_RE = re.compile(r"<img\b([^>]+)>", re.IGNORECASE | re.DOTALL)

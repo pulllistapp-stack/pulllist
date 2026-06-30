@@ -68,7 +68,12 @@ SEL_FIGURE = "figure"
 SEL_FIG_FULL_URL = "a.js-lbImage::attr(href)"
 SEL_FIG_CAPTION = "figcaption"
 SEL_BODY_IMG_SRC = "img::attr(src), img::attr(data-src)"
-MAX_INLINE_IMAGES = 10  # cap so prompts + articles don't bloat
+MAX_INLINE_IMAGES = 30  # large product-lineup articles (30th
+# Celebration set reveal) carry 20+ card / product images; the prior
+# cap of 10 dropped two thirds of them. 30 covers the worst case
+# (set lineup posts) without exploding prompt size — image URLs are
+# short text strings, the real cost would be Claude embedding all
+# of them in body, which we want.
 # WP appends -WxH before the extension on resized thumbnails. Strip
 # to get the full-size original.
 _WP_THUMB_SUFFIX = re.compile(r"-\d+x\d+(?=\.\w+$)")

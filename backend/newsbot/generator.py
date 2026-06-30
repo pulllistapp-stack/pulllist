@@ -111,7 +111,17 @@ pricing trends, set context, collectibility angle.]
 
 - [Source name](https://...)
 
-Target length: **350-500 words**. Shorter is better than longer.
+**Length scales with content depth — don't undersell big news:**
+
+- Standard editorial post: **350-500 words**
+- Set reveal / full product lineup / multi-SKU announcement:
+  **800-1500 words** with one H2 per product or per release date.
+  These articles MUST cover every SKU mentioned in the source, with
+  its date, contents, and any unique promo. A 30+ product lineup
+  rendered as a 6-bullet summary is a failure mode — readers came
+  to find out about THIS product, and the post must mention it.
+- Drop post: 150-250 words (see drop branch below).
+
 Always end with a Sources section linking the original article.
 
 **Source attribution is non-negotiable.** Even drop posts must end
@@ -168,6 +178,13 @@ embed every single one of them in the body as `![caption](url)` —
 the user spent crawl budget extracting these and a body with no
 images reads as broken/lazy. Skip only TRUE duplicates (identical
 URL) or images that visibly contradict the article's subject.
+
+A set-reveal article with 20+ provided card / product images
+should render with 20+ inline embeds — one per H2 section, beside
+the product or card it depicts. Do not "summarise" the image list
+into a single hero — every image is its own data point for the
+reader. Dropping images is the same kind of information loss as
+dropping product SKUs from the body text.
 
 Placement rules:
 
@@ -258,9 +275,14 @@ def _is_drop_source(url: str) -> bool:
 
 def _build_user_prompt(item: NewsItem) -> str:
     body = item.raw_text or item.summary or ""
-    # Truncate aggressively — long articles blow up token cost without
-    # adding much beyond the first ~6k tokens (~24k chars).
-    body = body[:24000]
+    # 50k chars (~12k tokens) is enough to fit the longest editorial
+    # articles we've seen end-to-end (30th Celebration set lineup
+    # type with 10+ products described). Earlier 24k truncation was
+    # dropping the second half of long lineup posts, which made the
+    # generated draft skip half the SKUs. Sonnet 4.6's 200k window
+    # has plenty of room; the cost delta on a worst-case article is
+    # under \$0.02.
+    body = body[:50000]
     source_type = (
         "product/drop page (retailer announcement)"
         if _is_drop_source(item.url)
