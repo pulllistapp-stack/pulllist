@@ -31,6 +31,18 @@ const nextConfig = {
       // Used for MEP "ME: Mega Evolution Promo" and other promo sets
       // pokemontcg.io doesn't index.
       { protocol: "https", hostname: "tcgplayer-cdn.tcgplayer.com" },
+      // Bulbapedia archives — JP vintage card scans for Base Set /
+      // Jungle / Fossil / Team Rocket / Gym Heroes / Gym Challenge /
+      // Expedition (PMCG1-6, E1) plus JP-only sets VS1 and web1.
+      // See backfill_jp_images_bulbapedia.py.
+      { protocol: "https", hostname: "archives.bulbagarden.net" },
+      // learn-book.com — JP PCG1-9 vintage card images (Holon Research
+      // Tower 2004 through Battle at Furthest Ends 2006).
+      // See backfill_jp_images_learnbook.py.
+      { protocol: "https", hostname: "learn-book.com" },
+      // nazonobasho.com — JP e-Card era native scans (E1-E5, 2001-2002).
+      // See backfill_jp_images_nazonobasho.py.
+      { protocol: "https", hostname: "nazonobasho.com" },
     ],
   },
   async rewrites() {
