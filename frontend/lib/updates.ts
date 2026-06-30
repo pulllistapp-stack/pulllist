@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-06-29 ─────────────────────────────────────────────────
   {
     date: "2026-06-29",
+    emoji: "🏷️",
+    kr: "일본판 카탈로그 레어도 97.5% coverage 달성 (14,362장 중 NULL 366장) — Limitless EN-equivalents 풀스윕 (1,773장 신규) + Bulbapedia 풀스윕으로 JP-native tier polish (SR/SAR/HR/RRR 정확도 개선, 8,234장 update) + JPP 프로모 2,009장 일괄 'Promo'. UI 필터에서 SR/SAR만 보이던 누락 거의 해소.",
+    en: "Japanese rarity backfill: 97.5% coverage now (366 NULL / 14,362) — full Limitless EN-equivalent sweep (1,773 newly filled) + Bulbapedia sweep for JP-native tier polish (8,234 rows updated for SR/SAR/HR/RRR accuracy) + 2,009 JPP promos blanket-filled as 'Promo'. The 'missing rarity' gap that hid SR/SAR cards from filters is mostly closed.",
+  },
+  {
+    date: "2026-06-29",
     emoji: "🗺️",
     kr: "일본판 SM / XY / CP 시리즈 44개 세트 신규 import (3,392장, Limitless TCG 출처) — JP 카탈로그 14,362장 / 135 세트로 확장",
     en: "Japanese catalog: 44 SM / XY / CP sets imported (3,392 cards via Limitless TCG) — total JP now 14,362 cards across 135 sets",
