@@ -44,3 +44,6 @@ frontend/public/pull.apng
 frontend/public/sleeping.apng
 frontend/public/normal.apng
 frontend/public/fly.apng
+
+# Local JP image archive — backup, not for repo
+backups/
