@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CatalogRegion, SetWithCardCount } from "@/lib/api";
 import { listSets } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { seriesLabel } from "@/lib/series";
 
 import { useAuth } from "./AuthProvider";
 import { SetCard } from "./SetCard";
@@ -117,7 +118,7 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
                   : "bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
               }`}
             >
-              {series} <span className="opacity-60">({count})</span>
+              {seriesLabel(series)} <span className="opacity-60">({count})</span>
             </button>
           );
         })}
@@ -128,7 +129,7 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
         <section key={series} className="mb-12">
           {activeSeries === null && (
             <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
-              {series}
+              {seriesLabel(series)}
             </h2>
           )}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">

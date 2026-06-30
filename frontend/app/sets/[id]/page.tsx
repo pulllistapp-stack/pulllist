@@ -22,6 +22,7 @@ import {
   SetWithCardCount,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { seriesLabel } from "@/lib/series";
 
 export default function SetDetailPage() {
   return (
@@ -200,7 +201,7 @@ function SetDetailContent() {
               {set.series && (
                 <span>
                   <span className="text-text-tertiary">Series ·</span>{" "}
-                  {set.series}
+                  {seriesLabel(set.series)}
                 </span>
               )}
               {releaseDate && (
