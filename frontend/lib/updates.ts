@@ -30,6 +30,12 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-06-30",
     emoji: "📈",
+    kr: "트렌딩 eBay 1d 필터 부활 — Mon+Thu 크론 하에서 '1d'를 '지난 실질 스냅샷 이후'로 재정의. 지난 크론 대비 변동 있는 카드 3,155장 노출",
+    en: "Trending eBay 1d filter restored — under the Mon+Thu cron cadence, '1d' now means 'since the last substantial sync' (3,155 cards with movement since prev cron)",
+  },
+  {
+    date: "2026-06-30",
+    emoji: "📈",
     kr: "트렌딩 eBay 소스 정상화 — Mon+Thu 크론 스케줄에 맞춰 7d/30d/90d 최소 스냅샷 임계값을 소스별로 분리 (7d에서 카드 3,398개 다시 노출)",
     en: "Trending eBay source restored — separated the minimum-snapshot floor per source so it matches the Mon+Thu cron cadence (3,398 cards re-eligible in the 7d window)",
   },

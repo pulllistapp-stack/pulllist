@@ -768,7 +768,41 @@ async def get_trending(
     else:
         effective_min_snapshots = min(10, max(5, int(period_days * 0.25)))
 
+    # eBay 1d rescue: a literal 24-hour window collides with the
+    # Mon+Thu cron — most days there's no snapshot inside the
+    # window at all, so the endpoint returns 0. Redefine 1d on
+    # eBay as "since the previous snapshot" (typically 3-4 days
+    # ago under Mon+Thu, next-day when the cron is daily again).
+    # Honest label — users clicking 1d see whatever's changed
+    # since our last sync, which is the useful signal here.
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
+    if source == "ebay" and period_days == 1:
+        # Filter to *substantial* snapshot days — a run that wrote only
+        # a handful of rows is either the cron aborting early or one of
+        # our manual probes, not the real Mon+Thu sweep. Anchoring 1d
+        # on those stub days would collapse the eligible set to a
+        # couple of cards. The 500-row floor sits comfortably above
+        # any experimental partial run we've seen (~2-50 rows) and
+        # well below a healthy full sweep (~3-4k rows).
+        prev_two = (
+            await db.execute(
+                text(
+                    "SELECT snapshot_date "
+                    "FROM card_price_snapshots "
+                    "WHERE source = :s "
+                    "GROUP BY snapshot_date "
+                    "HAVING COUNT(*) >= 500 "
+                    "ORDER BY snapshot_date DESC LIMIT 2"
+                ),
+                {"s": source},
+            )
+        ).all()
+        if len(prev_two) >= 2:
+            prev_val = prev_two[1][0]
+            cutoff = (
+                prev_val.isoformat()
+                if hasattr(prev_val, "isoformat") else str(prev_val)
+            )
 
     # Aggregate to one row per (card_id, variant) at the SQL layer so
     # Python never sees the underlying ~280k snapshots. Postgres returns
