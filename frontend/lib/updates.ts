@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-06-30 ─────────────────────────────────────────────────
   {
     date: "2026-06-30",
+    emoji: "🛒",
+    kr: "포트폴리오 카드 삭제 확인 임계값 완화 — 1~9장 삭제는 원클릭 확인, 10장 이상만 'DELETE' 타이핑 요구",
+    en: "Portfolio delete confirmation eased — 1-9 cards delete with a single click, only 10+ requires typing 'DELETE'",
+  },
+  {
+    date: "2026-06-30",
     emoji: "🎴",
     kr: "일본판 e-Card 시대 (E1-E5, 2001-2002) 카드 이미지 489장 채워짐 — nazonobasho.com 출처. E1은 기존 영문판 이미지에서 일본판 네이티브 스캔으로 교체. JP 이미지 커버리지 97.4% → 99.94% (잔여 9장만). 1996년부터 현재까지 모든 일본판 빈티지 시대 카드 이미지 라이브러리 완성.",
     en: "Japanese e-Card era (E1-E5, 2001-2002) — 489 card images filled via nazonobasho.com. E1 swapped from the EN variant to native JP scans. JP image coverage 97.4% → 99.94% (only 9 cards remain). The vintage Japanese illustration library is now complete from 1996 through the modern era.",
