@@ -732,6 +732,17 @@ async def get_trending(
         ),
         pattern="^(all|bulk|chase)$",
     ),
+    era: str = Query(
+        "all",
+        description=(
+            "Card-era filter. 'modern' = BW-onwards (Set.release_date "
+            ">= 2011-03-01). 'classic' = pre-BW (WOTC / EX / DP / HGSS "
+            "eras). 'all' = no era filter. BW-launch is the industry "
+            "standard split — PSA/BGS vintage rules apply below it, "
+            "and the modern card frame was introduced with BW."
+        ),
+        pattern="^(all|modern|classic)$",
+    ),
 ) -> dict:
     """Top movers — cards with the biggest %change over the last `period_days`.
 
@@ -822,13 +833,27 @@ async def get_trending(
         tier_filter_sql = "AND c.rarity = ANY(:tier_rarities)"
         params["tier_rarities"] = list(RARITY_CHASE)
 
-    # Only JOIN cards when we actually need rarity — saves a planner pass
-    # on the much hotter tier='all' default path.
-    from_sql = (
-        "FROM card_price_snapshots s JOIN cards c ON c.id = s.card_id"
-        if tier_filter_sql
-        else "FROM card_price_snapshots s"
-    )
+    # Era filter piggybacks the same cards join. 2011-03-01 = BW launch
+    # (US); the JP BW-era pair from Dec 2010 falls a couple months
+    # short and gets bucketed as classic. Minor edge case — most users
+    # care about the EN market side of the split.
+    era_filter_sql = ""
+    era_join_needed = False
+    if era == "modern":
+        era_filter_sql = "AND se.release_date >= DATE '2011-03-01'"
+        era_join_needed = True
+    elif era == "classic":
+        era_filter_sql = "AND se.release_date < DATE '2011-03-01'"
+        era_join_needed = True
+
+    # Only JOIN cards / sets when we actually need them — saves a planner
+    # pass on the much hotter tier='all' + era='all' default path.
+    from_parts = ["FROM card_price_snapshots s"]
+    if tier_filter_sql or era_join_needed:
+        from_parts.append("JOIN cards c ON c.id = s.card_id")
+    if era_join_needed:
+        from_parts.append("JOIN sets se ON se.id = c.set_id")
+    from_sql = " ".join(from_parts)
     agg_stmt = text(
         f"""
         SELECT s.card_id, s.variant,
@@ -838,6 +863,7 @@ async def get_trending(
           AND s.snapshot_date >= :cutoff
           AND s.market_price_usd IS NOT NULL
           {tier_filter_sql}
+          {era_filter_sql}
         GROUP BY s.card_id, s.variant
         HAVING count(*) >= :min_snapshots
         """

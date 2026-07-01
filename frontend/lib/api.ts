@@ -391,6 +391,7 @@ export type TrendingResponse = {
 };
 
 export type TrendingTier = "all" | "bulk" | "chase";
+export type TrendingEra = "all" | "modern" | "classic";
 
 export async function getTrending(opts: {
   periodDays?: number;
@@ -401,6 +402,7 @@ export async function getTrending(opts: {
   maxPriceUsd?: number;
   minAbsChangeUsd?: number;
   tier?: TrendingTier;
+  era?: TrendingEra;
 } = {}): Promise<TrendingResponse> {
   const qs = new URLSearchParams();
   if (opts.periodDays != null) qs.set("period_days", String(opts.periodDays));
@@ -412,6 +414,7 @@ export async function getTrending(opts: {
   if (opts.minAbsChangeUsd != null)
     qs.set("min_abs_change_usd", String(opts.minAbsChangeUsd));
   if (opts.tier && opts.tier !== "all") qs.set("tier", opts.tier);
+  if (opts.era && opts.era !== "all") qs.set("era", opts.era);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<TrendingResponse>(`/cards/trending${suffix}`);
 }

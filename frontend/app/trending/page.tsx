@@ -14,7 +14,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import { getTrending, type TrendingMover, type TrendingTier } from "@/lib/api";
+import {
+  getTrending,
+  type TrendingEra,
+  type TrendingMover,
+  type TrendingTier,
+} from "@/lib/api";
 import { rarityChipClass } from "@/lib/rarity";
 import { MascotLoader } from "@/components/MascotLoader";
 
@@ -55,6 +60,17 @@ const TIERS: { key: TrendingTier; label: string; sub: string }[] = [
   { key: "chase", label: "Chase", sub: "Ultra Rare & up + promos" },
 ];
 
+// Era split at BW launch (2011-03-01) — industry standard vintage
+// line. Classic = WOTC through HGSS (pre-BW frame + PSA/BGS vintage
+// grading rules). Modern = BW onwards. Lets collectors watch the
+// "vintage chase" and "modern pack-hype" markets separately since
+// their %change dynamics don't rhyme.
+const ERAS: { key: TrendingEra; label: string; sub: string }[] = [
+  { key: "all", label: "All eras", sub: "No era filter" },
+  { key: "modern", label: "Modern", sub: "Black & White onwards (2011+)" },
+  { key: "classic", label: "Classic", sub: "WOTC through HGSS (pre-2011)" },
+];
+
 // Tier defaults — bulk cards trade at much lower price points, so the
 // shared $5 floor would empty the bulk view. Pick a sensible starting
 // minimum per tier; users can override via the price pill row.
@@ -71,6 +87,7 @@ export default function TrendingPage() {
   const [source, setSource] = useState<(typeof SOURCES)[number]["key"]>("ebay");
   const [direction, setDirection] = useState<Direction>("up");
   const [tier, setTier] = useState<TrendingTier>("all");
+  const [era, setEra] = useState<TrendingEra>("all");
   // Default $5 floor — surfaces real chase-card movement, hides bulk noise.
   // Top tiers ($100+ / $1000+) shift attention to vintage holy grails + slabs.
   const [minPrice, setMinPrice] = useState<number>(5);
@@ -100,6 +117,7 @@ export default function TrendingPage() {
       minPriceUsd: minPrice,
       maxPriceUsd: band?.max ?? undefined,
       tier,
+      era,
     })
       .then((r) => {
         if (cancelled) return;
@@ -115,7 +133,7 @@ export default function TrendingPage() {
     return () => {
       cancelled = true;
     };
-  }, [periodDays, source, direction, minPrice, tier]);
+  }, [periodDays, source, direction, minPrice, tier, era]);
 
   const top3 = movers.slice(0, 3);
   const rest = movers.slice(3);
@@ -159,21 +177,39 @@ export default function TrendingPage() {
         </div>
 
         {/* Tier toggle — most decision-shaping filter, lives on its own row */}
-        <div className="mt-5 inline-flex rounded-full border border-border bg-bg-surface p-1">
-          {TIERS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => switchTier(t.key)}
-              title={t.sub}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
-                tier === t.key
-                  ? "bg-accent-yellow text-gray-900 shadow-sm shadow-accent-yellow/30"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
+            {TIERS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => switchTier(t.key)}
+                title={t.sub}
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                  tier === t.key
+                    ? "bg-accent-yellow text-gray-900 shadow-sm shadow-accent-yellow/30"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
+            {ERAS.map((e) => (
+              <button
+                key={e.key}
+                onClick={() => setEra(e.key)}
+                title={e.sub}
+                className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                  era === e.key
+                    ? "bg-accent-yellow text-gray-900 shadow-sm shadow-accent-yellow/30"
+                    : "text-text-secondary hover:text-text-primary"
+                }`}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Filter row */}
@@ -268,6 +304,14 @@ export default function TrendingPage() {
                 {" "}·{" "}
                 <span className="text-accent-yellow font-semibold">
                   {tier === "bulk" ? "Bulk tier" : "Chase tier"}
+                </span>
+              </>
+            )}
+            {era !== "all" && (
+              <>
+                {" "}·{" "}
+                <span className="text-accent-yellow font-semibold">
+                  {era === "modern" ? "Modern" : "Classic"}
                 </span>
               </>
             )}

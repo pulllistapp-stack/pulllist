@@ -30,6 +30,12 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-06-30",
     emoji: "📈",
+    kr: "트렌딩에 Modern / Classic 에라 필터 추가 — BW 발매(2011-03-01) 기준으로 분리. Modern = BW 이후, Classic = WOTC~HGSS. 빈티지 리자몽과 최신 SAR 시세 각각 분리해서 볼 수 있음",
+    en: "Trending: Modern / Classic era filter added — split at BW launch (2011-03-01). Modern = BW onwards, Classic = WOTC through HGSS. Vintage Charizard movement now watchable separately from modern SAR pack-pull hype",
+  },
+  {
+    date: "2026-06-30",
+    emoji: "📈",
     kr: "트렌딩 eBay 1d 필터 부활 — Mon+Thu 크론 하에서 '1d'를 '지난 실질 스냅샷 이후'로 재정의. 지난 크론 대비 변동 있는 카드 3,155장 노출",
     en: "Trending eBay 1d filter restored — under the Mon+Thu cron cadence, '1d' now means 'since the last substantial sync' (3,155 cards with movement since prev cron)",
   },
