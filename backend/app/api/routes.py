@@ -750,15 +750,23 @@ async def get_trending(
     # only end up "trending" because the TCGplayer market-price algorithm
     # cooked one outlier listing into the public price. Requiring real
     # density flushes them out.
-    # TCGplayer prices update ~weekly via pokemontcg.io. The 25% coverage
-    # ratio works for 7d/30d but overshoots at 90d (a stable card may only
-    # generate 8-12 snapshots over 90 days even though it's heavily traded
-    # — our backfill only writes when the price moves). Cap the floor at
-    # 10 so 90d isn't an empty page.
-    effective_min_snapshots = (
-        min_snapshots if min_snapshots is not None
-        else min(10, max(5, int(period_days * 0.25)))
-    )
+    #
+    # Two cadences, two formulas — the wrong choice guts eBay trending:
+    #   - TCGplayer prices via TCGCSV run daily; ~25% coverage of the
+    #     window is realistic, cap 10 so 90d isn't empty for stable-
+    #     price cards where our backfill only writes on movement.
+    #   - eBay runs Mon + Thu pre-launch (see
+    #     .github/workflows/daily-ebay-snapshot.yml). That's ~2/week,
+    #     so a 7d window carries AT MOST 2 snapshots per card. Using
+    #     the TCGplayer formula (floor=5) empties eBay 1d/7d/30d.
+    #     Drop the floor to 2 and rescale.
+    if min_snapshots is not None:
+        effective_min_snapshots = min_snapshots
+    elif source == "ebay":
+        # 2 snapshots/week → require 2 minimum, cap 8 for 90d
+        effective_min_snapshots = min(8, max(2, int(period_days * 0.10)))
+    else:
+        effective_min_snapshots = min(10, max(5, int(period_days * 0.25)))
 
     cutoff = (date.today() - timedelta(days=period_days)).isoformat()
 

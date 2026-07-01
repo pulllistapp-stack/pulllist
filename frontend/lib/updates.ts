@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-06-30 ─────────────────────────────────────────────────
   {
     date: "2026-06-30",
+    emoji: "📈",
+    kr: "트렌딩 eBay 소스 정상화 — Mon+Thu 크론 스케줄에 맞춰 7d/30d/90d 최소 스냅샷 임계값을 소스별로 분리 (7d에서 카드 3,398개 다시 노출)",
+    en: "Trending eBay source restored — separated the minimum-snapshot floor per source so it matches the Mon+Thu cron cadence (3,398 cards re-eligible in the 7d window)",
+  },
+  {
+    date: "2026-06-30",
     emoji: "🛒",
     kr: "포트폴리오 카드 삭제 확인 임계값 완화 — 1~9장 삭제는 원클릭 확인, 10장 이상만 'DELETE' 타이핑 요구",
     en: "Portfolio delete confirmation eased — 1-9 cards delete with a single click, only 10+ requires typing 'DELETE'",
