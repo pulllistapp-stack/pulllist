@@ -111,11 +111,18 @@ export default function PortfolioPage() {
     );
   }, [items]);
 
+  // Type-DELETE guard only kicks in for large bulk deletes. Below the
+  // threshold LO wants a bare confirm (yes/no) so trimming a couple
+  // rows out of the vault isn't a chore. Blocks the accidental-tap-
+  // wipes-50-cards scenario without punishing normal collection edits.
+  const CONFIRM_TYPE_THRESHOLD = 10;
+
   const handleBulkDelete = useCallback(async () => {
     if (selected.size === 0) return;
-    // Multi-item deletes require typing "delete" — a single accidental
-    // tap shouldn't be able to wipe 50 cards from someone's collection.
-    if (selected.size >= 2 && confirmText.trim().toLowerCase() !== "delete") {
+    if (
+      selected.size >= CONFIRM_TYPE_THRESHOLD &&
+      confirmText.trim().toLowerCase() !== "delete"
+    ) {
       return;
     }
     const ids = Array.from(selected);
@@ -755,12 +762,12 @@ export default function PortfolioPage() {
                 : `Remove ${selected.size} cards?`}
             </h3>
             <p className="text-sm text-text-secondary mb-4">
-              {selected.size === 1
+              {selected.size < CONFIRM_TYPE_THRESHOLD
                 ? "It'll come right back if you add it again later."
                 : "This can't be undone. Type DELETE below to confirm."}
             </p>
 
-            {selected.size >= 2 && (
+            {selected.size >= CONFIRM_TYPE_THRESHOLD && (
               <input
                 type="text"
                 value={confirmText}
@@ -789,7 +796,7 @@ export default function PortfolioPage() {
                 onClick={handleBulkDelete}
                 disabled={
                   deleting ||
-                  (selected.size >= 2 &&
+                  (selected.size >= CONFIRM_TYPE_THRESHOLD &&
                     confirmText.trim().toLowerCase() !== "delete")
                 }
                 className="inline-flex items-center gap-2 rounded-btn bg-accent-red text-white font-bold px-4 py-2 text-sm hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed"

@@ -210,6 +210,27 @@
   - **E2-E5** (361장) → nazonobasho.com httpx native JP scans
   - **PMCG2-6** (354장) → **open §10.6.3** (모든 public source dead end)
 
+### #10.7 JP 가격 데이터 소스 붙이기 ⏸️ (open, 다음 세션 대상)
+
+**문제**: JP 카드 14,362장 다 있는데 `market_price_usd / mid / low / high` 전부 NULL. TCGCSV/TCGplayer는 EN 카탈로그 전용, pokemontcg.io는 Cardmarket EU/EN 위주. Cross-Market 가격 갭 배너 (§1 #5) 프리미엄 기능이 이 데이터 없이는 unblock 안 됨.
+
+**후보 소스**:
+| 소스 | 커버리지 | 라이선스 | 스크레이핑 난이도 |
+|---|---|---|---|
+| **yuyu-tei.jp** | 현행 JP 시장 최대, JPY 시세, 다수 컨디션 | 재판매업체 페이지 (약관 확인 필요) | 중 — SSR HTML, 페이지네이션 |
+| **cardrush.jp** | 현행 + 일부 빈티지 | Cloudflare 403 (이번 세션 확인됨) | 상 — stealth 우회 필요 |
+| **hareruya2.com** | 현행 chase + 빈티지 SR | 정적 페이지 다수 | 중 |
+| **pokedata.io** | JP 지원, 시세 API 지원 | 유료 (free tier limited) | 하 — API 호출만 |
+| **Snkrdunk / Mercari** | 실시간 매물 | Cloudflare + 폰넘버 인증 | 상 |
+| **TCGCSV JP-Ext (?)** | 미확인 — TCGCSV 가끔 JP-extended 데이터 |  | 미확인 |
+
+**추천 순서**: (1) TCGCSV가 JP를 확장 지원하는지 먼저 probe (한 endpoint 확인만) → (2) yuyu-tei.jp 파일럿 (100장 probe) → (3) 규모 결정.
+
+**엔드 타깃**: 최소 chase-tier 카드들 (RR/SR/SAR/UR/HR) 시세만이라도 붙이면 Cross-Market 갭 배너 unblock. Common/Uncommon은 후순위.
+
+**새 세션 부트스트랩** (LO 신호 시):
+> PullList §10.7: JP 가격 소스 붙이기. TCGCSV JP extension 여부 probe → yuyu-tei.jp 파일럿 → 100장 probe 후 규모 판단.
+
 ---
 
 ## 3. 정식 오픈 직전 (오픈 1-2주 전)
