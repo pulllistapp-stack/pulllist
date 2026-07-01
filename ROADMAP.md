@@ -238,7 +238,7 @@
 ### 인프라 업그레이드
 - **Neon Launch ($19/월) 결제** — Notification 시스템 들어가면 transfer + storage 양쪽 다 늘어남. Launch가면 10 GB transfer / 10 GB storage. 정식 오픈 ~6개월 buffer.
 - **Render Starter ($7/월)** 결제 검토 — 콜드 스타트 50초 → 0초. 정식 오픈 후 첫 visitor 경험에 영향 큼. 친구 베타는 그냥 free 유지.
-- **eBay cron daily 복구** — 정식 오픈 시 `0 7 * * *` 로 revert (`.github/workflows/daily-ebay-snapshot.yml`)
+- ~~**eBay cron daily 복구** — 정식 오픈 시 `0 7 * * *` 로 revert~~ ⚠️ **재검토 대상** — 2026-06-30 Growth Check 거절 이후 5k/day 캡 확정. Mon+Thu 유지가 안전. 재도전 성공 시에만 복구 검토.
 - **Sentry 통합** — production error monitoring. 첫 유저 1000명 단계에서 사이트 깨지면 즉시 알림. ~2시간 작업.
 - **`visit_logs` 90일 retention + aggregate job** — 오래된 raw 데이터 monthly 통계로 압축 후 삭제. Storage 폭증 방지. ~3시간.
 
@@ -249,7 +249,17 @@
 - **RARITY_GROUPS 3개 추가**: Special Rare / Character Super Rare / Character Holo Rare
 
 ### 비즈니스
-- **eBay dev support quota bump 메일** — 5k/day → 50-100k/day. EPN 파트너 강조 메일.
+- **eBay Growth Check — 1차 거절 (2026-06-30)**. Nishtha Gupta 응답: "business policies" boilerplate로 거절, 사유 특정 없음. **10일 재개방 창구 활용 필수** (deadline: **~2026-07-10 ET**).
+  - 재도전 앵글 (원 요청보다 훨씬 강하게 쓸 것):
+    - **EPN 트래픽 실적 데이터 첨부** — 5339157076 campid 기준 지난 30일 clicks + conversions + attributed revenue. Growth Check 심사에서 가장 힘 있는 지렛대.
+    - **구체적 손실 수치 제시** — "5k 캡 때문에 매일 3,500장 스킵 → collectors가 우리 사이트에서 이탈 → 그 트래픽 eBay 도달 실패".
+    - **구체적 요청 티어** — 5k → 50k 대신 5k → 15k / 30k / 50k 옵션 3개 제시 (accommodate 가능성 높이기).
+    - **compliance 재확인** — no bulk redistribution, EPN 부착, user data non-persistence 다시 강조.
+  - **Fallback (재거절 시)**:
+    - Snapshot cron $1+ floor + Mon+Thu 유지 (현재 상태) → 정식 오픈 시에도 이 구조로 감. **`0 7 * * *` 복귀 계획 취소**.
+    - Live listings 클라이언트 캐시 5분 → 15분 상향.
+    - `$5+` 티어 above로 daily 축소 (~3-4k calls), 그 아래는 monthly로.
+    - JP/KR 카탈로그 가격은 eBay 의존 낮추고 대체 소스 (TCGCSV EN 유지 + JP 로컬 소스 §10.7) 우선.
 - **AdSense 승인 확인** — 안 됐으면 LO 직접 follow-up
 - **Growth Check 승인 확인** — 1-4주 대기 중
 - **쿠팡 파트너스 가입 여부 결정** — LO 한국 사업자 자격 + 가입 → KR traffic 수익화 채널 활성
@@ -346,7 +356,8 @@
 - [ ] Neon Launch 결제
 
 ### 5.6 비즈니스 / 운영
-- [ ] eBay dev support quota bump 메일 작성 + 발송
+- [x] ~~eBay dev support quota bump 메일 작성 + 발송~~ 2026-06-30 거절 회신. **재도전은 별도 항목** (§3 비즈니스 상단 참고).
+- [ ] **eBay Growth Check 재도전 (~2026-07-10 마감)** — EPN 실적 데이터 확보 + 티어 3-옵션 제안
 - [ ] 쿠팡 파트너스 가입 (LO 사업자 자격 확인 후)
 - [ ] 친구 베타 strict gating 결정 (invite code or 무료 organic)
 - [ ] Unknown 유저 3명 (Mario / Seungho / Kyrie) 이메일 — "어떻게 찾으셨어요?"
