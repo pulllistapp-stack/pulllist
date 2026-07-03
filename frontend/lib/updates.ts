@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-03 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-03",
+    emoji: "📦",
+    kr: "일본판 카탈로그 대폭 확장 — 138개 세트 + 6,538장 신규 (총 311 세트 / 20,900장). BW 메인라인 (Black/White/Red Collection, Dark Rush, Psycho Drive, Freeze Bolt 등), HGSS/L era (Clash at the Summit, HeartGold/SoulSilver Collection), SM 서브셋 (SMA-SMN, SM1p-SM5p starter decks), XY concept packs (XYA-XYH), SwSh/SV starter+battle decks 전부 import. Limitless TCG 출처.",
+    en: "Japanese catalog massive expansion — 138 new sets + 6,538 cards (now 311 sets / 20,900 cards). BW mainline (Black/White/Red Collection, Dark Rush, Psycho Drive, Freeze Bolt etc.), HGSS/L era (Clash at the Summit, HeartGold/SoulSilver Collection), SM sub-sets (SMA-SMN, SM1p-SM5p starter decks), XY concept packs (XYA-XYH), SwSh/SV starter+battle decks all imported. Source: Limitless TCG.",
+  },
   // ── 2026-07-02 ─────────────────────────────────────────────────
   {
     date: "2026-07-02",
