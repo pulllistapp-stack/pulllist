@@ -37,6 +37,7 @@ import logging
 from sqlalchemy import text
 
 from app.database import SessionLocal, init_db
+from scripts.import_bulbapedia_logos import JP_SET_TO_BULBAPEDIA
 
 log = logging.getLogger("backfill_jp_set_name_en")
 
@@ -87,7 +88,27 @@ async def run(dry: bool) -> None:
                     UPDATE sets SET name_en=:en WHERE id=:i AND language='ja'
                 """), {"en": en_name, "i": jp_id})
 
-        # 2) Manual vintage 1:1
+        # 2) Bulbapedia dict — the curated JP→Bulbapedia page-title map
+        # already stores the English release name for every JP set that
+        # has a Bulbapedia article. Reuse it: strip " (TCG)" and treat
+        # the result as name_en. Covers modern M-/SV-/S-era JP sets
+        # whose EN release name isn't the same as the JP set id, plus
+        # a few older Sun & Moon / XY sub-sets.
+        log.info(f"\nBulbapedia-dict derived ({len(JP_SET_TO_BULBAPEDIA)}):")
+        bulb_applied = 0
+        for jp_id, page in JP_SET_TO_BULBAPEDIA.items():
+            en_name = page.replace(" (TCG)", "").strip()
+            if not en_name:
+                continue
+            log.info(f"  {jp_id} → {en_name}")
+            bulb_applied += 1
+            if not dry:
+                await db.execute(text("""
+                    UPDATE sets SET name_en=:en WHERE id=:i AND language='ja'
+                """), {"en": en_name, "i": jp_id})
+        log.info(f"  applied {bulb_applied} rows")
+
+        # 3) Manual vintage 1:1 (overrides both auto and Bulbapedia dict)
         log.info(f"\nManual vintage 1:1 ({len(VINTAGE_1_TO_1)}):")
         for jp_id, en_name in VINTAGE_1_TO_1.items():
             log.info(f"  {jp_id} → {en_name}")
