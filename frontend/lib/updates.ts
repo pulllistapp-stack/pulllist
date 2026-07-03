@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-02 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-02",
+    emoji: "🆕",
+    kr: "일본판 MEGA 에라 최신 세트 2개 신규 import — M4 「ニンジャスピナー」 (Ninja Spinner, 3월 발매, 120장) + M5 「アビスアイ」 (Abyss Eye, 5월 발매, 81장). TCGdex는 아직 미indexed지만 Limitless에서 카드+이미지 다 확보. M5 레어도는 EN 미출시로 임시 NULL, 시간 지나 자동 채워짐.",
+    en: "Two newest Japanese MEGA-era sets imported — M4 Ninja Spinner (Mar release, 120 cards) + M5 Abyss Eye (May release, 81 cards). Pulled from Limitless (TCGdex hasn't indexed them yet); rarities on M5 stay NULL until the EN equivalent print list appears.",
+  },
   // ── 2026-06-30 ─────────────────────────────────────────────────
   {
     date: "2026-06-30",
