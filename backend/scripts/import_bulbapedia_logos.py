@@ -116,6 +116,29 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     "S1a":    "VMAX Rising (TCG)",
     "S1W":    "Sword (TCG)",
     "S1H":    "Shield (TCG)",
+    # Sun & Moon era (JP main sets)
+    "SM12":   "Cosmic Eclipse (TCG)",
+    "SM10":   "Unbroken Bonds (TCG)",
+    "SM9":    "Team Up (TCG)",
+    "SM8":    "Lost Thunder (TCG)",
+    "SM7":    "Celestial Storm (TCG)",
+    "SM6":    "Forbidden Light (TCG)",
+    # XY era (JP main sets)
+    "XY10":   "Fates Collide (TCG)",
+    "XY9":    "BREAKpoint (TCG)",
+    "XY7":    "Ancient Origins (TCG)",
+    "XY6":    "Roaring Skies (TCG)",
+    "XY4":    "Phantom Forces (TCG)",
+    "XY3":    "Furious Fists (TCG)",
+    "XY2":    "Flashfire (TCG)",
+    # Vintage 1:1 (WoTC era through e-Card)
+    "E1":     "Expedition Base Set (TCG)",
+    "PMCG6":  "Gym Challenge (TCG)",
+    "PMCG5":  "Gym Heroes (TCG)",
+    "PMCG4":  "Team Rocket (TCG)",
+    "PMCG3":  "Fossil (TCG)",
+    "PMCG2":  "Jungle (TCG)",
+    "PMCG1":  "Base Set (TCG)",
 }
 
 # Direct image URL overrides for sets where Bulbapedia has no logo file
