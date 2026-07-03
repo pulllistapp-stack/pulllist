@@ -30,11 +30,19 @@ BASE = "https://bulbapedia.bulbagarden.net"
 
 TARGETS = [
     # (set_id, wiki_page_slug, expected_prefix in anchor href)
-    ("JPP-SI", "Southern_Islands_(TCG)", "Southern_Islands"),
-    ("JPP-P",  "P_Promotional_cards_(TCG)", "P_Promo"),
+    ("JPP-SI",  "Southern_Islands_(TCG)", "Southern_Islands"),
+    ("JPP-P",   "P_Promotional_cards_(TCG)", "P_Promo"),
+    # Vending Series 1/2/3 share the same wiki page — anchor filters
+    # split them via prefix suffix "Vending_S1", "Vending_S2", "Vending_S3"
+    ("JPP-VM1", "Vending_Machine_cards_(TCG)", "Vending_S1"),
+    ("JPP-VM2", "Vending_Machine_cards_(TCG)", "Vending_S2"),
+    ("JPP-VM3", "Vending_Machine_cards_(TCG)", "Vending_S3"),
 ]
 
-_ANCHOR_RE = re.compile(r'href="(/wiki/([A-Za-z0-9%\'_\-]+_\(([^)]+)_(\d+)\)))"')
+# Match the /wiki/NAME_(PARENTHETICAL) shape and hand the caller the
+# raw parenthetical to filter/split on. Numbered shape ends with _NN;
+# unnumbered (Vending) shape is just the series suffix.
+_ANCHOR_RE = re.compile(r'href="(/wiki/[A-Za-z0-9%\'_\-]+_\(([^)]+)\))"')
 _CARDIMG_RE = re.compile(
     r'<a href="/wiki/File:([^"]+)\.(?:jpg|png)"[^>]*class="mw-file-description"[^>]*>'
     r'\s*<img[^>]+src="([^"]+)"',
@@ -51,20 +59,34 @@ async def _fetch(c: httpx.AsyncClient, url: str) -> str | None:
 
 
 async def _enumerate_anchors(c: httpx.AsyncClient, slug: str, prefix: str) -> list[tuple[int, str]]:
-    """Return [(num, href), …] unique by num."""
+    """Return [(num, href), …] unique by num. Prefix is the required
+    LEADING label of the parenthetical part, e.g. "Southern_Islands"
+    matches "Southern_Islands_5" but not "Wizards_Promo_49". For
+    unnumbered anchors (Vending_S1 style), assign sequential ids in
+    page order."""
     html = await _fetch(c, f"{BASE}/wiki/{slug}")
     if not html:
         return []
-    seen: dict[int, str] = {}
-    for href, _slug, anchor_set, num in _ANCHOR_RE.findall(html):
-        if prefix.lower() not in anchor_set.lower().replace("_"," "):
-            # relaxed match: anchor could be Southern_Islands / P_Promo
-            if anchor_set.replace("_"," ").lower() != prefix.replace("_"," ").lower():
-                continue
-        n = int(num)
-        if n not in seen:
-            seen[n] = href
-    return sorted(seen.items())
+    numbered: dict[int, str] = {}
+    unnumbered: list[str] = []
+    seen_href = set()
+    num_suffix_re = re.compile(r"_(\d+)$")
+    for href, paren in _ANCHOR_RE.findall(html):
+        # Trim trailing "_NN" (if any) then compare label leader
+        m = num_suffix_re.search(paren)
+        label = paren[: m.start()] if m else paren
+        if label != prefix:
+            continue
+        if href in seen_href:
+            continue
+        seen_href.add(href)
+        if m:
+            numbered.setdefault(int(m.group(1)), href)
+        else:
+            unnumbered.append(href)
+    if numbered:
+        return sorted(numbered.items())
+    return [(i + 1, href) for i, href in enumerate(unnumbered)]
 
 
 async def _extract_page_data(c: httpx.AsyncClient, href: str) -> dict | None:
