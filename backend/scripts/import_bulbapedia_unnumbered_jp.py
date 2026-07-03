@@ -73,13 +73,22 @@ _JP_FILE_KEYS = [
     "IllustratorContest", "Illustrator", "Gym_Challenge_Master_Key",
     "GymChallengeMasterKey", "Battle_Master", "BattleMaster",
 ]
-# Reprint / wrong-variant filenames to reject
+# Reprint / wrong-variant filenames to reject. NOTE: WizardsPromo is
+# NOT rejected — many JP CoroCoro Comic promos live on Bulbapedia under
+# their EN Wizards-Promo filename (same physical card, both markets got
+# the same scan). We prefer JP-tagged files first, then fall back to
+# the lowest-numbered WizardsPromo file that matches the Pokémon name.
 _REJECT_FILE_KEYS = [
-    "WizardsPromo", "Wizards_Promo", "XYPromo", "XY_Promo",
+    "XYPromo", "XY_Promo",
     "Portuguese", "German", "Spanish", "French", "Italian", "Korean",
     "TCG_Card_Back", "CardBack", "TCG1_", "TCG2_", "Project_",
     "Portal_", "Bulbapedia_", "Poke_dollar", "Coin_",
 ]
+
+# When we fall through to a WizardsPromo/generic file, prefer the
+# lowest-numbered one — that's usually the original 1996-1997 print
+# that the JP CoroCoro/Fanbook rows describe.
+_WIZARDS_NUM_RE = re.compile(r"WizardsPromo(\d+)", re.IGNORECASE)
 
 _INFOBOX_IMG_RE = re.compile(
     r'<a href="/wiki/File:([^"]+\.(?:jpg|png))"[^>]*class="mw-file-description"[^>]*>'
@@ -216,9 +225,57 @@ def _pick_image(html: str, row_name: str, row_desc: str | None) -> str | None:
         "contest", "ancient mew", "movie", "toyota", "asobikata", "old maid",
         "battle master", "kids", "world", "issue insert",
     )
+    # Toyota / Playmat / Fan Book / Card File / Phone Card / Snap /
+    # Old Maid campaigns each corresponded to a specific distinct card,
+    # NOT the base CoroCoro release. Only accept those in the "one
+    # candidate" fallback if the description also literally names the
+    # campaign — otherwise we picked the wrong specific card
+    # (Pikachu Toyota was replacing Pikachu Glossy CoroCoro).
+    _AMBIGUOUS_FLUKE_TAGS = (
+        "Toyota", "Playmat", "Snap", "FanClub", "Fan_Club",
+        "PhoneCard", "Phone_Card", "OldMaid", "Old_Maid",
+    )
     if not strict_hit and len(ambig_candidates) == 1:
-        if any(hint in desc_lower for hint in _DESC_CHANNEL_HINTS):
-            strict_hit = ambig_candidates[0]
+        cand_url = ambig_candidates[0]
+        cand_filename = cand_url.split("/")[-1]
+        cand_lower = cand_filename.lower()
+        is_fluke_risk = any(k.lower() in cand_lower for k in _AMBIGUOUS_FLUKE_TAGS)
+        if is_fluke_risk:
+            # Require the campaign word to actually appear in the desc.
+            matched = False
+            for tag in _AMBIGUOUS_FLUKE_TAGS:
+                token = re.sub(r"[_%]", "", tag).lower()
+                if token in cand_lower and token in re.sub(r"\s+", "", desc_lower):
+                    matched = True
+                    break
+            if matched:
+                strict_hit = cand_url
+        elif any(hint in desc_lower for hint in _DESC_CHANNEL_HINTS):
+            strict_hit = cand_url
+
+    # Third-chance: no JP-tagged file matched at all. Fall through to a
+    # WizardsPromo-labelled file that matches the Pokémon name.
+    # Bulbapedia hosts most 1996-1997 JP CoroCoro/Fanbook cards under
+    # their EN Wizards-Promo filename because it's the same physical
+    # scan. Prefer the lowest-numbered WizardsPromo (earliest print,
+    # which is what the CoroCoro rows describe).
+    if not strict_hit:
+        wp_matches = []
+        for filename, src in _INFOBOX_IMG_RE.findall(html):
+            f_lower = filename.lower()
+            if any(k.lower() in f_lower for k in _REJECT_FILE_KEYS):
+                continue
+            if "wizardspromo" not in f_lower:
+                continue
+            f_slug = _slug(unquote(filename))
+            if not any(p in f_slug for p in prefix_list):
+                continue
+            m = _WIZARDS_NUM_RE.search(filename)
+            n = int(m.group(1)) if m else 9999
+            wp_matches.append((n, src))
+        if wp_matches:
+            wp_matches.sort()
+            strict_hit = wp_matches[0][1]
 
     src = strict_hit
     if not src:
