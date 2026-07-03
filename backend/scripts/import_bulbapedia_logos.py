@@ -139,6 +139,35 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     "PMCG3":  "Fossil (TCG)",
     "PMCG2":  "Jungle (TCG)",
     "PMCG1":  "Base Set (TCG)",
+    # Sun & Moon sub-sets (Reinforcement Expansions / High Class packs)
+    "SM12a":  "Tag All Stars (TCG)",
+    "SM11b":  "Dream League (TCG)",
+    "SM11a":  "Remix Bout (TCG)",
+    "SM10b":  "Sky Legend (TCG)",
+    "SM9b":   "Full Metal Wall (TCG)",
+    "SM9a":   "Night Unison (TCG)",
+    "SM8b":   "GX Ultra Shiny (TCG)",
+    "SM8a":   "Dark Order (TCG)",
+    "SM7b":   "Fairy Rise (TCG)",
+    "SM7a":   "Thunderclap Spark (TCG)",
+    "SM6b":   "Champion Road (TCG)",
+    "SM6a":   "Dragon Storm (TCG)",
+    "SMP2":   "Detective Pikachu (TCG)",
+    # SM special / promo starters
+    "SM":     "Sun and Moon (TCG)",
+    "SMD":    "Solgaleo-GX + Lunala-GX Special Set (TCG)",
+    # XY High Class + sub-sets
+    "CP6":    "20th Anniversary Collection (TCG)",
+    "CP5":    "Cold Reversal (TCG)",
+    "CP4":    "Premium Champion Pack: EX × M × BREAK (TCG)",
+    "CP3":    "Pokekyun Collection (TCG)",
+    "CP2":    "Legendary Shine Collection (TCG)",
+    "CP1":    "Double Crisis (TCG)",
+    # SV starter / deck-build boxes (JP-only, no clean EN match but
+    # Bulbapedia carries JP-only pages for the starter/deck-build boxes)
+    "SVK":    "Stellar Miracle Deck Build Box (TCG)",
+    "SVLN":   "Starter Deck Terastal Type: Stellar Sylveon ex (TCG)",
+    "SVLS":   "Starter Deck Terastal Type: Stellar Skeledirge ex (TCG)",
 }
 
 # Direct image URL overrides for sets where Bulbapedia has no logo file
