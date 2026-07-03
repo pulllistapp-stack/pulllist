@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-03 ─────────────────────────────────────────────────
   {
     date: "2026-07-03",
+    emoji: "🏆",
+    kr: "일본판 언넘버드 프로모 496장 신규 (20개 연도별 세트) — Bulbapedia table-row 파싱 + redirect 추적 + JP 파일명 매칭. Pokémon Illustrator ($1M+), Trophy Card No.1/2/3 Trainer, Imakuni? Corocoro, Playmat Slowpoke, Pikachu-Jigglypuff-Clefairy Jumbo 등 컬렉터 코어 카드 74장 이미지 확보. 나머지 422장은 이름/변형 태그/발매 채널 명확하지만 이미지 소스 매칭 불가로 placeholder.",
+    en: "Japanese Unnumbered Promos — 496 cards seeded across 20 year-bucketed sets. Bulbapedia table-row parse + redirect dedupe + strict JP-filename matching. 74 cards land with correct scans including Pokémon Illustrator (\\$1M+), Trophy Card No.1/2/3 Trainer, Imakuni? CoroCoro, Playmat Slowpoke, Pikachu-Jigglypuff-Clefairy Jumbo. Remaining 422 have names + variant tags + release channel notes but no matched JP scan on Bulbapedia (placeholder shown).",
+  },
+  {
+    date: "2026-07-03",
     emoji: "🏝️",
     kr: "일본판 서던아일랜드 (Southern Islands) 18장 + P 프로모 45장 추가 — Bulbapedia 크롤. JPP-SI 세트 stub이 실제 카드로 채워짐, JPP-P는 10 → 55장으로 확장.",
     en: "Japanese Southern Islands (18 cards) + P Promos (45 cards) added via Bulbapedia crawl. JPP-SI stub is now populated, JPP-P grew 10 → 55.",
