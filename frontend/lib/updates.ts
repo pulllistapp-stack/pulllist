@@ -29,12 +29,6 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-03 ─────────────────────────────────────────────────
   {
     date: "2026-07-03",
-    emoji: "🏆",
-    kr: "일본판 언넘버드 프로모 (Unnumbered Promos) 437장 신규 — 20개 연도별 세트로 분리 (JPP-U1996 ~ JPP-U2024). 1996-2005 라운드에는 Pikachu Illustrator, Trophy Cards, Corocoro Comic 프로모, Toyota Pikachu, Ancient Mew 등 컬렉터 코어 카드 200장 포함. Bulbapedia 크롤.",
-    en: "Japanese Unnumbered Promos — 437 cards freshly seeded across 20 year-bucketed sets (JPP-U1996 through JPP-U2024). The 1996-2005 bucket includes the collector-core cards: Pikachu Illustrator, Trophy Cards, CoroCoro Comic promos, Toyota Pikachu, Ancient Mew — 200 vintage promos total. Source: Bulbapedia.",
-  },
-  {
-    date: "2026-07-03",
     emoji: "🏝️",
     kr: "일본판 서던아일랜드 (Southern Islands) 18장 + P 프로모 45장 추가 — Bulbapedia 크롤. JPP-SI 세트 stub이 실제 카드로 채워짐, JPP-P는 10 → 55장으로 확장.",
     en: "Japanese Southern Islands (18 cards) + P Promos (45 cards) added via Bulbapedia crawl. JPP-SI stub is now populated, JPP-P grew 10 → 55.",
