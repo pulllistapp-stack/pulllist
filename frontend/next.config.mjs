@@ -43,6 +43,12 @@ const nextConfig = {
       // nazonobasho.com — JP e-Card era native scans (E1-E5, 2001-2002).
       // See backfill_jp_images_nazonobasho.py.
       { protocol: "https", hostname: "nazonobasho.com" },
+      // images.weserv.nl — public image proxy used to bypass Bulbapedia
+      // archives' hot-link protection (they 403 requests with a Referer
+      // outside bulbagarden). Applied to JPP-U* Unnumbered Promo images
+      // (see import_bulbapedia_unnumbered_jp.py); harmless for other
+      // sources that don't need it.
+      { protocol: "https", hostname: "images.weserv.nl" },
     ],
   },
   async rewrites() {
