@@ -52,6 +52,8 @@ USER_AGENT = "PullList-Catalog/1.0 (https://pulllist.org; hello@pulllist.org)"
 # The Bulbapedia page name is what `?action=parse&page=...` accepts.
 JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     # Mega Evolution era (2025-2026)
+    "M5":     "Abyss Eye (TCG)",
+    "M4":     "Ninja Spinner (TCG)",
     "M3":     "Nihil Zero (TCG)",
     "M2a":    "MEGA Dream ex (TCG)",
     "M2":     "Inferno X (TCG)",
