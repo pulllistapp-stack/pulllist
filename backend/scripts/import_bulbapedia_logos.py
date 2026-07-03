@@ -168,6 +168,42 @@ JP_SET_TO_BULBAPEDIA: dict[str, str] = {
     "SVK":    "Stellar Miracle Deck Build Box (TCG)",
     "SVLN":   "Starter Deck Terastal Type: Stellar Sylveon ex (TCG)",
     "SVLS":   "Starter Deck Terastal Type: Stellar Skeledirge ex (TCG)",
+    # Sun & Moon early sub-sets (SM0-SM5)
+    "SM5S":   "Ultra Sun (TCG)",
+    "SM5M":   "Ultra Moon (TCG)",
+    "SM4S":   "Awakened Heroes (TCG)",
+    "SM4A":   "Ultradimensional Beasts (TCG)",
+    "SM3N":   "Darkness that Consumes Light (TCG)",
+    "SM3H":   "To Have Seen the Battle Rainbow (TCG)",
+    "SM2L":   "Alolan Moonlight (TCG)",
+    "SM2K":   "Islands Await You (TCG)",
+    "SM1S":   "Collection Sun (TCG)",
+    "SM1M":   "Collection Moon (TCG)",
+    "SM0":    "Pikachu and New Friends (TCG)",
+    "sn11":   "Miracle Twin (TCG)",
+    "sn10a":  "GG End (TCG)",
+    # XY additions
+    "XY8b":   "Red Flash (TCG)",
+    "XY1a":   "Collection X (TCG)",
+    "XY1b":   "Collection Y (TCG)",
+    # PCG era (JP EX-era, 2004-2006) — Bulbapedia's JP-specific pages
+    "PCG9":   "Offense and Defense of the Furthest Ends (TCG)",
+    "PCG8":   "Miracle Crystal (TCG)",
+    "PCG7":   "Holon Phantoms (TCG)",
+    "PCG6":   "Holon Research Tower (TCG)",
+    "PCG5":   "Mirage Forest (TCG)",
+    "PCG4":   "Gold Sky, Silver Sea (TCG)",
+    "PCG3":   "Rocket Gang Strikes Back (TCG)",
+    "PCG2":   "Clash of the Blue Sky (TCG)",
+    "PCG1":   "Legendary Flight (TCG)",
+    # e-Card era (JP, 2001-2002)
+    "E5":     "Mysterious Mountains (TCG)",
+    "E4":     "Split Earth (TCG)",
+    "E3":     "The Wind from the Sea (TCG)",
+    "E2":     "The Town on No Map (TCG)",
+    # JP-only vintage
+    "VS1":    "Pokémon Card VS (TCG)",
+    "web1":   "Pokémon Card web (TCG)",
 }
 
 # Direct image URL overrides for sets where Bulbapedia has no logo file
