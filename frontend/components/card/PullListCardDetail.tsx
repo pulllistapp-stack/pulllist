@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Palette,
   Search,
   ShoppingCart,
   Star,
@@ -339,6 +340,27 @@ export function PullListCardDetail({
                 </span>
               ))}
             </div>
+
+            {/* Illustrator credit + "more from this artist" link. Same
+                behaviour as clicking a name in the FilterSidebar's
+                Illustrator section — /cards?artist=… is a real filter
+                path with backend + sidebar support. */}
+            {card.artist && (
+              <Link
+                href={`/cards?artist=${encodeURIComponent(card.artist)}`}
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-sm w-fit rounded-btn",
+                  "border border-border bg-bg-surface px-3 py-1.5",
+                  "hover:border-accent-yellow/50 hover:bg-accent-yellow/5 transition-colors",
+                )}
+                title={`See more cards illustrated by ${card.artist}`}
+              >
+                <Palette className="h-3.5 w-3.5 text-accent-yellow" />
+                <span className={muted}>Illustrated by</span>
+                <span className="font-semibold">{card.artist}</span>
+                <span className={cn(muted, "text-xs")}>· see more →</span>
+              </Link>
+            )}
 
             {variants.length > 1 && (
               <div className="mb-3">
