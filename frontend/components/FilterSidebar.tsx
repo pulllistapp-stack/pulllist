@@ -290,17 +290,19 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
         </div>
       </Section>
 
-      {/* Energy type */}
-      <Section title="Energy type">
+      {/* Energy type — collapsed by default (long list, most searches
+          don't touch it), and each chip color-coded to the element so
+          the section scans at a glance instead of forcing you to
+          read every label. */}
+      <Section title="Energy type" defaultOpen={false}>
         <div className="flex flex-wrap gap-1">
           {options.types.map((t) => (
-            <Chip
+            <EnergyChip
               key={t}
+              type={t}
               active={selType.has(t)}
               onClick={() => toggleInCsv("type", t)}
-            >
-              {t}
-            </Chip>
+            />
           ))}
         </div>
       </Section>
@@ -510,6 +512,62 @@ function RarityChip({
       title={rarity}
     >
       {rarity}
+    </button>
+  );
+}
+
+/**
+ * Pokémon TCG official energy-type palette. Keys match the strings we
+ * store in Card.types (verbatim from pokemontcg.io / TCGdex, so both
+ * "Fire" (EN) and "炎" (JP) or "화" (KR) sneaking in later map cleanly
+ * — anything not in the map falls back to a muted neutral chip).
+ *
+ * Colors picked to match the printed energy symbol on real cards:
+ *   Fire = red-orange, Water = blue, Grass = green, Lightning = amber,
+ *   Psychic = magenta, Fighting = orange-brown, Darkness = slate/black,
+ *   Metal = zinc/silver, Colorless = gray, Dragon = gold, Fairy = pink.
+ */
+const ENERGY_TYPE_COLORS: Record<
+  string,
+  { bg: string; text: string; ring: string; activeBg: string }
+> = {
+  Fire:      { bg: "bg-red-500/10",     text: "text-red-500",     ring: "ring-red-400/40",     activeBg: "bg-red-500/25" },
+  Water:     { bg: "bg-blue-500/10",    text: "text-blue-500",    ring: "ring-blue-400/40",    activeBg: "bg-blue-500/25" },
+  Grass:     { bg: "bg-green-500/10",   text: "text-green-600",   ring: "ring-green-400/40",   activeBg: "bg-green-500/25" },
+  Lightning: { bg: "bg-amber-400/10",   text: "text-amber-500",   ring: "ring-amber-400/40",   activeBg: "bg-amber-400/25" },
+  Psychic:   { bg: "bg-fuchsia-500/10", text: "text-fuchsia-500", ring: "ring-fuchsia-400/40", activeBg: "bg-fuchsia-500/25" },
+  Fighting:  { bg: "bg-orange-700/10",  text: "text-orange-700",  ring: "ring-orange-600/40",  activeBg: "bg-orange-700/25" },
+  Darkness:  { bg: "bg-slate-800/10",   text: "text-slate-700 dark:text-slate-300", ring: "ring-slate-500/40", activeBg: "bg-slate-800/25" },
+  Metal:     { bg: "bg-zinc-400/10",    text: "text-zinc-500",    ring: "ring-zinc-400/40",    activeBg: "bg-zinc-400/25" },
+  Colorless: { bg: "bg-gray-300/10",    text: "text-gray-500",    ring: "ring-gray-400/40",    activeBg: "bg-gray-300/25" },
+  Dragon:    { bg: "bg-yellow-600/10",  text: "text-yellow-600",  ring: "ring-yellow-500/40",  activeBg: "bg-yellow-600/25" },
+  Fairy:     { bg: "bg-pink-400/10",    text: "text-pink-500",    ring: "ring-pink-400/40",    activeBg: "bg-pink-400/25" },
+};
+
+function EnergyChip({
+  type,
+  active,
+  onClick,
+}: {
+  type: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const c = ENERGY_TYPE_COLORS[type];
+  const cls = c
+    ? `${active ? c.activeBg : c.bg} ${c.text} ring-1 ${c.ring}`
+    : active
+      ? "bg-accent-yellow/15 text-accent-yellow ring-1 ring-accent-yellow/30"
+      : "bg-bg-surface text-text-secondary ring-1 ring-border";
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-chip px-2 py-0.5 text-[11px] font-medium transition-all ${cls} ${
+        active ? "ring-2" : "hover:ring-2"
+      }`}
+      title={type}
+    >
+      {type}
     </button>
   );
 }

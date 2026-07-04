@@ -99,6 +99,20 @@ async def filter_options(
         )
     ).scalars().all()
 
+    # ~16k JP cards were imported from Limitless without a supertype
+    # tag — the source page never exposes it. Surface those under an
+    # explicit "Other" chip so users notice the gap AND can include /
+    # exclude them from a filter run instead of silently losing them.
+    has_null_supertype = (
+        await db.execute(
+            select(Card.id)
+            .where(Card.supertype.is_(None), *set_scope)
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if has_null_supertype is not None:
+        supertypes = list(supertypes) + ["Other"]
+
     types_rows = (
         await db.execute(
             select(Card.types).where(Card.types.is_not(None), *set_scope)
@@ -213,7 +227,16 @@ async def browse_cards(
 
     supertypes = _split_csv(supertype)
     if supertypes:
-        filters.append(Card.supertype.in_(supertypes))
+        real = [s for s in supertypes if s != "Other"]
+        include_null = "Other" in supertypes
+        if real and include_null:
+            filters.append(
+                (Card.supertype.in_(real)) | (Card.supertype.is_(None))
+            )
+        elif real:
+            filters.append(Card.supertype.in_(real))
+        elif include_null:
+            filters.append(Card.supertype.is_(None))
 
     types = _split_csv(type)
     if types:

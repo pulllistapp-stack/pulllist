@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-04 ─────────────────────────────────────────────────
   {
     date: "2026-07-04",
+    emoji: "🎨",
+    kr: "필터 사이드바 정리 — Card Type의 Pokémon 중복 통합 (5,138장 é 정규화), Energy Type을 기본 접힘 + 속성별 색상 (불빨 물파 풀초 뇌노 등), NULL supertype 카드 16k+ 장을 'Other' 버킷으로 명시 노출",
+    en: "Filter sidebar cleanup — merged Card Type's 'Pokémon' duplicate (5,138 rows normalized to é), Energy Type collapsed by default + color-coded per element (Fire red, Water blue, Grass green, Lightning amber…), and 16k+ cards with NULL supertype now surface under an explicit 'Other' bucket",
+  },
+  {
+    date: "2026-07-04",
     emoji: "🎛️",
     kr: "카드/세트 페이지 사이드바 스크롤 수정 — 사이드바 자체 스크롤로 PRICE / ILLUSTRATOR 필터까지 다 도달 가능. 모바일 브라우저 툴바 자동 반영 (100dvh)",
     en: "Cards/Sets page sidebar scroll fix — PRICE and ILLUSTRATOR filters at the bottom are now reachable via the sidebar's own scrollbar. Mobile browser toolbar auto-accounted for (100dvh)",
