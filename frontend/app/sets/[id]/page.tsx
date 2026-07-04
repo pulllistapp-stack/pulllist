@@ -244,7 +244,9 @@ function SetDetailContent() {
 
       <div className="flex flex-col md:flex-row gap-6">
         <div className="md:w-60 flex-shrink-0">
-          <div className="md:sticky md:top-20 md:max-h-[calc(100vh-5.5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 filter-scroll">
+          {/* Same sidebar scroll fix as /cards — see the comment there
+              for why 100dvh + pb-16 replaces 100vh-5.5rem. */}
+          <div className="md:sticky md:top-20 md:max-h-[calc(100dvh-5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 md:pb-16 filter-scroll">
             <FilterSidebar basePath={`/sets/${setId}`} lockedSetId={setId} />
           </div>
         </div>

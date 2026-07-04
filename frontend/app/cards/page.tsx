@@ -134,7 +134,18 @@ function BrowseCardsContent() {
 
       <div className="flex flex-col md:flex-row gap-6">
         <div className="md:w-64 flex-shrink-0">
-          <div className="md:sticky md:top-20 md:max-h-[calc(100vh-5.5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 filter-scroll">
+          {/* Sidebar scroll:
+                - 100dvh (not 100vh) so the mobile URL bar / cookie
+                  banner collapse doesn't leave the last filter out
+                  of reach — dvh tracks the actually-available area.
+                - 5rem reservation matches top-20 exactly; no extra
+                  top slack means the whole viewport minus the header
+                  is available.
+                - pb-16 (4rem) at the bottom is what LO was missing:
+                  expanding the ILLUSTRATOR / PRICE accordions can
+                  now grow their option lists past what used to be
+                  a flush cut-off edge. */}
+          <div className="md:sticky md:top-20 md:max-h-[calc(100dvh-5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 md:pb-16 filter-scroll">
             <FilterSidebar basePath="/cards" />
           </div>
         </div>
