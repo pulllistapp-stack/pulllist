@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-04 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-04",
+    emoji: "🎨",
+    kr: "카드 상세 페이지에 일러스트레이터 표시 + '이 작가의 다른 카드 보기' 버튼 추가 — 클릭하면 해당 작가의 모든 카드 리스트로 이동",
+    en: "Card detail now shows the illustrator with a 'See more by this artist' button — click to browse every card by the same illustrator",
+  },
   // ── 2026-07-03 ─────────────────────────────────────────────────
   {
     date: "2026-07-03",
