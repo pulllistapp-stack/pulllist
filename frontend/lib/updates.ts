@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-04 ─────────────────────────────────────────────────
   {
     date: "2026-07-04",
+    emoji: "🎛️",
+    kr: "카드/세트 페이지 사이드바 스크롤 수정 — 사이드바 자체 스크롤로 PRICE / ILLUSTRATOR 필터까지 다 도달 가능. 모바일 브라우저 툴바 자동 반영 (100dvh)",
+    en: "Cards/Sets page sidebar scroll fix — PRICE and ILLUSTRATOR filters at the bottom are now reachable via the sidebar's own scrollbar. Mobile browser toolbar auto-accounted for (100dvh)",
+  },
+  {
+    date: "2026-07-04",
     emoji: "🎨",
     kr: "카드 상세 페이지에 일러스트레이터 표시 + '이 작가의 다른 카드 보기' 버튼 추가 — 클릭하면 해당 작가의 모든 카드 리스트로 이동",
     en: "Card detail now shows the illustrator with a 'See more by this artist' button — click to browse every card by the same illustrator",
