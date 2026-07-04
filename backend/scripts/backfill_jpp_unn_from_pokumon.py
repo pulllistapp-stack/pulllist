@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import html as htmlmod
 import json
 import logging
@@ -40,6 +41,15 @@ MIRROR_DIR = REPO_ROOT / "frontend" / "public" / "jp-unn"
 API = "https://pokumon.com/wp-json/wp/v2"
 TERM_UNNUMBERED = 1103
 UA = "PullList-Catalog/1.0 (+https://pulllist.org; ja-promo-backfill)"
+
+# Pokumon.com serves a "Card Image Missing" placeholder for entries
+# that don't have a real scan yet. If we download that, we'd be
+# claiming coverage we don't actually have. Detect and reject.
+# The placeholder is a distinctive Pikachu-face-on-blue image with the
+# POKUMON logo. Verified content hashes:
+_PLACEHOLDER_HASHES = {
+    "c6ad5f3b830f86ad9ed471f81c98f4fd",  # 139468 bytes, 2021-era
+}
 
 # Distinctive keyword pairs (pokumon title fragment <-> our flavor_text
 # fragment). Used to score match quality when multiple pokumon entries
@@ -326,6 +336,15 @@ async def run(dry: bool, only: str | None, force: bool) -> None:
             if resp.status_code != 200 or len(resp.content) < 500:
                 log.warning(f"    ! HTTP {resp.status_code}, bytes={len(resp.content)}")
                 stats["download_failed"] += 1
+                continue
+
+            # Reject pokumon.com's own "Card Image Missing" placeholder.
+            # This got past our earlier pass and contaminated 9 rows.
+            content_hash = hashlib.md5(resp.content).hexdigest()
+            if content_hash in _PLACEHOLDER_HASHES:
+                log.warning(f"    ! {r['id']} pokumon placeholder — skip")
+                stats.setdefault("placeholder_rejected", 0)
+                stats["placeholder_rejected"] += 1
                 continue
 
             dest.write_bytes(resp.content)
