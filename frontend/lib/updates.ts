@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-03 ─────────────────────────────────────────────────
   {
     date: "2026-07-03",
+    emoji: "🎴",
+    kr: "일본판 언넘버드 프로모 이미지 추가 105장 — pokumon.com WP REST API로 카드별 매칭. 1996-2005 벌크(JPP-U1996)는 79% 커버까지 상승, Battle Road 2007-2008 시대 트레이너 supporter 카드 (Roseanne's Research, Bebe's Search, Cynthia's Feelings 등) 다 확보. 전체 언넘버드 이미지 커버리지 26% → 48%.",
+    en: "Japanese Unnumbered Promo images — 105 additional card scans landed via pokumon.com's WP REST API. 1996-2005 bucket now at 79% coverage; the Battle Road 2007-2008 trainer supporter lineup (Roseanne's Research, Bebe's Search, Cynthia's Feelings…) is complete. Total unnumbered image coverage 26% → 48%.",
+  },
+  {
+    date: "2026-07-03",
     emoji: "🏆",
     kr: "일본판 언넘버드 프로모 496장 신규 (20개 연도별 세트) — Bulbapedia table-row 파싱 + redirect 추적 + JP 파일명 매칭. Pokémon Illustrator ($1M+), Trophy Card No.1/2/3 Trainer, Imakuni? Corocoro, Playmat Slowpoke, Pikachu-Jigglypuff-Clefairy Jumbo 등 컬렉터 코어 카드 74장 이미지 확보. 나머지 422장은 이름/변형 태그/발매 채널 명확하지만 이미지 소스 매칭 불가로 placeholder.",
     en: "Japanese Unnumbered Promos — 496 cards seeded across 20 year-bucketed sets. Bulbapedia table-row parse + redirect dedupe + strict JP-filename matching. 74 cards land with correct scans including Pokémon Illustrator (\\$1M+), Trophy Card No.1/2/3 Trainer, Imakuni? CoroCoro, Playmat Slowpoke, Pikachu-Jigglypuff-Clefairy Jumbo. Remaining 422 have names + variant tags + release channel notes but no matched JP scan on Bulbapedia (placeholder shown).",
