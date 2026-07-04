@@ -48,7 +48,8 @@ UA = "PullList-Catalog/1.0 (+https://pulllist.org; ja-promo-backfill)"
 # The placeholder is a distinctive Pikachu-face-on-blue image with the
 # POKUMON logo. Verified content hashes:
 _PLACEHOLDER_HASHES = {
-    "c6ad5f3b830f86ad9ed471f81c98f4fd",  # 139468 bytes, 2021-era
+    "c6ad5f3b830f86ad9ed471f81c98f4fd",  # "Card Image Missing" placeholder, 139468 bytes
+    "4511c088189886ed487eec4930191a8a",  # Composite w/ "POKUMON" watermark (BR2002 No.2 Trainer)
 }
 
 # Distinctive keyword pairs (pokumon title fragment <-> our flavor_text
