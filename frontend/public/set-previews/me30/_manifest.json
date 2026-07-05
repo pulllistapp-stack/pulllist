@@ -1,0 +1,445 @@
+{
+  "source_page": "https://pokecottage.com/sets/30th-anniversary-card-list/",
+  "downloaded_at": "2026-07-05 16:44:29",
+  "elapsed_seconds": 3.2,
+  "total_mb": 5.4,
+  "counts": {
+    "downloaded": 46,
+    "skipped": 31,
+    "failed": 0,
+    "bytes": 5660824
+  },
+  "files": [
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/8802fb1d-42d8-4905-83ca-03b189ae1384/mew+-+futuristic.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\mew - futuristic.webp",
+      "bytes": 45854,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/9bb56285-c42c-46c3-a9dd-f8b1a5a2693f/30th+anniversary+pack+art.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th anniversary pack art.webp",
+      "bytes": 66576,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/7e2063b1-4f04-4b74-8781-96e6035ea96c/Pokemon+30th+Anniversary+Card+List4.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List4.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/a22919b2-dfb4-4dad-a675-44e534960c30/Pokemon+30th+Anniversary+Card+List2.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List2.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/522f4241-06d8-4234-a054-4c5bca8a06f8/30C+victini+013.jpg?content-type=image%2Fjpeg",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30C victini 013.jpg",
+      "bytes": 109102,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/f7407f85-86bc-446f-aa30-f9225879d73a/greninja+double+rare.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\greninja double rare.webp",
+      "bytes": 60268,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/79185b2e-17a0-4f9e-b56e-16e20e4ba532/pikachu+14.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\pikachu 14.webp",
+      "bytes": 38100,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/9d219a21-2de3-4869-b88a-f6c1e3c5a152/pikachu+15.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\pikachu 15.webp",
+      "bytes": 47224,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/e1d269bf-ea3f-47e3-b300-cf56940a5c97/pikachu+25.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\pikachu 25.webp",
+      "bytes": 35610,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/b1ba7b00-05d6-4a64-86f2-f690279ff379/30c+zeraora+057.jpg?content-type=image%2Fjpeg",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30c zeraora 057.jpg",
+      "bytes": 111130,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/fcfb0160-847c-4eac-b868-b1286eec93de/espeon+common.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\espeon common.webp",
+      "bytes": 41570,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/c54a6465-5de1-4e79-a628-57ad2a7a98ab/30c+70+espeon.jpg?content-type=image%2Fjpeg",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30c 70 espeon.jpg",
+      "bytes": 100924,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/e9253789-957c-4910-ad3e-5eed11de3f47/sylveon+double+rare.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\sylveon double rare.webp",
+      "bytes": 45580,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/6ebfec98-c58b-4d18-9dce-e73664ee05dd/umbreon+common.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\umbreon common.webp",
+      "bytes": 45160,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/aa055abf-75df-4fa2-8ec5-7f3d71257546/umbreon+30c+092.jpg?content-type=image%2Fjpeg",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\umbreon 30c 092.jpg",
+      "bytes": 112926,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/c9d3e97b-ea26-4a71-bb31-d05c619ff55c/30th_EN_116.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th_EN_116.webp",
+      "bytes": 96718,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/0fd7faf7-adba-42b8-ac2c-647c7577a52c/eevee+30x+117.jpg?content-type=image%2Fjpeg",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\eevee 30x 117.jpg",
+      "bytes": 98934,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/4ac6cc0c-7ea4-49b4-971e-a0c4445a3a75/eeve+30c+118.jpg?content-type=image%2Fjpeg",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\eeve 30c 118.jpg",
+      "bytes": 103362,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/422e53d7-3e9a-44b1-8965-29ec85a3ee91/lapras+illustration+rare.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\lapras illustration rare.webp",
+      "bytes": 43434,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/1659b7da-785c-48f0-9e1d-bfd1faf5a53c/drifloon+illustration+rare.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\drifloon illustration rare.webp",
+      "bytes": 62638,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/e56693b5-df52-4a3e-946c-26edb9036853/lycanroc+illustration+rare.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\lycanroc illustration rare.webp",
+      "bytes": 70852,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/32f6424b-4ac2-4723-91ba-203804e3da99/zorua+illustration+rare.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\zorua illustration rare.webp",
+      "bytes": 58472,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/57c47858-9c4f-431b-aa50-948a57674fae/mewtwo+-+futuristic.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\mewtwo - futuristic.webp",
+      "bytes": 56576,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/eb96106a-a939-464d-b283-36bf2f16a2b0/Pokemon+30th+Anniversary+Promos+Card+List1.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List1.webp",
+      "bytes": 89532,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/42f216ca-0d19-44ed-929c-6c7b7e8065a6/Pokemon+30th+Anniversary+Promos+Card+List2.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List2.webp",
+      "bytes": 100480,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/b29785cf-4c56-41cd-b754-c6630f0119ee/Pokemon+30th+Anniversary+Promos+Card+List3.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List3.webp",
+      "bytes": 120648,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/f20b92fd-ed5b-4261-b30a-18de8b156f82/Pokemon+30th+Anniversary+Promos+Card+List4.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List4.webp",
+      "bytes": 105104,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/5c2b7924-616c-45d8-8b01-e624a2c68a9c/Pokemon+30th+Anniversary+Promos+Card+List5.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List5.webp",
+      "bytes": 103460,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/3b958689-0670-4451-8631-68e4ce5bc4ce/Pokemon+30th+Anniversary+Promos+Card+List6.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List6.webp",
+      "bytes": 105734,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/3690d23c-9c8d-4658-9dff-5b75e316cfb9/Pokemon+30th+Anniversary+Promos+Card+List7.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List7.webp",
+      "bytes": 84494,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/968c0749-2172-410f-881f-52684f2e38b6/Pokemon+30th+Anniversary+Promos+Card+List8.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List8.webp",
+      "bytes": 125880,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/604365fa-add5-47e6-b241-22fb0f1388ad/Pokemon+30th+Anniversary+Promos+Card+List9.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List9.webp",
+      "bytes": 123932,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/0a95584c-2812-4166-bbb2-402eef876d32/Pokemon+30th+Anniversary+Promos+Card+List10.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List10.webp",
+      "bytes": 73620,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/ee0bdd81-dd73-4eb4-8237-f8a03fc015c0/Pokemon+30th+Anniversary+Promos+Card+List11.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List11.webp",
+      "bytes": 97386,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/12d8da7f-4491-471c-84e6-e6dd2a06010e/Pokemon+30th+Anniversary+Promos+Card+List12.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List12.webp",
+      "bytes": 95604,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/5ea40cd5-b1d2-4765-aada-05d938d75149/Pokemon+30th+Anniversary+Promos+Card+List13.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List13.webp",
+      "bytes": 96774,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/6f78282c-bed1-4508-9a32-9bdebd66ad2f/Pokemon+30th+Anniversary+Promos+Card+List14.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Promos Card List14.webp",
+      "bytes": 92988,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/3ccd47eb-7e4f-48c4-abc1-57177268079c/Pokemon+30th+Anniversary+Card+List1.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List1.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/a22919b2-dfb4-4dad-a675-44e534960c30/Pokemon+30th+Anniversary+Card+List2.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List2.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/82d82b71-fb94-49ff-90cf-9bf4539fc2c7/Pokemon+30th+Anniversary+Card+List3.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List3.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/7e2063b1-4f04-4b74-8781-96e6035ea96c/Pokemon+30th+Anniversary+Card+List4.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List4.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/c18d99d6-b1b8-4627-b72d-d669db61021c/Pokemon+TCG+30th+Anniversary+Set+base1-058.png?content-type=image%2Fpng",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set base1-058.png",
+      "bytes": 720578,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/122c7140-09ea-4247-a9af-1628c5bb3ae1/Pokemon+TCG+30th+Anniversary+Set+base1-004.png?content-type=image%2Fpng",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set base1-004.png",
+      "bytes": 687742,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/af314e7d-af33-4fc0-acb5-10e59c6501ab/Pokemon+TCG+30th+Anniversary+Set+dp4-106.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set dp4-106.png.webp",
+      "bytes": 111866,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/1045f9dc-1961-47e9-a80e-396221a48af1/Pokemon+TCG+30th+Anniversary+Set+ecard2-149.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set ecard2-149.png.webp",
+      "bytes": 101068,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/81b2e935-4f99-4dd3-a307-8ecb5f809ac1/Pokemon+TCG+30th+Anniversary+Set+dp6-043.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set dp6-043.png.webp",
+      "bytes": 85210,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/2efaf831-25d3-4765-844b-305bc0e6758a/Pokemon+TCG+30th+Anniversary+Set+hgss4-099.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set hgss4-099.png.webp",
+      "bytes": 86834,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/5fa47cbe-fe71-4b3c-bab9-bbb0e2b93e64/Pokemon+TCG+30th+Anniversary+Set+hgss4-100.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set hgss4-100.png.webp",
+      "bytes": 107590,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/1cc857a0-539a-40f1-abf1-b54937ca51a7/Pokemon+TCG+30th+Anniversary+Set+sm9-033.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set sm9-033.png.webp",
+      "bytes": 123564,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/a671f15a-e37e-4227-b480-95b11bfb0506/Pokemon+TCG+30th+Anniversary+Set+swsh4-050.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set swsh4-050.png.webp",
+      "bytes": 75658,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/b9b2767e-a58a-4222-8f01-9501f24223ce/Pokemon+TCG+30th+Anniversary+Set+swsh1-138.png?content-type=image%2Fpng",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set swsh1-138.png",
+      "bytes": 580208,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/682a3307f6bd950e4b98cbb9/06e56b95-e1c7-44ae-a8c2-7e35a891e556/Pokemon+TCG+30th+Anniversary+Set+swsh9-123v2.png.webp?content-type=image%2Fwebp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon TCG 30th Anniversary Set swsh9-123v2.png.webp",
+      "bytes": 113860,
+      "status": "downloaded"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/c2279079-778c-4f97-a908-cc9aede99703/30th+Anniversary+Celebration+Product+List14.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List14.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/c435e100-80b2-4d12-b361-264dc7a21650/30th+anniversary+etb.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th anniversary etb.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/0bdeb127-14de-4bcd-b570-eb48529cdb31/30th+Anniversary+Celebration+Product+List10.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List10.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/eb632bd6-20a0-4937-9b58-15ad1f041548/30th+Anniversary+Celebration+Product+List15.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List15.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/ccab98f0-6012-4c95-8b9e-5e2bc2a2cdd2/30th+Anniversary+Celebration+Product+List11.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List11.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/59d9a365-ab48-40f0-8ffe-26d10758d14d/30th+Anniversary+Celebration+Product+List12.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List12.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/636613ab-3f2b-4af9-b36e-cffea9b6d9c0/30th+Anniversary+Celebration+Product+List4.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List4.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/32dd8194-06bd-423b-8bbb-622505ae5b44/30th+Anniversary+Celebration+Product+List3.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List3.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/11794e20-951e-471a-867f-f74a30b8820a/30th+anniversary+binder+collection.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th anniversary binder collection.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/c93a4556-fcbd-454e-b4c1-63f4f83dbf93/30th+anniversary+booster+bundle.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th anniversary booster bundle.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/a42e85af-1497-4544-a72e-b895dd252008/30th+Anniversary+Celebration+Product+List16.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List16.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/db7f95ac-1228-42af-8e54-880f91c667da/30th+Anniversary+Celebration+Product+List8.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List8.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/f7211f5e-d7ef-4a4d-ad50-cc706037b78c/30th+Anniversary+Celebration+Product+List9.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List9.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/e82e4349-115d-463a-8621-7d6e03502243/30th+Anniversary+Celebration+Product+List7.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List7.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/b68e50c0-03c6-45b4-a73e-74d6beb5ecdb/30th+Anniversary+Celebration+Product+List2.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List2.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/3ccd47eb-7e4f-48c4-abc1-57177268079c/Pokemon+30th+Anniversary+Card+List1.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List1.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/4fa76e9c-f13b-457c-8a4d-fb4600dabe57/30th+Anniversary+Celebration+Product+List1.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List1.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/82d82b71-fb94-49ff-90cf-9bf4539fc2c7/Pokemon+30th+Anniversary+Card+List3.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Pokemon 30th Anniversary Card List3.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/d1132154-8194-4886-8bbd-a16244804c2c/30th+Anniversary+Celebration+Product+List6.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List6.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/c3040303-dc4c-4f5d-ad9c-242eccc2b994/30th+Anniversary+Celebration+Product+List5.webp",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Anniversary Celebration Product List5.webp",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/92a4bb38-001d-4688-899c-ab79989da2a3/30th+Annviersary+card+list10.png",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Annviersary card list10.png",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/7597e6c5-efe3-47be-867d-f8fa48397934/30th+Annviersary+card+list8.png",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\30th Annviersary card list8.png",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/ed49c29f-b8f7-492d-8423-95ed9abe1b7e/Screenshot+2026-06-01+at+10.11.08%E2%80%AFAM.png",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Screenshot 2026-06-01 at 10.11.08 AM.png",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/fc98a1bb-4fcd-493f-9c95-825ae2ec1645/Screenshot+2026-06-01+at+10.09.17%E2%80%AFAM.png",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Screenshot 2026-06-01 at 10.09.17 AM.png",
+      "status": "skipped"
+    },
+    {
+      "url": "https://images.squarespace-cdn.com/content/v1/682a3307f6bd950e4b98cbb9/c38b0197-4eba-423a-9d46-8d81ee980b48/Screenshot+2026-06-01+at+10.09.02%E2%80%AFAM.png",
+      "path": "C:\\Users\\Jinwon\\Desktop\\PullList_ImageBackup\\set-previews\\me30\\Screenshot 2026-06-01 at 10.09.02 AM.png",
+      "status": "skipped"
+    }
+  ]
+}

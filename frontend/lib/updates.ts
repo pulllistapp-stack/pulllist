@@ -30,6 +30,12 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-05",
     emoji: "🎴",
+    kr: "30th Celebration (me30) 넘버 카드 7장 추가 — Victini #013, Zeraora #057, Espeon #070, Umbreon #092, #116, Eevee #117, Eevee #118. pokecottage.com 사이트 재스크래핑 (77개 URL 확보, 46개 신규 다운로드). 미넘버 카드 14장 (Pikachu 3종, Common/Illustration/Futuristic Rare/Double Rare 등) + 리프린트 11장 (base1/dp4/hgss4 등)은 로컬 저장 후 넘버 확인시 seed 예정",
+    en: "30th Celebration (me30) — 7 numbered cards added (Victini #013, Zeraora #057, Espeon #070, Umbreon #092, #116, Eevee #117, Eevee #118) via a deeper pokecottage.com scrape (77 URLs found, 46 new files). 14 unnumbered by-descriptor cards (3 Pikachu variants, various Common/Illustration Rare/Futuristic Rare/Double Rare) + 11 historical reprints (base1 / dp4 / hgss4 / swsh etc.) mirrored locally, awaiting number confirmation before seeding",
+  },
+  {
+    date: "2026-07-05",
+    emoji: "🎴",
     kr: "메가에볼루션 프로모 (MEP) #107~110 4장 추가 — Pikachu ex (Pika-Pika Parade, YOSHIROTTEN), Espeon ex (Solar Beatdown, REND), Pikachu ex 다크 (Zip-Zap Frenzy), Umbreon ex (Lunatic Claw, REND). pokecottage.com에서 확보한 30주년 프로모 카드 이미지 로컬 저장 후 반영",
     en: "Mega Evolution Promo (MEP) #107~110 added — Pikachu ex (Pika-Pika Parade, YOSHIROTTEN), Espeon ex (Solar Beatdown, REND), dark Pikachu ex (Zip-Zap Frenzy), Umbreon ex (Lunatic Claw, REND). These 30th-anniversary promo cards were revealed on pokecardex-adjacent sites; images sourced from pokecottage.com and mirrored locally",
   },

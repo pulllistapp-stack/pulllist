@@ -56,9 +56,9 @@ log = logging.getLogger("scrape_pokecottage_30th")
 
 def _sanitize(url: str) -> str:
     """Turn a Squarespace-CDN URL into a Windows-safe filename.
-    keeps the trailing basename ('Pokemon+30th+Anniversary+Card+List4.webp')
-    and swaps '+' back to spaces for readability."""
-    tail = url.rsplit("/", 1)[-1]
+    Keeps only the basename before any query string, unquotes '+',
+    and strips characters Windows won't allow in filenames."""
+    tail = url.rsplit("/", 1)[-1].split("?")[0]
     tail = up.unquote(tail)
     tail = tail.replace("+", " ")
     tail = re.sub(r'[<>:"|?*\x00-\x1f]', "", tail)
@@ -76,14 +76,26 @@ async def main(dest: Path, dry_run: bool) -> None:
         r.raise_for_status()
         html = r.text
 
-        # Grab any Squarespace CDN reference on the page — both src and
-        # data-src attributes so lazy-loaded images survive.
-        urls = re.findall(
-            r'(?:src|data-src|content)="'
-            r'(https://images\.squarespace-cdn\.com/[^"]+\.(?:webp|png|jpg|jpeg))"',
+        # Grab EVERY Squarespace CDN reference regardless of tag or
+        # attribute — the individual-card jpg/webp files (30C+victini+
+        # 013.jpg etc.) live inside lightbox / gallery structures the
+        # narrower attribute-scoped regex misses. Filter out favicons +
+        # non-image assets after the fact.
+        raw_urls = re.findall(
+            r'(https://images\.squarespace-cdn\.com/[^\s"\'<>]+)',
             html,
         )
-        urls = list(dict.fromkeys(urls))
+        # Drop query strings for dedup; keep the first version's URL.
+        seen: dict[str, str] = {}
+        for u in raw_urls:
+            base = u.split("?")[0]
+            if base not in seen:
+                seen[base] = u
+        urls = [
+            u for u in seen.values()
+            if not any(skip in u.lower() for skip in ("favicon", ".ico"))
+            and re.search(r"\.(?:webp|png|jpg|jpeg)(?:\?|$)", u, re.IGNORECASE)
+        ]
         log.info("found %d distinct Squarespace CDN URLs", len(urls))
 
         stats = {"downloaded": 0, "skipped": 0, "failed": 0, "bytes": 0}
