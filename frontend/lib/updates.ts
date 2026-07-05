@@ -29,9 +29,15 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🎴",
+    kr: "메가에볼루션 프로모 (MEP) #107~110 4장 추가 — Pikachu ex (Pika-Pika Parade, YOSHIROTTEN), Espeon ex (Solar Beatdown, REND), Pikachu ex 다크 (Zip-Zap Frenzy), Umbreon ex (Lunatic Claw, REND). pokecottage.com에서 확보한 30주년 프로모 카드 이미지 로컬 저장 후 반영",
+    en: "Mega Evolution Promo (MEP) #107~110 added — Pikachu ex (Pika-Pika Parade, YOSHIROTTEN), Espeon ex (Solar Beatdown, REND), dark Pikachu ex (Zip-Zap Frenzy), Umbreon ex (Lunatic Claw, REND). These 30th-anniversary promo cards were revealed on pokecardex-adjacent sites; images sourced from pokecottage.com and mirrored locally",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🎉",
-    kr: "30th Celebration (me30) 세트 브랜딩 정리 — 이름 'ME: 30th Celebration' → '30th Celebration'. pokecottage.com의 카드 미리보기 이미지 27장을 로컬 저장 후 세트 로고를 실제 카드 아트 collage로 교체",
-    en: "30th Celebration (me30) set polish — renamed 'ME: 30th Celebration' → '30th Celebration', dropped the era prefix. Mirrored 27 preview images from pokecottage.com locally and swapped the set logo to a real-card-art collage instead of the plain wordmark",
+    kr: "30th Celebration (me30) 세트 이름 정리 — 'ME: 30th Celebration' → '30th Celebration' (에라 접두사 제거). 로고는 pokemon.com 공식 wordmark 그대로 유지",
+    en: "30th Celebration (me30) set rename — 'ME: 30th Celebration' → '30th Celebration' (dropped era prefix). Logo stays on pokemon.com's official wordmark",
   },
   {
     date: "2026-07-05",

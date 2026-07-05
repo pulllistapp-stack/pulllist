@@ -58,11 +58,15 @@ SET_ID = "me30"
 SET_NAME = "30th Celebration"
 SET_SERIES = "Mega Evolution"
 SET_RELEASE = date(2026, 9, 16)
-# Card-list collage from pokecottage.com mirrored into
-# frontend/public/set-previews/me30/. See scrape_pokecottage_30th.py.
-# Shows a strip of actual card art instead of the plain wordmark logo
-# pokemon.com hosts — better set-browse preview pre-launch.
-SET_LOGO = "/set-previews/me30/Pokemon 30th Anniversary Card List1.webp"
+# Official pokemon.com wordmark logo. We briefly tried swapping this
+# for a pokecottage card collage but LO wanted the original logo
+# preserved — the actual card art from that scrape ended up going
+# into individual MEP-107..110 rows (Pikachu ex, Espeon ex, Umbreon
+# ex — the 30th anniversary is releasing them as MEP promos, not a
+# me30 expansion).
+SET_LOGO = (
+    "https://d1i787aglh9bmb.cloudfront.net/assets/img/global/logos/en-us/thirty.png"
+)
 
 # Anything with these substrings is a sealed product, not a card. Keeps
 # a booster bundle from being seeded as me30-002 just because '2' shows
