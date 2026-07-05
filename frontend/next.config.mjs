@@ -49,6 +49,11 @@ const nextConfig = {
       // (see import_bulbapedia_unnumbered_jp.py); harmless for other
       // sources that don't need it.
       { protocol: "https", hostname: "images.weserv.nl" },
+      // The Pokémon Company's CloudFront CDN — hosts pre-release card
+      // images for upcoming EN expansions before TCGCSV /
+      // pokemontcg.io / Limitless index them. Used to seed Pitch Black
+      // (me5) skeleton pre-launch (see seed_pitchblack_skeleton.py).
+      { protocol: "https", hostname: "dz3we2x72f7ol.cloudfront.net" },
     ],
   },
   async rewrites() {
