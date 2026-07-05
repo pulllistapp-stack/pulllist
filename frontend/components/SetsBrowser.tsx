@@ -122,10 +122,19 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
     };
   }, [sets]);
 
-  // Series chips + grouping apply only to the MAIN grid.
+  // Series chips list ALL visible sets regardless of set_type. The
+  // categorization (MAIN/PROMO_NEW/DECK) affects which SECTION a set
+  // renders in, but the series filter itself is orthogonal — clicking
+  // "Sword & Shield" should slice across every section that has SwSh
+  // sets, including decks at the bottom.
+  const visibleSets = useMemo(
+    () => [...mainSets, ...promoNew, ...deckSets],
+    [mainSets, promoNew, deckSets],
+  );
+
   const seriesList = useMemo(() => {
     const groups: Record<string, number> = {};
-    for (const s of mainSets) {
+    for (const s of visibleSets) {
       const key = s.series ?? "Other";
       const date = Date.parse(s.release_date ?? "1970-01-01");
       groups[key] = Math.max(groups[key] ?? 0, date);
@@ -133,11 +142,19 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
     return Object.entries(groups)
       .sort((a, b) => b[1] - a[1])
       .map(([name]) => name);
-  }, [mainSets]);
+  }, [visibleSets]);
 
+  // When a series is active, every section (main / promo_new / deck)
+  // narrows to just that series.
   const filteredMain = activeSeries
     ? mainSets.filter((s) => (s.series ?? "Other") === activeSeries)
     : mainSets;
+  const filteredPromoNew = activeSeries
+    ? promoNew.filter((s) => (s.series ?? "Other") === activeSeries)
+    : promoNew;
+  const filteredDeck = activeSeries
+    ? deckSets.filter((s) => (s.series ?? "Other") === activeSeries)
+    : deckSets;
 
   const groupedMain = useMemo(() => {
     const by: Record<string, SetWithCardCount[]> = {};
@@ -176,9 +193,9 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
     [sets],
   );
 
-  // While a series filter is active, hide the promo-new bucket and deck
-  // sections — those aren't part of that series so they'd be noise.
-  const showAuxSections = activeSeries === null;
+  // Always render every section — even under a series filter — since a
+  // series can span multiple set_type buckets. Each section renders its
+  // own filtered slice and hides itself if the slice is empty.
 
   return (
     <>
@@ -192,10 +209,10 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
               : "bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
           }`}
         >
-          All series ({mainSets.length})
+          All series ({visibleSets.length})
         </button>
         {seriesList.map((series) => {
-          const count = mainSets.filter(
+          const count = visibleSets.filter(
             (s) => (s.series ?? "Other") === series,
           ).length;
           return (
@@ -231,16 +248,20 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
         </section>
       ))}
 
-      {/* PROMO_NEW — 5-year bucket sections (JP catalog only). Renders one
-          sub-section per bucket window that has any sets in it. */}
-      {showAuxSections && promoNew.length > 0 && (
+      {/* PROMO_NEW — 5-year bucket sections (JP catalog only). Renders
+          one sub-section per bucket window that has any sets after the
+          series filter. */}
+      {filteredPromoNew.length > 0 && (
         <section className="mb-12">
           <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
             {region === "ja" ? "新プロモカード (5年ごと)" : "New Promos (5-year buckets)"}
           </h2>
           <div className="space-y-8">
             {PROMO_NEW_BUCKETS.map((b) => {
-              const inBucket = promoNewByBucket.get(b.label) ?? [];
+              const inBucket = filteredPromoNew.filter((s) => {
+                const y = jppYear(s.id);
+                return y != null && y >= b.years[0] && y <= b.years[1];
+              });
               if (inBucket.length === 0) return null;
               return (
                 <div key={b.label}>
@@ -265,17 +286,17 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
       {/* DECK — bottom section. Starter sets, preconstructed decks,
           trainer boxes and build boxes all live here so the main grid
           isn't diluted. */}
-      {showAuxSections && deckSets.length > 0 && (
+      {filteredDeck.length > 0 && (
         <section className="mb-12 mt-16 pt-8 border-t border-border">
           <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-1">
             {region === "ja" ? "デッキ商品" : "Deck Products"}
           </h2>
           <p className="text-xs text-text-tertiary mb-4">
             Starter sets, preconstructed decks, trainer boxes, build boxes
-            — sorted alphabetically. {deckSets.length} products.
+            — sorted alphabetically. {filteredDeck.length} products.
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {deckSets.map((s) => (
+            {filteredDeck.map((s) => (
               <SetCard key={s.id} set={s} />
             ))}
           </div>
