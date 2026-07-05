@@ -297,6 +297,17 @@
 - **실거래 (sold listings) history** — eBay Marketplace Insights API 신청
 - **다국어 UI** — 한국어 / 일본어 토글 (콘텐츠는 영어, UI만 i18n)
 
+### TCG accessory 어필리에이트 (스케일 커진 후)
+- **Vault X 어필리에이트 프로그램** — 2026-07-05 조사한 스펙:
+  - **커미션 7.5%** / 쿠키 30일 / PayPal 지급
+  - **⚠️ 6개월 무판매 시 계정 삭제** — 트래픽 확보 후 지원해야 유의미
+  - **개인 크리에이터 조건** (Pokemon: IG/TikTok/X 5k, YT 3k, Whatnot 1k 중 1) — PullList 브랜드로는 지금 fit 안 맞음. 재오픈 2026년 7월 중.
+  - **재검토 트리거**: (a) 정식 오픈 후 월 활성 유저 1k+ 확보, (b) LO 개인 소셜 크리에이터 5k+ 도달, (c) B2B 파트너십 이메일 직접 문의 시도 조건 충족 시
+- **대체 어필리에이트 후보** (Vault X 안 되면):
+  - **Ultimate Guard** (Impact.com), **Dragon Shield** (~5%), **Ultra Pro** — 소매 채널 통해
+  - **역방향 통합**: 우리 카드 상세 페이지에 슬리브/바인더 어필리에이트 embed → eBay/TCGplayer 어필리에이트 옆에 accessory 채널 추가
+- **가치**: 컬렉터 사이트 특성상 자연스러움. eBay 5k quota 걱정 없는 순수 revenue 채널
+
 ---
 
 ## 5. Layer별 작업 목록 (전체 backlog)
