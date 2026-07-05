@@ -30,8 +30,8 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-05",
     emoji: "🎴",
-    kr: "30th Celebration (me30) 넘버 카드 7장 추가 — Victini #013, Zeraora #057, Espeon #070, Umbreon #092, #116, Eevee #117, Eevee #118. pokecottage.com 사이트 재스크래핑 (77개 URL 확보, 46개 신규 다운로드). 미넘버 카드 14장 (Pikachu 3종, Common/Illustration/Futuristic Rare/Double Rare 등) + 리프린트 11장 (base1/dp4/hgss4 등)은 로컬 저장 후 넘버 확인시 seed 예정",
-    en: "30th Celebration (me30) — 7 numbered cards added (Victini #013, Zeraora #057, Espeon #070, Umbreon #092, #116, Eevee #117, Eevee #118) via a deeper pokecottage.com scrape (77 URLs found, 46 new files). 14 unnumbered by-descriptor cards (3 Pikachu variants, various Common/Illustration Rare/Futuristic Rare/Double Rare) + 11 historical reprints (base1 / dp4 / hgss4 / swsh etc.) mirrored locally, awaiting number confirmation before seeding",
+    kr: "30th Celebration (me30) 카드 20장 실물 데이터로 완성 — Common 7 (Victini 013, Espeon 069, Umbreon 091, Eevee 116/117/118, Zeraora 057) / Double Rare 4 (Greninja ex 021, Espeon ex 070, Sylveon ex 071, Umbreon ex 092) / Illustration Rare 4 (Lapras 131, Drifloon 136, Lycanroc 138, Hisuian Zorua 145) / Pikachu 3 (036/037/047) / Futuristic Rare 2 (Mewtwo ex 157, Mew ex 158). 각 카드 이미지에서 실제 번호·HP·타입·레어도·아티스트 추출. 나머지 11 리프린트 카드 (base1/dp4/hgss4/swsh 등)는 다음 라운드",
+    en: "30th Celebration (me30) — 20 cards now carry real metadata pulled straight from the card scans: Common 7 (Victini 013, Espeon 069, Umbreon 091, Eevee 116/117/118, Zeraora 057), Double Rare 4 (Greninja ex 021, Espeon ex 070, Sylveon ex 071, Umbreon ex 092), Illustration Rare 4 (Lapras 131, Drifloon 136, Lycanroc 138, Hisuian Zorua 145), Pikachu 3 (036/037/047), Futuristic Rare 2 (Mewtwo ex 157, Mew ex 158). Real numbers / HP / types / rarities / artists all read from the actual card images since the filenames were unreliable. 11 historical reprints (base1 / dp4 / hgss4 / swsh) next pass",
   },
   {
     date: "2026-07-05",
