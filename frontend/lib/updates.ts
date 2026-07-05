@@ -30,8 +30,8 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-05",
     emoji: "🎉",
-    kr: "ME: 30th Celebration (me30) 세트 프리런칭 seed — 발매일 2026-09-16. TCGCSV 인덱싱된 5장 (Pikachu 036/037/047, Eevee 117/118) 이름·이미지·가격 실물 데이터 포함. 나머지 ~120장은 TCGCSV가 발매까지 점진적으로 인덱싱하는 대로 자동 추가",
-    en: "ME: 30th Celebration (me30) — pre-launch seed for the 2026-09-16 set. 5 cards live with real names + images + prices (Pikachu 036/037/047, Eevee 117/118) via TCGCSV. The remaining ~120 cards flow in as TCGCSV indexes them through launch",
+    kr: "30th Celebration (me30) 세트 브랜딩 정리 — 이름 'ME: 30th Celebration' → '30th Celebration'. pokecottage.com의 카드 미리보기 이미지 27장을 로컬 저장 후 세트 로고를 실제 카드 아트 collage로 교체",
+    en: "30th Celebration (me30) set polish — renamed 'ME: 30th Celebration' → '30th Celebration', dropped the era prefix. Mirrored 27 preview images from pokecottage.com locally and swapped the set logo to a real-card-art collage instead of the plain wordmark",
   },
   {
     date: "2026-07-05",

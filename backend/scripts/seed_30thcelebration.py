@@ -53,14 +53,16 @@ TCGCSV = "https://tcgcsv.com/tcgplayer/3/24722/products"
 USER_AGENT = "PullList/1.0 (https://pulllist.org; bot)"
 
 SET_ID = "me30"
-SET_NAME = "ME: 30th Celebration"
+# LO's preference: drop the "ME:" era prefix on the set browse page —
+# users think of it as "30th Celebration" or "30th Anniversary".
+SET_NAME = "30th Celebration"
 SET_SERIES = "Mega Evolution"
 SET_RELEASE = date(2026, 9, 16)
-# Pulled from https://tcg.pokemon.com/en-us/expansions/30th-celebration/ —
-# the set's official CloudFront-hosted logo.
-SET_LOGO = (
-    "https://d1i787aglh9bmb.cloudfront.net/assets/img/global/logos/en-us/thirty.png"
-)
+# Card-list collage from pokecottage.com mirrored into
+# frontend/public/set-previews/me30/. See scrape_pokecottage_30th.py.
+# Shows a strip of actual card art instead of the plain wordmark logo
+# pokemon.com hosts — better set-browse preview pre-launch.
+SET_LOGO = "/set-previews/me30/Pokemon 30th Anniversary Card List1.webp"
 
 # Anything with these substrings is a sealed product, not a card. Keeps
 # a booster bundle from being seeded as me30-002 just because '2' shows
