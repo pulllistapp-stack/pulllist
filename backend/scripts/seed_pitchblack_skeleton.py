@@ -6,23 +6,27 @@ Why a skeleton and not the usual TCGCSV pull:
     be indexed until closer to the July 17 launch. pokemontcg.io,
     Limitless, TCGdex all lag behind too.
 
-    Meanwhile pokemon.com's public CDN already hosts every card image
-    at a deterministic URL:
-        https://dz3we2x72f7ol.cloudfront.net/expansions/pitch-black/
-        en-us/KD5B_EN_{NNN}.png
-    Main set: KD5B_EN_1..120 (120 cards, no gaps).
-    Black Star Promos: KD5B_BSP_EN_74..85 (8 cards, sparse).
+    We DO know the set shape from pokemon.com — their public CDN at
+    dz3we2x72f7ol.cloudfront.net/expansions/pitch-black/en-us/KD5B_EN_
+    hosts pre-release marketing images (a pink placeholder tile with
+    the filename baked in — verified 2026-07-05). Main set enumerates
+    1..120 and BSP variants sit at 74/75/76/77/82/83/84/85. That's
+    enough to seed a card-per-row skeleton with placeholder names,
+    even though we can't reuse the CDN image (it's not real art).
 
-    This script seeds 120 + 8 = 128 skeleton cards using those image
-    URLs, with a placeholder "Pitch Black #NNN" name. When TCGCSV
-    starts indexing individual products (typically 1-2 weeks post-
-    launch), our existing sync_tcgcsv_daily overwrites name / rarity
-    / tcgplayer_product_id / prices in place — the skeleton id
-    pattern (me5-NNN) matches what seed_promo_group would derive from
-    the TCGplayer product name, so upserts are lossless.
+    Card art fills in later:
+      - image_small / image_large stay NULL. The CardThumb component
+        falls back to a stylised name-in-frame placeholder that reads
+        far better than the pokemon.com pink template.
+      - Once TCGCSV starts indexing individual products (typically
+        1-2 weeks post-launch), sync_tcgcsv_daily upserts real image
+        URLs (from tcgplayer-cdn.tcgplayer.com) plus name / rarity /
+        tcgplayer_product_id / prices. The skeleton id pattern
+        (me5-NNN) matches what seed_promo_group derives from the
+        TCGplayer product names, so the upserts are lossless.
 
     Card_id id pattern:
-        me5-001..me5-120        (main set)
+        me5-001..me5-120         (main set)
         me5-bsp-074..me5-bsp-085 (Black Star Promo variants)
 
 Idempotent — re-runs skip cards already in the DB.
@@ -50,8 +54,6 @@ from app.models import Card, Set  # noqa: E402
 
 log = logging.getLogger("seed_pitchblack_skeleton")
 
-
-CDN = "https://dz3we2x72f7ol.cloudfront.net/expansions/pitch-black/en-us"
 
 SET_ID = "me5"
 SET_NAME = "Pitch Black"
@@ -100,10 +102,13 @@ async def main() -> None:
             if await db.get(Card, card_id) is not None:
                 stats["main_skipped"] += 1
                 continue
-            # Only one image size exposed on this CDN — reuse for both
-            # small and large slots so thumbnails and detail views can
-            # both render. next/image will re-size on the fly.
-            img = f"{CDN}/KD5B_EN_{n}.png"
+            # image_small / image_large intentionally NULL — the
+            # pokemon.com CDN only serves a pre-release pink
+            # placeholder here (verified 2026-07-05). Leaving these
+            # null lets CardThumb draw its own stylised name
+            # placeholder instead, and daily sync patches the real
+            # TCGplayer CDN URL in as soon as TCGCSV indexes the card.
+            img = None
             db.add(
                 Card(
                     id=card_id,
