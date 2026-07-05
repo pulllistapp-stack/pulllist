@@ -48,6 +48,11 @@ class Set(Base):
     )
     """If this set is a translation of another, points to the source set id."""
 
+    set_subtype: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    """DECK bucket sub-classification: STARTER / DECK / BOX / SPECIAL.
+    Populated for set_type='DECK' rows only; null everywhere else.
+    Assigned by scripts/classify_deck_subtypes.py."""
+
     set_type: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     """Categorization for the set browser UI:
         MAIN          — main booster expansion

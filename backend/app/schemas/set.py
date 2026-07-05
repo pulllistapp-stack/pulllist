@@ -26,6 +26,9 @@ class SetBase(BaseModel):
         MAIN / DECK / STUB / PROMO_LEGACY / PROMO_NEW. Only populated
         for JP sets right now (assigned by classify_jp_set_types.py).
         Null on EN/KR sets — frontend treats null as MAIN."""
+    set_subtype: str | None = None
+    """Sub-bucket within set_type='DECK':
+        STARTER / DECK / BOX / SPECIAL. Null for non-DECK rows."""
 
 
 class SetRead(SetBase):

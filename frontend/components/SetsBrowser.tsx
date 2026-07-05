@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import type { CatalogRegion, SetType, SetWithCardCount } from "@/lib/api";
+import type { CatalogRegion, SetSubtype, SetType, SetWithCardCount } from "@/lib/api";
 import { listSets } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { seriesLabel } from "@/lib/series";
@@ -295,10 +295,32 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
             Starter sets, preconstructed decks, trainer boxes, build boxes
             — sorted alphabetically. {filteredDeck.length} products.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filteredDeck.map((s) => (
-              <SetCard key={s.id} set={s} />
-            ))}
+          <div className="space-y-8">
+            {(["STARTER", "DECK", "BOX", "SPECIAL"] as SetSubtype[]).map(
+              (sub) => {
+                const inSub = filteredDeck.filter(
+                  (s) => (s.set_subtype ?? "DECK") === sub,
+                );
+                if (inSub.length === 0) return null;
+                const label =
+                  region === "ja"
+                    ? { STARTER: "スターター", DECK: "デッキ", BOX: "ボックス", SPECIAL: "スペシャル" }[sub]
+                    : { STARTER: "Starter", DECK: "Deck", BOX: "Box", SPECIAL: "Special" }[sub];
+                return (
+                  <div key={sub}>
+                    <h3 className="text-xs font-mono uppercase tracking-wider text-text-secondary mb-3">
+                      {label}{" "}
+                      <span className="opacity-60">({inSub.length})</span>
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {inSub.map((s) => (
+                        <SetCard key={s.id} set={s} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              },
+            )}
           </div>
         </section>
       )}

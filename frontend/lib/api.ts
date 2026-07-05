@@ -5,6 +5,8 @@ export type SetType =
   | "PROMO_LEGACY"
   | "PROMO_NEW";
 
+export type SetSubtype = "STARTER" | "DECK" | "BOX" | "SPECIAL";
+
 export type SetWithCardCount = {
   id: string;
   name: string;
@@ -18,6 +20,7 @@ export type SetWithCardCount = {
   symbol_url: string | null;
   logo_url: string | null;
   set_type: SetType | null;
+  set_subtype: SetSubtype | null;
   card_count: number;
   total_value_usd: number | null;
   total_value_mid_usd: number | null;
