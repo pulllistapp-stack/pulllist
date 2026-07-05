@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🔢",
+    kr: "카드 정렬 옵션에 '카드 번호 · 높은 순' 추가 — 기존 낮은 순과 함께 세트 내 체이스 카드 (128/128, 158/128 등)부터 먼저 볼 수 있음",
+    en: "Sort menu: added 'Card number · high to low' — pairs with the existing low-to-high option so the chase / secret cards at the tail (128/128, 158/128, etc.) can be surfaced first",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🎴",
     kr: "30th Celebration (me30) 카드 20장 실물 데이터로 완성 — Common 7 (Victini 013, Espeon 069, Umbreon 091, Eevee 116/117/118, Zeraora 057) / Double Rare 4 (Greninja ex 021, Espeon ex 070, Sylveon ex 071, Umbreon ex 092) / Illustration Rare 4 (Lapras 131, Drifloon 136, Lycanroc 138, Hisuian Zorua 145) / Pikachu 3 (036/037/047) / Futuristic Rare 2 (Mewtwo ex 157, Mew ex 158). 각 카드 이미지에서 실제 번호·HP·타입·레어도·아티스트 추출. 나머지 11 리프린트 카드 (base1/dp4/hgss4/swsh 등)는 다음 라운드",
     en: "30th Celebration (me30) — 20 cards now carry real metadata pulled straight from the card scans: Common 7 (Victini 013, Espeon 069, Umbreon 091, Eevee 116/117/118, Zeraora 057), Double Rare 4 (Greninja ex 021, Espeon ex 070, Sylveon ex 071, Umbreon ex 092), Illustration Rare 4 (Lapras 131, Drifloon 136, Lycanroc 138, Hisuian Zorua 145), Pikachu 3 (036/037/047), Futuristic Rare 2 (Mewtwo ex 157, Mew ex 158). Real numbers / HP / types / rarities / artists all read from the actual card images since the filenames were unreliable. 11 historical reprints (base1 / dp4 / hgss4 / swsh) next pass",
