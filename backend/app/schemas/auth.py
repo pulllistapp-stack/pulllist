@@ -40,3 +40,24 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserRead
+
+
+class AccessTokenResponse(BaseModel):
+    """Slimmed-down /auth/refresh response — the browser already has the
+    user object cached from login, no need to re-ship it every 15 minutes."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
+class SessionInfo(BaseModel):
+    """One active refresh-token row surfaced on /auth/sessions."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    device_label: str | None = None
+    created_at: datetime
+    last_used_at: datetime | None = None
+    expires_at: datetime
+    is_current: bool = False

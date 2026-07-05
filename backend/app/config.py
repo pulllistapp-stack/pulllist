@@ -13,10 +13,17 @@ class Settings(BaseSettings):
 
     pokemontcg_api_key: str = ""
 
-    # Auth — override in .env, especially in production
+    # Auth — override in .env, especially in production.
+    #
+    # Two-token model: short-lived access JWT (Bearer header, localStorage)
+    # + long-lived opaque refresh token (httpOnly cookie, sha256-hashed in
+    # DB). Access expiry stays tight so a stolen JWT dies fast; refresh
+    # expiry is what actually keeps a user signed in.
     jwt_secret: str = "dev-only-secret-change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 14  # 14 days
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 60
+    refresh_cookie_name: str = "pulllist_refresh"
 
     # Google Identity Services - same Client ID the frontend uses. We
     # verify ID tokens against Google's public keys + assert this audience

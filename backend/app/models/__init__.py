@@ -5,6 +5,7 @@ from app.models.news_post import NewsPost
 from app.models.news_view import NewsView
 from app.models.portfolio import PortfolioSnapshot
 from app.models.processed_url import ProcessedUrl
+from app.models.refresh_token import RefreshToken
 from app.models.set import Set
 from app.models.snapshot import CardPriceSnapshot
 from app.models.scan_cache import ScanCache
@@ -21,6 +22,7 @@ __all__ = [
     "NewsView",
     "PortfolioSnapshot",
     "ProcessedUrl",
+    "RefreshToken",
     "ScanCache",
     "Set",
     "User",
