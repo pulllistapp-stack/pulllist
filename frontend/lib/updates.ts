@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🎉",
+    kr: "ME: 30th Celebration (me30) 세트 프리런칭 seed — 발매일 2026-09-16. TCGCSV 인덱싱된 5장 (Pikachu 036/037/047, Eevee 117/118) 이름·이미지·가격 실물 데이터 포함. 나머지 ~120장은 TCGCSV가 발매까지 점진적으로 인덱싱하는 대로 자동 추가",
+    en: "ME: 30th Celebration (me30) — pre-launch seed for the 2026-09-16 set. 5 cards live with real names + images + prices (Pikachu 036/037/047, Eevee 117/118) via TCGCSV. The remaining ~120 cards flow in as TCGCSV indexes them through launch",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🃏",
     kr: "Pitch Black (ME5) 프리런칭 세트 128장 seed — 발매일 2026-07-17. pokemon.com 공식 CDN에서 카드 이미지 확보 (메인 120장 + 블랙스타 프로모 8장). 카드 이름/레어도/가격은 TCGCSV가 발매 후 인덱싱하면 자동으로 채워짐 (~1-2주). 지금부터 브라우징 가능",
     en: "Pitch Black (ME5) — pre-launch skeleton seed for the 2026-07-17 set. 128 cards imported (120 main + 8 Black Star Promo variants) with images from pokemon.com's official CDN. Names / rarities / prices flow in automatically once TCGCSV indexes the individual products (~1-2 weeks post-launch). Browseable now",

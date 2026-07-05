@@ -54,6 +54,11 @@ const nextConfig = {
       // pokemontcg.io / Limitless index them. Used to seed Pitch Black
       // (me5) skeleton pre-launch (see seed_pitchblack_skeleton.py).
       { protocol: "https", hostname: "dz3we2x72f7ol.cloudfront.net" },
+      // Second CloudFront distribution used by pokemon.com for set
+      // logos and expansion marketing artwork (`/assets/img/global/
+      // logos/en-us/thirty.png` etc.). Wired in for the 30th
+      // Celebration (me30) set logo.
+      { protocol: "https", hostname: "d1i787aglh9bmb.cloudfront.net" },
     ],
   },
   async rewrites() {
