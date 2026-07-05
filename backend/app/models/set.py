@@ -48,6 +48,18 @@ class Set(Base):
     )
     """If this set is a translation of another, points to the source set id."""
 
+    set_type: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    """Categorization for the set browser UI:
+        MAIN          — main booster expansion
+        DECK          — starter set / preconstructed deck / trainer box
+        STUB          — set exists but no cards seeded (mostly TCGdex rows we
+                        never populated: ADV1-5, LEGEND stubs, etc.)
+        PROMO_LEGACY  — pre-existing JP promo groups (JPP-P, JPP-SI, JPP-VM)
+        PROMO_NEW     — Bulbapedia-derived year buckets (JPP-U1996 covering
+                        1996-2005, JPP-U2006, U2007, ...). Grouped into 5-year
+                        super-buckets by the promo browser.
+    Assigned by scripts/classify_jp_set_types.py."""
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
