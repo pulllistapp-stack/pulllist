@@ -36,8 +36,8 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-05",
     emoji: "🎴",
-    kr: "메가에볼루션 프로모 (MEP) #107~110 4장 추가 — Pikachu ex (Pika-Pika Parade, YOSHIROTTEN), Espeon ex (Solar Beatdown, REND), Pikachu ex 다크 (Zip-Zap Frenzy), Umbreon ex (Lunatic Claw, REND). pokecottage.com에서 확보한 30주년 프로모 카드 이미지 로컬 저장 후 반영",
-    en: "Mega Evolution Promo (MEP) #107~110 added — Pikachu ex (Pika-Pika Parade, YOSHIROTTEN), Espeon ex (Solar Beatdown, REND), dark Pikachu ex (Zip-Zap Frenzy), Umbreon ex (Lunatic Claw, REND). These 30th-anniversary promo cards were revealed on pokecardex-adjacent sites; images sourced from pokecottage.com and mirrored locally",
+    kr: "메가에볼루션 프로모 (MEP) 30주년 프로모 18장 완성 (#094~110) — Alolan Exeggutor, Lucario, Moltres, Articuno, Zapdos, Greninja ex, Sylveon ex, Nidorina (regular + Pokemon Center 스탬프 variant), Victini, Zeraora, Mewtwo, Mew, Ditto, Pikachu ex ×2, Espeon ex, Umbreon ex. pokecottage 이미지에서 실제 번호 판독",
+    en: "Mega Evolution Promo (MEP) — full 18-card 30th-anniversary promo lineup now landed (#094~110): Alolan Exeggutor, Lucario, Moltres, Articuno, Zapdos, Greninja ex, Sylveon ex, Nidorina (regular + Pokémon Center stamp), Victini, Zeraora, Mewtwo, Mew, Ditto, Pikachu ex ×2, Espeon ex, Umbreon ex. Numbers read directly off the pokecottage-mirrored scans",
   },
   {
     date: "2026-07-05",
