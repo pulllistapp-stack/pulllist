@@ -16,6 +16,7 @@ import {
   login as apiLogin,
   loginWithGoogle as apiLoginWithGoogle,
   saveToken,
+  serverLogout,
   signup as apiSignup,
   User,
 } from "@/lib/auth";
@@ -79,6 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Fire-and-forget the server revoke so a slow network doesn't
+    // make the UI feel stuck; local state clears immediately.
+    void serverLogout();
     clearToken();
     setUser(null);
   }, []);

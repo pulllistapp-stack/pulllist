@@ -25,7 +25,6 @@ function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [stayLoggedIn, setStayLoggedIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [peakMover, setPeakMover] = useState<TrendingMover | null>(null);
@@ -207,16 +206,6 @@ function LoginPageInner() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-            </label>
-
-            <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={stayLoggedIn}
-                onChange={(e) => setStayLoggedIn(e.target.checked)}
-                className="h-4 w-4 rounded border-border accent-accent-yellow"
-              />
-              Stay logged in for 30 days
             </label>
 
             {error && (

@@ -13,6 +13,11 @@ export type TokenResponse = {
   user: User;
 };
 
+export type AccessTokenResponse = {
+  access_token: string;
+  token_type: string;
+};
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
 
@@ -21,7 +26,13 @@ const TOKEN_KEY = "pulllist_token";
 export function saveToken(token: string) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(TOKEN_KEY, token);
-  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${60 * 60 * 24 * 14}; samesite=lax`;
+  // Server-readable hint cookie for track-visit attribution. The refresh
+  // cookie (httpOnly, cross-origin) is the real credential — this one is
+  // just so edge routes can tag visits to a user without a JS round-trip.
+  // 60-day max-age matches the refresh window; contents are just the
+  // current 15-min access JWT, so most of the time it holds an expired
+  // token which the backend simply treats as anonymous.
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${60 * 60 * 24 * 60}; samesite=lax`;
 }
 
 export function getToken(): string | null {
@@ -35,9 +46,56 @@ export function clearToken() {
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
 }
 
+// ────────── Refresh flow ──────────
+//
+// Access tokens are short (15 min). When a request comes back 401, we
+// try the refresh endpoint once — the browser sends the httpOnly refresh
+// cookie automatically because every auth-flow fetch uses credentials:
+// 'include'. If refresh succeeds we retry the original call with the new
+// access JWT; if it fails we clear local state and boot to /login.
+//
+// Single-flight: if ten API calls fire at once and all return 401, only
+// the first call actually hits /auth/refresh; the other nine await the
+// same promise so we don't rotate the token ten times in parallel.
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) return false;
+      const body = (await res.json()) as AccessTokenResponse;
+      if (!body?.access_token) return false;
+      saveToken(body.access_token);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+function redirectToLogin() {
+  if (typeof window === "undefined") return;
+  // Don't loop the login page onto itself — some auth calls (like fetchMe
+  // on first mount) will 401 there and we shouldn't clobber the form.
+  const p = window.location.pathname;
+  if (p.startsWith("/login") || p.startsWith("/signup")) return;
+  window.location.href = "/login";
+}
+
 async function authFetch<T>(
   path: string,
   init: RequestInit = {},
+  isRetry = false,
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -49,8 +107,22 @@ async function authFetch<T>(
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
+    // credentials:'include' so login/signup/google Set-Cookie lands in the
+    // browser AND every subsequent call sends the refresh cookie back when
+    // the endpoint scope matches (/api/v1/auth/*). CORS must be
+    // allow_credentials on the backend for this to actually work.
+    credentials: "include",
     cache: "no-store",
   });
+
+  if (res.status === 401 && !isRetry && path !== "/auth/refresh") {
+    const ok = await refreshAccessToken();
+    if (ok) return authFetch<T>(path, init, true);
+    clearToken();
+    redirectToLogin();
+    throw new Error("Session expired");
+  }
+
   if (!res.ok) {
     let detail = `API ${res.status}`;
     try {
@@ -97,6 +169,38 @@ export async function loginWithGoogle(
     method: "POST",
     body: JSON.stringify({ credential }),
   });
+}
+
+/** Revoke the current refresh token server-side and clear the cookie.
+ *  Fire-and-forget on failures — a network hiccup shouldn't strand the
+ *  user in a "half-logged-out" state locally. */
+export async function serverLogout(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+    });
+  } catch {
+    // ignore — local clearToken() still runs
+  }
+}
+
+export async function logoutAllDevices(): Promise<void> {
+  return authFetch<void>("/auth/logout-all", { method: "POST" });
+}
+
+export type SessionInfo = {
+  id: string;
+  device_label: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string;
+  is_current: boolean;
+};
+
+export async function listSessions(): Promise<SessionInfo[]> {
+  return authFetch<SessionInfo[]>("/auth/sessions");
 }
 
 export async function fetchMe(): Promise<User> {
