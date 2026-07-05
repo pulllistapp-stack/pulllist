@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import type { CatalogRegion, SetWithCardCount } from "@/lib/api";
+import type { CatalogRegion, SetType, SetWithCardCount } from "@/lib/api";
 import { listSets } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { seriesLabel } from "@/lib/series";
@@ -16,18 +16,39 @@ type Props = {
   region?: CatalogRegion;
 };
 
+// 5-year super-buckets for JPP-U* year-bucket sets. Keyed by bucket
+// label the user sees; each bucket collects any JPP-U year that falls
+// inside its window. Ordered oldest→newest so buckets stack in time.
+const PROMO_NEW_BUCKETS: { label: string; years: [number, number] }[] = [
+  { label: "1996–2005", years: [1996, 2005] },
+  { label: "2006–2010", years: [2006, 2010] },
+  { label: "2011–2015", years: [2011, 2015] },
+  { label: "2016–2020", years: [2016, 2020] },
+  { label: "2021–2025", years: [2021, 2025] },
+];
+
+function jppYear(setId: string): number | null {
+  const m = setId.match(/^JPP-U(\d{4})/);
+  return m ? Number(m[1]) : null;
+}
+
+function bucketFor(setId: string) {
+  const y = jppYear(setId);
+  if (y == null) return null;
+  return PROMO_NEW_BUCKETS.find(
+    (b) => y >= b.years[0] && y <= b.years[1],
+  );
+}
+
 export function SetsBrowser({ initialSets, region = "en" }: Props) {
   const { user, loading } = useAuth();
   const [sets, setSets] = useState<SetWithCardCount[]>(initialSets);
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
 
-  // Reset to incoming server-rendered list on region switch.
   useEffect(() => {
     setSets(initialSets);
   }, [initialSets]);
 
-  // Once we know the user is logged in, refetch with their token so the
-  // backend can fill in per-set `owned_unique` and the progress bars render.
   useEffect(() => {
     if (loading || !user) return;
     const token = getToken();
@@ -38,16 +59,73 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
         if (!cancelled) setSets(fresh);
       })
       .catch(() => {
-        // Silent — keep the initialSets we already rendered
+        /* silent */
       });
     return () => {
       cancelled = true;
     };
   }, [user, loading, region]);
 
+  // Segregate by set_type. STUB is filtered out (backend already does
+  // this for the no-logo no-cards intersection; also drop any that slipped
+  // through). PROMO_NEW gets its own bucketed rendering path; DECK slides
+  // to the bottom. Sets with set_type=null (all EN/KR right now) fall
+  // through to the MAIN branch — the current behaviour.
+  const {
+    mainSets,
+    promoNew,
+    promoNewByBucket,
+    deckSets,
+  } = useMemo(() => {
+    const main: SetWithCardCount[] = [];
+    const promoLegacy: SetWithCardCount[] = [];
+    const promoNewSets: SetWithCardCount[] = [];
+    const deck: SetWithCardCount[] = [];
+    for (const s of sets) {
+      const t = (s.set_type ?? "MAIN") as SetType;
+      if (t === "STUB") continue;
+      if (t === "DECK") {
+        deck.push(s);
+      } else if (t === "PROMO_NEW") {
+        promoNewSets.push(s);
+      } else if (t === "PROMO_LEGACY") {
+        promoLegacy.push(s);
+      } else {
+        main.push(s);
+      }
+    }
+    // PROMO_LEGACY is already grouped under a "Promos" series card in
+    // the current UI — keep it flowing through the MAIN grid so nothing
+    // moves in the JP-catalog visual for existing users.
+    const combinedMain = [...main, ...promoLegacy];
+
+    // Bucket PROMO_NEW by 5-year window. Order: oldest → newest.
+    const bucketMap = new Map<string, SetWithCardCount[]>();
+    for (const b of PROMO_NEW_BUCKETS) bucketMap.set(b.label, []);
+    for (const s of promoNewSets) {
+      const b = bucketFor(s.id);
+      if (b) bucketMap.get(b.label)!.push(s);
+    }
+    // Sort inside each bucket by JPP-U year ascending
+    for (const [, arr] of bucketMap) {
+      arr.sort((a, b) => (jppYear(a.id) ?? 0) - (jppYear(b.id) ?? 0));
+    }
+
+    // Sort DECK alphabetically by name for stable grid order
+    deck.sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      mainSets: combinedMain,
+      promoNew: promoNewSets,
+      promoNewByBucket: bucketMap,
+      deckSets: deck,
+    };
+  }, [sets]);
+
+  // Series chips + grouping apply only to the MAIN grid.
   const seriesList = useMemo(() => {
     const groups: Record<string, number> = {};
-    for (const s of sets) {
+    for (const s of mainSets) {
       const key = s.series ?? "Other";
       const date = Date.parse(s.release_date ?? "1970-01-01");
       groups[key] = Math.max(groups[key] ?? 0, date);
@@ -55,15 +133,15 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
     return Object.entries(groups)
       .sort((a, b) => b[1] - a[1])
       .map(([name]) => name);
-  }, [sets]);
+  }, [mainSets]);
 
-  const filtered = activeSeries
-    ? sets.filter((s) => (s.series ?? "Other") === activeSeries)
-    : sets;
+  const filteredMain = activeSeries
+    ? mainSets.filter((s) => (s.series ?? "Other") === activeSeries)
+    : mainSets;
 
-  const grouped = useMemo(() => {
+  const groupedMain = useMemo(() => {
     const by: Record<string, SetWithCardCount[]> = {};
-    for (const s of filtered) {
+    for (const s of filteredMain) {
       const key = s.series ?? "Other";
       (by[key] ??= []).push(s);
     }
@@ -75,22 +153,32 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
       );
     }
     return by;
-  }, [filtered]);
+  }, [filteredMain]);
 
   const orderedSeries = useMemo(() => {
-    return Object.keys(grouped).sort((a, b) => {
-      const aMax = Math.max(...grouped[a].map((s) => Date.parse(s.release_date ?? "1970-01-01")));
-      const bMax = Math.max(...grouped[b].map((s) => Date.parse(s.release_date ?? "1970-01-01")));
+    return Object.keys(groupedMain).sort((a, b) => {
+      const aMax = Math.max(
+        ...groupedMain[a].map((s) =>
+          Date.parse(s.release_date ?? "1970-01-01"),
+        ),
+      );
+      const bMax = Math.max(
+        ...groupedMain[b].map((s) =>
+          Date.parse(s.release_date ?? "1970-01-01"),
+        ),
+      );
       return bMax - aMax;
     });
-  }, [grouped]);
+  }, [groupedMain]);
 
-  // Has the user started a collection? If owned_unique > 0 anywhere, hide the
-  // "Start tracking" CTA. Otherwise show it with auth-aware copy.
   const hasAnyOwned = useMemo(
     () => sets.some((s) => (s.owned_unique ?? 0) > 0),
     [sets],
   );
+
+  // While a series filter is active, hide the promo-new bucket and deck
+  // sections — those aren't part of that series so they'd be noise.
+  const showAuxSections = activeSeries === null;
 
   return (
     <>
@@ -104,10 +192,12 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
               : "bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
           }`}
         >
-          All series ({sets.length})
+          All series ({mainSets.length})
         </button>
         {seriesList.map((series) => {
-          const count = sets.filter((s) => (s.series ?? "Other") === series).length;
+          const count = mainSets.filter(
+            (s) => (s.series ?? "Other") === series,
+          ).length;
           return (
             <button
               key={series}
@@ -118,13 +208,14 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
                   : "bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40"
               }`}
             >
-              {seriesLabel(series)} <span className="opacity-60">({count})</span>
+              {seriesLabel(series)}{" "}
+              <span className="opacity-60">({count})</span>
             </button>
           );
         })}
       </div>
 
-      {/* Grouped grid */}
+      {/* MAIN grid (grouped by series) */}
       {orderedSeries.map((series) => (
         <section key={series} className="mb-12">
           {activeSeries === null && (
@@ -133,12 +224,63 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
             </h2>
           )}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {grouped[series].map((s) => (
+            {groupedMain[series].map((s) => (
               <SetCard key={s.id} set={s} />
             ))}
           </div>
         </section>
       ))}
+
+      {/* PROMO_NEW — 5-year bucket sections (JP catalog only). Renders one
+          sub-section per bucket window that has any sets in it. */}
+      {showAuxSections && promoNew.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
+            {region === "ja" ? "新プロモカード (5年ごと)" : "New Promos (5-year buckets)"}
+          </h2>
+          <div className="space-y-8">
+            {PROMO_NEW_BUCKETS.map((b) => {
+              const inBucket = promoNewByBucket.get(b.label) ?? [];
+              if (inBucket.length === 0) return null;
+              return (
+                <div key={b.label}>
+                  <h3 className="text-xs font-mono uppercase tracking-wider text-text-secondary mb-3">
+                    {b.label}{" "}
+                    <span className="opacity-60">
+                      ({inBucket.length} sets)
+                    </span>
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {inBucket.map((s) => (
+                      <SetCard key={s.id} set={s} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* DECK — bottom section. Starter sets, preconstructed decks,
+          trainer boxes and build boxes all live here so the main grid
+          isn't diluted. */}
+      {showAuxSections && deckSets.length > 0 && (
+        <section className="mb-12 mt-16 pt-8 border-t border-border">
+          <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-1">
+            {region === "ja" ? "デッキ商品" : "Deck Products"}
+          </h2>
+          <p className="text-xs text-text-tertiary mb-4">
+            Starter sets, preconstructed decks, trainer boxes, build boxes
+            — sorted alphabetically. {deckSets.length} products.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {deckSets.map((s) => (
+              <SetCard key={s.id} set={s} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Pokédex CTA — auth-aware */}
       {!hasAnyOwned && (

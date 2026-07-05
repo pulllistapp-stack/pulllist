@@ -21,6 +21,11 @@ class SetBase(BaseModel):
     release_date: date | None = None
     symbol_url: str | None = None
     logo_url: str | None = None
+    set_type: str | None = None
+    """Set categorization for browser grouping:
+        MAIN / DECK / STUB / PROMO_LEGACY / PROMO_NEW. Only populated
+        for JP sets right now (assigned by classify_jp_set_types.py).
+        Null on EN/KR sets — frontend treats null as MAIN."""
 
 
 class SetRead(SetBase):

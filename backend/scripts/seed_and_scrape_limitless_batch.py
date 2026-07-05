@@ -24,6 +24,7 @@ from sqlalchemy import select
 from app.database import SessionLocal, init_db
 from app.models import Set
 from scripts.scrape_limitless_jp import _scrape_set, _upsert
+from scripts.utils.set_classifier import classify_set
 
 log = logging.getLogger("seed_limitless_batch")
 
@@ -118,9 +119,13 @@ async def run(only: str | None, dry: bool, limit: int | None) -> None:
                 # Insert set row
                 existing = await db.get(Set, sid)
                 if existing is None:
+                    # Auto-classify set_type at import so the browser
+                    # buckets it correctly on first sight — no need for
+                    # a follow-up classify_jp_set_types pass to catch up.
+                    stype = classify_set(sid, title, name_en=title, card_count=0)
                     db.add(Set(
                         id=sid, name=title, series="Japanese",
-                        language="ja",
+                        language="ja", set_type=stype,
                     ))
                     await db.commit()
                     seeded += 1

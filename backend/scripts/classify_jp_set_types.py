@@ -25,89 +25,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import re
 
 from sqlalchemy import text
 
 from app.database import SessionLocal, init_db
+from scripts.utils.set_classifier import classify_set
 
 log = logging.getLogger("classify_jp_set_types")
 
-
-_DECK_PATTERNS = [
-    r"\bdeck\b", r"half deck", r"starter set", r"starter pack",
-    r"starter deck", r"battle box", r"battle deck", r"battle gift",
-    r"battle master deck", r"deck build box", r"deck kit",
-    r"special deck set", r"special set", r"special card set",
-    r"premium trainer box", r"trainer battle deck", r"gift set",
-    r"evolution pack", r"family pok", r"jumbo-?pack",
-    r"v starter", r"ex starter", r"gx starter", r"vstar starter",
-    r"master deck build", r"ex special set", r"collection sheet",
-    r"starting set", r"perfect battle deck", r"high-class deck",
-    r"starter decks 100", r"v-union special",
-    # Japanese phrases
-    r"デッキビルド", r"スターターセット", r"ハーフデッキ",
-    r"トレーナーボックス", r"バトル.*デッキ",
-]
-
-_MAIN_NAME_OVERRIDE = [
-    "battle boost", "plasma gale", "megalo cannon", "gaia volcano",
-    "raiden knuckle", "miracle twin", "tidal storm", "shining legends",
-    "ultra force", "red collection", "white collection", "black collection",
-    "red light flash", "freeze bolt", "cold flare", "dark rush",
-    "psycho drive", "dragon blast", "dragon blade", "spiral force",
-    "heat burst fighter", "hail blizzard", "triplet beat",
-    "sun and moon plus", "best of xy", "shiny collection", "gg end",
-    "ruler of the black flame", "collection x", "collection y",
-    "cruel traitor", "new trials", "exciting battle",
-]
-
-# Reclassifications and overrides from AMBIG investigation
-_FORCE_STUB = {
-    "ADV1", "ADV2", "ADV3", "ADV4", "ADV5", "PCG10",
-    "L1a", "L1b", "L2", "L3", "LL", "XY11a",
-    "JPP-VM", "JPP-PKC", "JPP-PPP", "JPP-MCD",
-    "JPP-ADV", "JPP-PCG", "JPP-L", "JPP-WC",
-}
-_FORCE_MAIN = {"web1", "CP3", "CP5"}
-_FORCE_DECK = {"SVK"}
-_FORCE_PROMO_LEGACY = {"JPP-VM1", "JPP-VM2", "JPP-VM3"}  # actual vending seed
-# JPP-U* year buckets all become PROMO_NEW below
+# 8 Triplet Beat duplicate stubs — actual set is SV1a with cards.
 _DELETE_DUPES = {
     "CS1.5", "CS1a", "CS1b", "CS2.5", "CS2a", "CS2b", "CS3.5", "sv1a",
 }
-
-
-def _classify(set_id: str, name: str, name_en: str | None, cnt: int) -> str:
-    """Return set_type for one JP set."""
-    if set_id in _FORCE_STUB:
-        return "STUB"
-    if set_id in _FORCE_MAIN:
-        return "MAIN"
-    if set_id in _FORCE_DECK:
-        return "DECK"
-    if set_id in _FORCE_PROMO_LEGACY:
-        return "PROMO_LEGACY"
-    if set_id.startswith("JPP-U"):
-        return "PROMO_NEW"
-    if set_id.startswith("JPP-"):
-        return "PROMO_LEGACY"
-
-    n = ((name or "") + " " + (name_en or "")).lower()
-
-    for m in _MAIN_NAME_OVERRIDE:
-        if m in n:
-            return "MAIN"
-    for p in _DECK_PATTERNS:
-        if re.search(p, n):
-            return "DECK"
-    if cnt >= 50:
-        return "MAIN"
-    if cnt < 30 and cnt > 0:
-        return "DECK"
-    if cnt == 0:
-        return "STUB"
-    return "MAIN"  # 30-49 cards, name doesn't match anything specific
 
 
 async def run(dry: bool) -> None:
@@ -145,7 +74,7 @@ async def run(dry: bool) -> None:
                     log.warning(f"skip delete {row.id}: {row.cnt} cards attached")
                 continue
 
-            new_type = _classify(row.id, row.name, row.name_en, row.cnt)
+            new_type = classify_set(row.id, row.name, row.name_en, row.cnt)
             stats[new_type] += 1
             if row.set_type == new_type:
                 stats["unchanged"] += 1
