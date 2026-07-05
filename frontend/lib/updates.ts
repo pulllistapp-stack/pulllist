@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🃏",
+    kr: "Pitch Black (ME5) 프리런칭 세트 128장 seed — 발매일 2026-07-17. pokemon.com 공식 CDN에서 카드 이미지 확보 (메인 120장 + 블랙스타 프로모 8장). 카드 이름/레어도/가격은 TCGCSV가 발매 후 인덱싱하면 자동으로 채워짐 (~1-2주). 지금부터 브라우징 가능",
+    en: "Pitch Black (ME5) — pre-launch skeleton seed for the 2026-07-17 set. 128 cards imported (120 main + 8 Black Star Promo variants) with images from pokemon.com's official CDN. Names / rarities / prices flow in automatically once TCGCSV indexes the individual products (~1-2 weeks post-launch). Browseable now",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🗂️",
     kr: "일본판 세트 브라우저 대개편 — 세트를 5가지 타입으로 분류 (MAIN 158 / DECK 116 / PROMO_LEGACY 12 / PROMO_NEW 20 / STUB 26). 스타터셋·프리컨스트럭트 덱·트레이너 박스 등 116개 '덱 상품'은 페이지 맨 밑 별도 섹션으로 이동. 새 언넘버드 프로모 20개 (JPP-U 년도별)는 5년 단위 (1996-2005 / 2006-2010 / 2011-2015 / 2016-2020 / 2021-2025) 그룹핑. 카드 시딩 안 된 stub 26개 hidden. Triplet Beat 중복 8개 세트 정리.",
     en: "Japanese set browser reorganized — sets now categorized into 5 types (MAIN 158 / DECK 116 / PROMO_LEGACY 12 / PROMO_NEW 20 / STUB 26). 116 deck products (starter sets, preconstructed decks, trainer boxes, build boxes) moved to a dedicated section at the bottom. 20 new Unnumbered Promo year-buckets grouped into 5-year windows (1996-2005 / 2006-2010 / 2011-2015 / 2016-2020 / 2021-2025). 26 unseeded stubs hidden. Cleaned up 8 duplicate Triplet Beat stubs.",
