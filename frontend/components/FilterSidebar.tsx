@@ -224,7 +224,8 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
           <option value="name_desc">Name · Z→A</option>
           <option value="hp_desc">HP · high to low</option>
           <option value="hp_asc">HP · low to high</option>
-          <option value="number_asc">Card number</option>
+          <option value="number_asc">Card number · low to high</option>
+          <option value="number_desc">Card number · high to low</option>
         </select>
       </Section>
 

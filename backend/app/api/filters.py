@@ -56,6 +56,10 @@ SORT_OPTIONS = {
     "hp_desc": [Card.hp_int.desc().nullslast(), Card.name],
     "hp_asc": [Card.hp_int.asc().nullslast(), Card.name],
     "number_asc": [Card.number_int.asc().nullslast(), Card.number],
+    # LO's addition: browsing recent sets often means the chase / SIR
+    # cards (numbered above the printed_total) sit at the tail; a
+    # descending sort surfaces them first.
+    "number_desc": [Card.number_int.desc().nullslast(), Card.number],
     "newest": [Set.release_date.desc().nullslast(), Card.number_int.asc().nullslast()],
 }
 
