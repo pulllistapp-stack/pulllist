@@ -40,13 +40,10 @@ function bucketFor(setId: string) {
   );
 }
 
-type CategoryFilter = "all" | "main" | "promo_new" | "deck";
-
 export function SetsBrowser({ initialSets, region = "en" }: Props) {
   const { user, loading } = useAuth();
   const [sets, setSets] = useState<SetWithCardCount[]>(initialSets);
   const [activeSeries, setActiveSeries] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<CategoryFilter>("all");
 
   useEffect(() => {
     setSets(initialSets);
@@ -181,75 +178,11 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
 
   // While a series filter is active, hide the promo-new bucket and deck
   // sections — those aren't part of that series so they'd be noise.
-  // Category filter also gates which sections show.
-  const showMainSection = activeCategory === "all" || activeCategory === "main";
-  const showPromoNewSection =
-    activeSeries === null &&
-    (activeCategory === "all" || activeCategory === "promo_new");
-  const showDeckSection =
-    activeSeries === null &&
-    (activeCategory === "all" || activeCategory === "deck");
-
-  // Category chip counts — visible for JP only (EN/KR sets are all
-  // set_type=null, so the categorization is empty and would just show
-  // "Main (N)" alone).
-  const hasCategorization = sets.some((s) => s.set_type != null);
-  const catCounts = {
-    all: mainSets.length + promoNew.length + deckSets.length,
-    main: mainSets.length,
-    promo_new: promoNew.length,
-    deck: deckSets.length,
-  };
-
-  const CATEGORY_LABEL: Record<CategoryFilter, { ja: string; en: string }> = {
-    all: { ja: "전체", en: "All" },
-    main: { ja: "메인", en: "Main" },
-    promo_new: { ja: "새 프로모", en: "New Promos" },
-    deck: { ja: "덱 상품", en: "Decks" },
-  };
-  const labelFor = (c: CategoryFilter) =>
-    region === "ja" || region === "ko"
-      ? CATEGORY_LABEL[c].ja
-      : CATEGORY_LABEL[c].en;
+  const showAuxSections = activeSeries === null;
 
   return (
     <>
-      {/* Category filter row — only shown when the catalog has set_type
-          data (JP right now). Above the series chips so LO can slice
-          the browser by kind of set first. */}
-      {hasCategorization && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {(["all", "main", "promo_new", "deck"] as CategoryFilter[]).map(
-            (c) => {
-              const active = activeCategory === c;
-              return (
-                <button
-                  key={c}
-                  onClick={() => {
-                    setActiveCategory(c);
-                    setActiveSeries(null);
-                  }}
-                  className={`rounded-full border px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
-                    active
-                      ? "bg-text-primary text-bg border-text-primary"
-                      : "bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-text-primary/40"
-                  }`}
-                >
-                  {labelFor(c)}{" "}
-                  <span className={active ? "opacity-70" : "opacity-60"}>
-                    ({catCounts[c]})
-                  </span>
-                </button>
-              );
-            },
-          )}
-        </div>
-      )}
-
-      {/* Series filter chips — only meaningful when the category is
-          "all" or "main"; hidden while the user is drilled into promos
-          or decks so they see the flat list. */}
-      {(activeCategory === "all" || activeCategory === "main") && (
+      {/* Series filter chips */}
       <div className="mb-8 flex flex-wrap gap-2">
         <button
           onClick={() => setActiveSeries(null)}
@@ -281,10 +214,9 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
           );
         })}
       </div>
-      )}
 
       {/* MAIN grid (grouped by series) */}
-      {showMainSection && orderedSeries.map((series) => (
+      {orderedSeries.map((series) => (
         <section key={series} className="mb-12">
           {activeSeries === null && (
             <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
@@ -301,7 +233,7 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
 
       {/* PROMO_NEW — 5-year bucket sections (JP catalog only). Renders one
           sub-section per bucket window that has any sets in it. */}
-      {showPromoNewSection && promoNew.length > 0 && (
+      {showAuxSections && promoNew.length > 0 && (
         <section className="mb-12">
           <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
             {region === "ja" ? "新プロモカード (5年ごと)" : "New Promos (5-year buckets)"}
@@ -333,7 +265,7 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
       {/* DECK — bottom section. Starter sets, preconstructed decks,
           trainer boxes and build boxes all live here so the main grid
           isn't diluted. */}
-      {showDeckSection && deckSets.length > 0 && (
+      {showAuxSections && deckSets.length > 0 && (
         <section className="mb-12 mt-16 pt-8 border-t border-border">
           <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-1">
             {region === "ja" ? "デッキ商品" : "Deck Products"}
