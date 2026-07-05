@@ -91,6 +91,12 @@
 - **레이어**: 프론트 전부 (디자인 → React + Tailwind 매핑)
 - **블록**: LO가 v0/Variant 결과 가져오기 대기 중
 
+### #10.1 "Signed-in devices" UI (auth follow-up) — 1-2시간
+- **무엇**: `/settings/security` 페이지 — 백엔드가 이미 exposing 하는 `GET /auth/sessions`를 리스트로 렌더. 각 세션에 device_label, 마지막 사용 시간, "이 기기" 표시, 개별 revoke 버튼(single-session revoke는 future — 지금은 "Log out of all other devices" 버튼만 필요), "Log out everywhere" 버튼(`POST /auth/logout-all`).
+- **왜**: Level 3 auth (2026-07-05) 완료로 백엔드는 이미 준비됨. 컬렉터한테 "내 계정이 어디서 로그인돼 있나" 표시하면 신뢰 UX + 나중에 Pro tier에 자연스럽게 얹기 좋음.
+- **레이어**: 프론트만 — 페이지 하나 + `listSessions()` / `logoutAllDevices()` API 헬퍼 이미 있음.
+- **후속**: 개별 세션 revoke 하려면 백엔드에 `DELETE /auth/sessions/{id}` 추가 (지금 스코프 밖).
+
 ### #10.5 JP 카탈로그 rarity backfill ✅ (2026-06-29)
 
 **원래 계획 폐기 사유**: 원안은 Playwright + pokemon-card.com 풀스윕이었는데 probe 결과 두 갭 모두 그 source로 해결 불가:

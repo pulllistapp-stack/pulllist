@@ -1,6 +1,6 @@
 # PullList — Project Status
 
-**Last meaningful update**: 2026-06-22
+**Last meaningful update**: 2026-07-05
 
 Authoritative reference for what's been built, what's in progress, what's
 planned, and the architectural decisions behind it. Maintained as a flat
@@ -49,7 +49,7 @@ core platform stabilizes.
 - **Next.js 16** (App Router, React 19) frontend → Vercel
 - **FastAPI + SQLAlchemy 2.0 async + asyncpg** backend → Render
 - **Neon Postgres** (Free tier — 512 MB; cleanup applied)
-- **JWT auth** (signup / login / Google OAuth) with rate-limited + honeypotted signup
+- **Level 3 auth** — 15-min access JWT (Bearer, localStorage) + 60-day opaque refresh token (httpOnly cookie, `SameSite=None; Secure; Partitioned`, sha256-hashed in DB). Rotated on every refresh call; reuse-of-revoked triggers full user-wide session nuke (theft signal). Endpoints: `/auth/{signup,login,google,refresh,logout,logout-all,sessions}` (signup / login / Google OAuth, rate-limited + honeypotted signup)
 - **Admin role** (`users.is_admin`) + soft delete (`users.deleted_at`)
 - DM Sans + JetBrains Mono fonts
 - Light/dark theme via CSS variables, `next-themes`
@@ -563,6 +563,7 @@ Rough chronological summary of major work landed in this push:
 14. **Card data-quality reports** — "🚩 Report an issue" on every card detail page → 4-category modal (price/image/name/other) → `card_reports` table → `/admin/reports` triage UI with status tabs + inline resolution notes. Anonymous OK; signed-in submissions attributed to the user.
 15. **Visit tracking (self-hosted analytics)** — `visit_logs` table + `<TrackVisit/>` client component + `/api/track-visit` route handler that lifts country/region/city from Vercel edge headers (no external geo API, no IPs stored). `/admin/visits` dashboard shows today's views/uniques, 7-day bar chart, country grid (with CN/RU/KP/IR flagging), and per-user table with last-seen country. Anonymous visitors get a localStorage UUID so unique counts cover non-signed-in traffic too. Skips `/admin/*` paths to avoid polluting numbers with triage browsing.
 16. **JP rarity backfill (97.5% coverage)** — three-source sweep: Limitless EN-equivalent picker (`backfill_jp_rarity.py`) newly labelled 1,773 cards across SM/XY/CP recent imports; Bulbapedia sweep (`backfill_jp_rarity_bulbapedia.py`) with 32 expanded slugs (modern SV/M/S + vintage PMCG/E/PCG/VS/web) updated 8,234 rows for JP-native tier accuracy (RRR/AR/SAR/HR/UR labels Limitless EN-mapper collapsed); new `backfill_jpp_promo_rarity.py` blanket-filled 2,009 JPP-* cards as 'Promo'. Final state: 366 NULL / 14,362 JP cards = 97.5%. Original ROADMAP §10.5 plan (Playwright + pokemon-card.com) abandoned after probes confirmed the site indexes neither rarity nor vintage. 1,861 vintage image gap still open as §10.6.
+17. **Level 3 auth (short access + rotating refresh)** — replaces the single 14-day JWT that iOS Safari ITP was wiping unpredictably. New `refresh_tokens` table (sha256 hash, per-device label, revoked_at). Access JWT drops to 15 min; refresh cookie carries 60 days, httpOnly + `SameSite=None; Secure; Partitioned` (CHIPS) so Chrome accepts it across Vercel↔Render. Frontend `authFetch` intercepts 401 → single-flight `/auth/refresh` → retry once → redirect on failure. Reuse-of-revoked triggers user-wide token nuke. Adds `/auth/logout` (server-side revoke), `/auth/logout-all` (kill every device), `/auth/sessions` (list live devices with "this device" marker) — the last one is Pro-tier selling material. Removes the fake "Stay logged in for 30 days" checkbox that was UI-only. Migration is additive-only (`migrate_add_refresh_tokens.py --dry-run`), old 14-day tokens keep working until they naturally expire.
 
 ---
 

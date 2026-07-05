@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🔐",
+    kr: "로그인 유지 방식 개선 — 이제 브라우저를 20일 닫아뒀다가 돌아와도 로그인 유지, iPhone Safari에서도 (기존엔 iOS ITP 때문에 7일마다 갑자기 로그아웃되던 버그 있었음). 내부적으로는 짧게 만료되는 access token + 60일짜리 refresh cookie를 자동 rotation. 로그아웃 버튼도 이제 서버 세션까지 실제로 죽임. 기존 로그인 화면의 '30일 동안 로그인 유지' 체크박스는 실제로 백엔드에 전달 안 되던 UI-only였어서 제거 (지금은 기본이 60일이라 체크박스 자체가 불필요)",
+    en: "Login persistence overhauled — close the browser for 20 days and you'll still be signed in when you come back, iOS Safari included (previously ITP was silently wiping storage every ~7 days). Under the hood: short-lived access tokens paired with a 60-day refresh cookie that rotates on every use. The logout button now genuinely kills the session server-side too. The old 'Stay logged in for 30 days' checkbox on the login page was UI-only — the value never actually reached the backend — so it's gone; 60 days is now the default",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🔢",
     kr: "카드 정렬 옵션에 '카드 번호 · 높은 순' 추가 — 기존 낮은 순과 함께 세트 내 체이스 카드 (128/128, 158/128 등)부터 먼저 볼 수 있음",
     en: "Sort menu: added 'Card number · high to low' — pairs with the existing low-to-high option so the chase / secret cards at the tail (128/128, 158/128, etc.) can be surfaced first",
