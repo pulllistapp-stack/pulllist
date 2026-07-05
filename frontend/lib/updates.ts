@@ -36,8 +36,8 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-05",
     emoji: "🃏",
-    kr: "Pitch Black (ME5) 프리런칭 세트 128장 seed — 발매일 2026-07-17. 카드는 자체 스타일 placeholder로 표시 (pokemon.com 공식 이미지가 실제 아트가 아닌 pre-release 마케팅 자산이라 사용 안 함). 카드 이름·이미지·레어도·가격은 TCGCSV가 발매 후 인덱싱하면 (~7/24~7/31) 자동 채워짐",
-    en: "Pitch Black (ME5) — pre-launch seed for the 2026-07-17 set. 128 cards listed with our own styled placeholder cards (pokemon.com's public CDN only carries pink-template marketing images pre-launch, not real art). Names, images, rarities, and prices auto-fill once TCGCSV indexes the individual cards (~7/24-7/31)",
+    kr: "Pitch Black (ME5) 카드 이름·레어도·타입 118장 백필 — Bulbapedia 세트 리스트에서 파싱. Lurantis ex, Mega Delphox ex, Mega Zeraora ex, Mega Slowbro ex, Mega Chandelure ex, Mega Darkrai ex 등 다 노출됨. 이미지·가격은 발매 후 TCGCSV 인덱싱되면 자동. BSP 프로모 8장 + 미커버 2장은 별도 처리 필요",
+    en: "Pitch Black (ME5) — 118 cards backfilled with real names, rarities, and types from Bulbapedia's set article. Lurantis ex, Mega Delphox ex, Mega Zeraora ex, Mega Slowbro ex, Mega Chandelure ex, Mega Darkrai ex all visible. Images and prices auto-fill once TCGCSV indexes the individual cards. 8 BSP promos + 2 uncovered rows still pending",
   },
   {
     date: "2026-07-05",
