@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🎴",
+    kr: "30th Celebration (me30) 세트가 전체 38장으로 완성 — 저번 라운드에서 프로모 세트(mep)에 잘못 배정되어있던 30주년 관련 18장 (Alolan Exeggutor 094, Lucario 095, Moltres 096, Articuno 097, Zapdos 098, Greninja ex 099, Sylveon ex 100, Nidorina 101 + Pokémon Center 변종, Victini 102, Zeraora 103, Mewtwo 104, Mew 105, Ditto 106, 그리고 SIR 4장 — Pikachu ex 107, Espeon ex 108, Pikachu ex 109, Umbreon ex 110)을 me30 세트로 이동. 이제 브라우저에서 30th Celebration 클릭하면 38장 다 뜸",
+    en: "30th Celebration (me30) set now shows the full 38-card lineup — 18 cards that had been miscategorised under the 'Promo' set last pass (Alolan Exeggutor 094 → Ditto 106 + the four Special Illustration Rares: Pikachu ex 107, Espeon ex 108, Pikachu ex 109, Umbreon ex 110, plus a Pokémon Center variant Nidorina 101) have been reassigned to me30. Browsing the set now surfaces every 30-stamp card in one place",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🔐",
     kr: "로그인 유지 방식 개선 — 이제 브라우저를 20일 닫아뒀다가 돌아와도 로그인 유지, iPhone Safari에서도 (기존엔 iOS ITP 때문에 7일마다 갑자기 로그아웃되던 버그 있었음). 내부적으로는 짧게 만료되는 access token + 60일짜리 refresh cookie를 자동 rotation. 로그아웃 버튼도 이제 서버 세션까지 실제로 죽임. 기존 로그인 화면의 '30일 동안 로그인 유지' 체크박스는 실제로 백엔드에 전달 안 되던 UI-only였어서 제거 (지금은 기본이 60일이라 체크박스 자체가 불필요)",
     en: "Login persistence overhauled — close the browser for 20 days and you'll still be signed in when you come back, iOS Safari included (previously ITP was silently wiping storage every ~7 days). Under the hood: short-lived access tokens paired with a 60-day refresh cookie that rotates on every use. The logout button now genuinely kills the session server-side too. The old 'Stay logged in for 30 days' checkbox on the login page was UI-only — the value never actually reached the backend — so it's gone; 60 days is now the default",
