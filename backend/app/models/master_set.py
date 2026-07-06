@@ -70,6 +70,14 @@ class MasterSet(Base):
     URL is the only cleanup step — no external storage service, so no
     orphan blobs to garbage-collect."""
 
+    share_token: Mapped[str | None] = mapped_column(
+        String(48), nullable=True, unique=True, index=True
+    )
+    """URL-safe token used for public read-only sharing at
+    `/p/masters/{token}`. Null = not shared. Generated on first share,
+    rotated on demand; setting to null revokes access. Unique so tokens
+    don't collide across users."""
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

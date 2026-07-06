@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
 import { BinderSpread } from "@/components/portfolio/BinderSpread";
+import { MasterSetShareModal } from "@/components/portfolio/MasterSetShareModal";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
 import {
   BinderSize,
@@ -34,6 +35,7 @@ export default function BinderDetailPage() {
   const [sort, setSort] = useState<MasterSetSortMode | null>(null);
   const [busy, setBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const reload = useCallback(
     async (m: MasterSetDisplayMode | null, s: MasterSetSortMode | null) => {
@@ -204,12 +206,28 @@ export default function BinderDetailPage() {
             {view.master_set.owned_master}/{view.master_set.total_master}
           </p>
         </div>
-        <Link
-          href={`/sets/${view.master_set.set_id}`}
-          className="text-xs text-text-secondary hover:text-text-primary underline decoration-dotted"
-        >
-          Browse full set →
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowShare(true)}
+            title="Public read-only share link"
+            className={
+              "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors " +
+              (view.master_set.share_token
+                ? "border-accent-green/40 bg-accent-green/10 text-accent-green"
+                : "border-border bg-bg-surface text-text-secondary hover:border-accent-yellow/40 hover:text-accent-yellow")
+            }
+          >
+            <span aria-hidden>🔗</span>
+            {view.master_set.share_token ? "Sharing" : "Share"}
+          </button>
+          <Link
+            href={`/sets/${view.master_set.set_id}`}
+            className="text-xs text-text-secondary hover:text-text-primary underline decoration-dotted"
+          >
+            Browse full set →
+          </Link>
+        </div>
       </header>
 
       <section
@@ -292,6 +310,19 @@ export default function BinderDetailPage() {
           onUploadCover={handleUploadCover}
           onClearCover={handleClearCover}
           uploadBusy={coverBusy}
+        />
+      )}
+
+      {showShare && (
+        <MasterSetShareModal
+          masterSetId={masterSetId}
+          shareToken={view.master_set.share_token}
+          onChange={(token) =>
+            setView((v) =>
+              v ? { ...v, master_set: { ...v.master_set, share_token: token } } : v,
+            )
+          }
+          onClose={() => setShowShare(false)}
         />
       )}
     </main>

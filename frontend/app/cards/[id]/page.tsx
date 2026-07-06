@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { InMyMasterSetsBadge } from "@/components/card/InMyMasterSetsBadge";
 import { PullListCardDetail } from "@/components/card/PullListCardDetail";
 import type { Card, CardHistory, CardNeighbors } from "@/lib/api";
 import { getAlternates, getCard, getCardHistory, getCardNeighbors } from "@/lib/api";
@@ -70,15 +71,24 @@ export default async function CardDetailPage({ params }: Props) {
   const tcgSpark7d = sparklineSeries(history7d, "tcgplayer");
 
   return (
-    <PullListCardDetail
-      card={card}
-      alternates={alternates}
-      neighbors={neighbors}
-      initialEbayMedian={initialEbayMedian}
-      ebayDelta7d={ebayDelta7d}
-      tcgDelta7d={tcgDelta7d}
-      ebaySpark7d={ebaySpark7d}
-      tcgSpark7d={tcgSpark7d}
-    />
+    <>
+      <PullListCardDetail
+        card={card}
+        alternates={alternates}
+        neighbors={neighbors}
+        initialEbayMedian={initialEbayMedian}
+        ebayDelta7d={ebayDelta7d}
+        tcgDelta7d={tcgDelta7d}
+        ebaySpark7d={ebaySpark7d}
+        tcgSpark7d={tcgSpark7d}
+      />
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 -mt-4 mb-8">
+        <InMyMasterSetsBadge
+          cardId={card.id}
+          setId={card.set_id}
+          setName={card.set_name}
+        />
+      </div>
+    </>
   );
 }

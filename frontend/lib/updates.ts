@@ -30,6 +30,24 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-06",
     emoji: "🔗",
+    kr: "Master Sets 공개 공유 링크 추가 — 바인더 detail 페이지 상단에 'Share' 버튼 → 클릭하면 공개 URL 모달 (원샷 mint, 복사, revoke). `/p/masters/{token}` 로 열면 로그인 없이 소유자의 바인더를 read-only 로 볼 수 있음 (진행률·소유 카드·커버 이미지 다 포함). Revoke 하면 즉시 404",
+    en: "Master Sets can now be shared via a public URL — Share button on the binder detail page opens a modal that mints, copies, or revokes the token. Anyone with `/p/masters/{token}` can view the binder read-only (progress, owned cards, cover image all visible). Revoking the token 404s the URL immediately",
+  },
+  {
+    date: "2026-07-06",
+    emoji: "📚",
+    kr: "카드 상세 페이지에 '내 Master Sets' 배지 추가 — 카드 열면 그 카드가 속한 세트에 대한 유저 본인의 마스터 세트 진행률과 링크가 표시됨. 마스터 세트가 없으면 대신 'Track {세트명} in a Master Set' 프롬프트로 유도. 사이드 필터 안 들어가고 바로 확인 가능",
+    en: "Card detail pages now show 'In your master set' badge — open any card and you'll see your own master set progress for that card's set (with a link straight to the binder). If you don't have one for that set yet, a friendly 'Track {set} in a Master Set' prompt takes its place",
+  },
+  {
+    date: "2026-07-06",
+    emoji: "🛠",
+    kr: "Admin `/admin/reports` 에 세트 리포트 통합 — 상단 Card / Set 스코프 토글 추가. 세트 로고·이름 + 리포터·리졸버 정보로 카드 리포트랑 동일한 layout 으로 볼 수 있음. Resolve/Won't fix/재오픈 다 동작. 이전엔 세트 리포트 DB 에만 쌓이고 UI 에서 안 보였음",
+    en: "Admin /reports now covers set-scoped reports too — added a Card / Set scope toggle at the top. Set reports render in the same row layout (logo, category chip, reporter, resolution note) so triage doesn't require re-parsing. Resolve / Won't fix / re-open all work. Before this, set reports only lived in the DB",
+  },
+  {
+    date: "2026-07-06",
+    emoji: "🔗",
     kr: "Master Sets 바인더 지퍼를 4면으로 확장 — 이전엔 바닥에만 붙어있던 지퍼를 top / right / bottom / left 네 방향 다 감싸는 zip-around 스타일로 재구성. 실제 카드 가디언 바인더의 외곽 지퍼 그대로. 수평 스트립은 양 끝에 6% 여백을 남겨서 수직 스트립이 코너에서 만날 때 이빨끼리 안 겹침. Pull tab 은 이제 오른쪽 → 중앙 하단으로 이동 (실물 지퍼 바인더에서 체인이 만나는 지점)",
     en: "Master Sets binder zipper now wraps the whole shell — the previously bottom-only strip is replaced by four (top / right / bottom / left) so the binder reads as a proper zip-around like a real card guardian. Horizontals leave a 6% margin on each end so the verticals can meet them at the corners without their teeth overlapping. Pull tab moved from the right to dead center-bottom (where the chain actually meets on a physical zip binder)",
   },

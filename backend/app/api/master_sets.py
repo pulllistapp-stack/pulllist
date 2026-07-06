@@ -18,6 +18,7 @@ a half-populated Master target for JP catalogs that haven't been
 variant-indexed. Trivial to lift when JP variant data lands.
 """
 
+import secrets
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -29,6 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import Card, CollectionItem, MasterSet, Set, User
+
+
+def _new_share_token() -> str:
+    """18 bytes → ~24-char URL-safe base64 (~144 bits entropy). Matches
+    the sharing.py token shape so both surfaces feel identical."""
+    return secrets.token_urlsafe(18)
 
 
 router = APIRouter(prefix="/master-sets", tags=["master-sets"])
@@ -74,6 +81,8 @@ class MasterSetRead(BaseModel):
     """Distinct (card_id, variant) pairs the user owns from the set."""
     cover_image_url: str | None = None
     """User-uploaded cover image as a data: URL. Null → default mascot."""
+    share_token: str | None = None
+    """Public share token; null → not shared. Only surfaced to the row owner."""
     created_at: datetime
     updated_at: datetime
 
@@ -193,9 +202,35 @@ async def _row_to_read(
         total_master=tm,
         owned_master=om,
         cover_image_url=row.cover_image_url if include_cover else None,
+        share_token=row.share_token,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+@router.get("/for-card/{card_id}", response_model=list[MasterSetRead])
+async def list_master_sets_containing_card(
+    card_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MasterSetRead]:
+    """Return the caller's master sets that include this card. Since
+    master sets are unique on (user, set) and each Card belongs to
+    exactly one set, this returns 0 or 1 rows. Kept as a list for
+    forward-compat in case cards ever span sets."""
+    card = await db.get(Card, card_id)
+    if card is None:
+        raise HTTPException(404, "Card not found")
+
+    stmt = (
+        select(MasterSet, Set)
+        .join(Set, MasterSet.set_id == Set.id)
+        .where(MasterSet.user_id == user.id, MasterSet.set_id == card.set_id)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [
+        await _row_to_read(db, ms, s, include_cover=False) for ms, s in rows
+    ]
 
 
 @router.get("", response_model=list[MasterSetRead])
@@ -457,3 +492,144 @@ async def clear_master_set_cover(
 
     s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
     return await _row_to_read(db, row, s)
+
+
+# ── Share ───────────────────────────────────────────────────────────
+# Read-only public view at /p/masters/{token}. Owner mints the token
+# once; deleting it revokes access. Same shape as the portfolio share
+# in app/api/sharing.py so the two surfaces feel consistent.
+
+
+@router.post("/{master_set_id}/share", response_model=MasterSetRead)
+async def enable_master_set_share(
+    master_set_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MasterSetRead:
+    """Mint a share token if one doesn't already exist (idempotent).
+    Returning the existing token on repeat calls avoids yanking a URL
+    that friends already have."""
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    if not row.share_token:
+        row.share_token = _new_share_token()
+        await db.commit()
+        await db.refresh(row)
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    return await _row_to_read(db, row, s)
+
+
+@router.delete("/{master_set_id}/share", response_model=MasterSetRead)
+async def revoke_master_set_share(
+    master_set_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MasterSetRead:
+    """Nulls the share token. Anyone with the old URL gets a 404."""
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    row.share_token = None
+    await db.commit()
+    await db.refresh(row)
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    return await _row_to_read(db, row, s)
+
+
+@router.get("/public/{token}", response_model=BinderView)
+async def get_public_binder_view(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> BinderView:
+    """Anonymous read-only binder view. Progress numbers reflect the
+    OWNER's collection, not the viewer's. Same slot structure as the
+    authenticated getBinderView so the frontend can reuse BinderSpread."""
+    row = (
+        await db.execute(
+            select(MasterSet).where(MasterSet.share_token == token)
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Shared binder not found")
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    head = await _row_to_read(db, row, s)
+    # Hide the share token in the public payload — no reason to echo it
+    # back to non-owners.
+    head.share_token = None
+
+    order_by = (
+        (Card.number_int.asc().nullslast(), Card.number.asc())
+        if row.sort_mode == "number"
+        else (Card.rarity.asc().nullslast(), Card.number_int.asc().nullslast())
+    )
+    cards = (
+        await db.execute(
+            select(Card).where(Card.set_id == row.set_id).order_by(*order_by)
+        )
+    ).scalars().all()
+
+    owned_pairs: set[tuple[str, str]] = {
+        (cid, variant)
+        for cid, variant in (
+            await db.execute(
+                select(CollectionItem.card_id, CollectionItem.variant)
+                .join(Card, CollectionItem.card_id == Card.id)
+                .where(
+                    Card.set_id == row.set_id,
+                    CollectionItem.user_id == row.user_id,
+                )
+                .distinct()
+            )
+        ).all()
+    }
+    owned_card_ids = {cid for cid, _ in owned_pairs}
+
+    slots: list[BinderSlot] = []
+    for c in cards:
+        if row.display_mode == "base":
+            slots.append(
+                BinderSlot(
+                    card_id=c.id,
+                    number=c.number,
+                    number_int=c.number_int,
+                    name=c.name,
+                    rarity=c.rarity,
+                    image_small=c.image_small,
+                    variant="base",
+                    owned=c.id in owned_card_ids,
+                )
+            )
+        else:
+            for v in _variants_for(c):
+                slots.append(
+                    BinderSlot(
+                        card_id=c.id,
+                        number=c.number,
+                        number_int=c.number_int,
+                        name=c.name,
+                        rarity=c.rarity,
+                        image_small=c.image_small,
+                        variant=v,
+                        owned=(c.id, v) in owned_pairs,
+                    )
+                )
+
+    return BinderView(master_set=head, slots=slots)

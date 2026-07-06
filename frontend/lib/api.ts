@@ -532,6 +532,7 @@ export type MasterSet = {
   total_master: number;
   owned_master: number;
   cover_image_url: string | null;
+  share_token: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -651,4 +652,42 @@ export function clearMasterSetCover(
   return authedFetch<MasterSet>(`/master-sets/${id}/cover`, token, {
     method: "DELETE",
   });
+}
+
+export function enableMasterSetShare(
+  id: number,
+  token: string,
+): Promise<MasterSet> {
+  return authedFetch<MasterSet>(`/master-sets/${id}/share`, token, {
+    method: "POST",
+  });
+}
+
+export function revokeMasterSetShare(
+  id: number,
+  token: string,
+): Promise<MasterSet> {
+  return authedFetch<MasterSet>(`/master-sets/${id}/share`, token, {
+    method: "DELETE",
+  });
+}
+
+export function getPublicBinderView(publicToken: string): Promise<BinderView> {
+  // Public endpoint — no auth token required.
+  return fetch(`${API_BASE}/master-sets/public/${publicToken}`, {
+    cache: "no-store",
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return (await res.json()) as BinderView;
+  });
+}
+
+export function listMasterSetsForCard(
+  cardId: string,
+  token: string,
+): Promise<MasterSet[]> {
+  return authedFetch<MasterSet[]>(
+    `/master-sets/for-card/${encodeURIComponent(cardId)}`,
+    token,
+  );
 }
