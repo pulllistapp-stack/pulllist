@@ -14,6 +14,11 @@ type Props = {
   lockedSetId?: string;
   /** Pre-fixed search query (hides the q filter section). */
   lockedQ?: string;
+  /** Catalog language for the current view. Falls back to the
+   * `?language=` URL param, then to 'en'. Set-detail pages pass the
+   * set's own language so the sidebar renders the right taxonomy
+   * even though the URL has no language param. */
+  language?: "en" | "ja" | "ko";
 };
 
 const EN_RARITY_GROUPS: Record<string, string[]> = {
@@ -100,7 +105,7 @@ function readCsv(params: URLSearchParams, key: string): Set<string> {
   return new Set(raw.split(",").filter(Boolean));
 }
 
-export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
+export function FilterSidebar({ basePath, lockedSetId, lockedQ, language }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const { user } = useAuth();
@@ -206,7 +211,7 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
   // SR / SAR / HR / UR / CHR / CSR / SSR) — matches what's printed on
   // the actual cards. EN/KR catalogs get the pokemontcg.io-style
   // English labels the rest of the app has always used.
-  const activeLanguage = params.get("language") ?? "en";
+  const activeLanguage = language ?? params.get("language") ?? "en";
   const rarityGroups = rarityGroupsFor(activeLanguage);
   const rarityKeys = Object.keys(rarityGroups);
   const knownRarities = new Set(

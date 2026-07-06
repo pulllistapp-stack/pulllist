@@ -10,6 +10,7 @@ export type SetSubtype = "STARTER" | "DECK" | "BOX" | "SPECIAL";
 export type SetWithCardCount = {
   id: string;
   name: string;
+  language: "en" | "ja" | "ko";
   name_ko: string | null;
   name_en: string | null;
   series: string | null;

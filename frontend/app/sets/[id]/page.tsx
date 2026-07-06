@@ -247,7 +247,11 @@ function SetDetailContent() {
           {/* Same sidebar scroll fix as /cards — see the comment there
               for why 100dvh + pb-16 replaces 100vh-5.5rem. */}
           <div className="md:sticky md:top-20 md:max-h-[calc(100dvh-5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 md:pb-16 filter-scroll">
-            <FilterSidebar basePath={`/sets/${setId}`} lockedSetId={setId} />
+            <FilterSidebar
+              basePath={`/sets/${setId}`}
+              lockedSetId={setId}
+              language={set?.language}
+            />
           </div>
         </div>
 

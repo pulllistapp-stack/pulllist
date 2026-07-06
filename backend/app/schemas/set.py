@@ -8,6 +8,11 @@ class SetBase(BaseModel):
 
     id: str
     name: str
+    language: str = "en"
+    """Catalog language ('en' | 'ja' | 'ko'). Drives the sidebar rarity
+    taxonomy — JP sets get the C / U / R / RR / RRR / AR / SR / SAR /
+    HR / UR / CHR / CSR / SSR ladder; EN/KR get the pokemontcg.io
+    English labels. Defaults to 'en' for legacy rows without it."""
     name_ko: str | None = None
     """Korean translation of the set name. Frontend swaps to this when the
     user toggles UI language to KR. Null for sets we haven't mapped yet."""
