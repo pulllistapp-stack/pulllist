@@ -403,6 +403,51 @@ export async function updateCardReport(
   });
 }
 
+export type SetReportStatus = "open" | "resolved" | "wontfix";
+
+export type SetReportRow = {
+  id: number;
+  set_id: string;
+  set_name: string | null;
+  set_logo_url: string | null;
+  category: SetReportCategory;
+  comment: string | null;
+  status: SetReportStatus;
+  created_at: string;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  reporter: { id: string; email: string; name: string | null } | null;
+  resolver: { id: string; email: string; name: string | null } | null;
+};
+
+export async function listSetReports(opts: {
+  status?: SetReportStatus | "all";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{
+  items: SetReportRow[];
+  total: number;
+  page: number;
+  page_size: number;
+}> {
+  const qs = new URLSearchParams();
+  if (opts.status) qs.set("status", opts.status);
+  if (opts.page) qs.set("page", String(opts.page));
+  if (opts.pageSize) qs.set("page_size", String(opts.pageSize));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return authFetch(`/admin/set-reports${suffix}`);
+}
+
+export async function updateSetReport(
+  reportId: number,
+  payload: { status: SetReportStatus; resolution_note?: string | null },
+): Promise<SetReportRow> {
+  return authFetch(`/admin/set-reports/${reportId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ────────── Visit logs / traffic admin ──────────
 
 export type VisitsSummary = {

@@ -24,6 +24,7 @@ from app.models import (
     CardReport,
     CollectionItem,
     Set,
+    SetReport,
     User,
     VisitLog,
     WishlistItem,
@@ -318,6 +319,140 @@ async def update_card_report(
     resolver = await db.get(User, report.resolved_by) if report.resolved_by else None
 
     return _serialize_report(report, card, set_row, reporter, resolver)
+
+
+# ────────── Set reports (data-quality triage — set-scoped) ──────────
+
+
+def _serialize_set_report(
+    report: SetReport,
+    set_row: Set | None,
+    reporter: User | None,
+    resolver: User | None,
+) -> dict:
+    return {
+        "id": report.id,
+        "set_id": report.set_id,
+        "set_name": set_row.name if set_row else None,
+        "set_logo_url": set_row.logo_url if set_row else None,
+        "category": report.category,
+        "comment": report.comment,
+        "status": report.status,
+        "created_at": report.created_at.isoformat(),
+        "resolved_at": report.resolved_at.isoformat() if report.resolved_at else None,
+        "resolution_note": report.resolution_note,
+        "reporter": (
+            {"id": reporter.id, "email": reporter.email, "name": reporter.name}
+            if reporter
+            else None
+        ),
+        "resolver": (
+            {"id": resolver.id, "email": resolver.email, "name": resolver.name}
+            if resolver
+            else None
+        ),
+    }
+
+
+@router.get("/set-reports")
+async def list_set_reports(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    status_filter: str | None = Query(
+        "open",
+        alias="status",
+        description="Filter by status. Pass '' or 'all' for everything.",
+    ),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mirror of /card-reports scoped to SetReport rows. Same pagination
+    + status filtering; each item hydrated with the set logo + name and
+    the reporter / resolver contact info so the inbox reads at a glance."""
+    stmt = select(SetReport).order_by(SetReport.created_at.desc())
+    show_all = status_filter in (None, "", "all")
+    if not show_all:
+        stmt = stmt.where(SetReport.status == status_filter)
+
+    total_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(total_stmt)).scalar_one()
+
+    stmt = stmt.offset((page - 1) * page_size).limit(page_size)
+    reports = (await db.execute(stmt)).scalars().all()
+
+    set_ids = {r.set_id for r in reports}
+    user_ids = {r.user_id for r in reports if r.user_id} | {
+        r.resolved_by for r in reports if r.resolved_by
+    }
+
+    sets: dict[str, Set] = {}
+    if set_ids:
+        for s in (
+            await db.execute(select(Set).where(Set.id.in_(set_ids)))
+        ).scalars():
+            sets[s.id] = s
+
+    users: dict[str, User] = {}
+    if user_ids:
+        for u in (
+            await db.execute(select(User).where(User.id.in_(user_ids)))
+        ).scalars():
+            users[u.id] = u
+
+    return {
+        "items": [
+            _serialize_set_report(
+                r,
+                sets.get(r.set_id),
+                users.get(r.user_id) if r.user_id else None,
+                users.get(r.resolved_by) if r.resolved_by else None,
+            )
+            for r in reports
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.patch("/set-reports/{report_id}")
+async def update_set_report(
+    report_id: int,
+    payload: CardReportResolve,
+    admin: Annotated[User, Depends(get_current_admin)],
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Mark a set report resolved/wontfix or re-open. Same shape as the
+    card-report resolver (reuses CardReportResolve for the payload)."""
+    if payload.status not in ("open", "resolved", "wontfix"):
+        raise HTTPException(
+            status_code=400,
+            detail="status must be one of open / resolved / wontfix",
+        )
+
+    report = await db.get(SetReport, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    report.status = payload.status
+    report.resolution_note = payload.resolution_note
+    if payload.status == "open":
+        report.resolved_at = None
+        report.resolved_by = None
+    else:
+        report.resolved_at = _datetime.utcnow()
+        report.resolved_by = admin.id
+
+    await db.commit()
+    await db.refresh(report)
+
+    set_row = await db.get(Set, report.set_id)
+    reporter = await db.get(User, report.user_id) if report.user_id else None
+    resolver = (
+        await db.get(User, report.resolved_by) if report.resolved_by else None
+    )
+
+    return _serialize_set_report(report, set_row, reporter, resolver)
 
 
 # ────────── Visit logs (traffic dashboard) ──────────
