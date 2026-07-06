@@ -59,6 +59,11 @@ const nextConfig = {
       // logos/en-us/thirty.png` etc.). Wired in for the 30th
       // Celebration (me30) set logo.
       { protocol: "https", hostname: "d1i787aglh9bmb.cloudfront.net" },
+      // Shopify CDN — used for pre-release EN set logos we pull from
+      // partner storefronts (e.g. the Pitch Black / me5 logo). Broad
+      // hostname because Shopify serves every merchant off the same
+      // subdomain with paths keyed by shop id.
+      { protocol: "https", hostname: "cdn.shopify.com" },
     ],
   },
   async rewrites() {
