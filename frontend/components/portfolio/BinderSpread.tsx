@@ -283,66 +283,38 @@ export function BinderSpread({
                     "repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.15) 0 1px, transparent 1px 3px)",
                 }}
               />
-              {/* Zipper along the bottom — realistic teeth via a
-                  repeating-linear-gradient of alternating light/dark
-                  bars, sandwiched between two fabric "tape" strips and
-                  finished with a metallic pull tab on the right.
-                  All CSS, no image asset needed. */}
-              <div
-                className="absolute bottom-1 left-[6%] right-[6%] flex flex-col pointer-events-none"
-                aria-hidden
-              >
-                {/* Upper fabric tape edge */}
-                <div
-                  className="h-[3px] rounded-t-sm"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%)",
-                    boxShadow:
-                      "inset 0 1px 1px rgba(255,255,255,0.06)",
-                  }}
-                />
-                {/* Teeth — repeating gradient reads as interlocking
-                    zipper teeth when scaled tightly. */}
-                <div
-                  className="h-[5px]"
-                  style={{
-                    backgroundImage:
-                      "repeating-linear-gradient(90deg, #c8c8c8 0px, #c8c8c8 2px, #7a7a7a 2px, #7a7a7a 3px, #4a4a4a 3px, #4a4a4a 4px)",
-                    boxShadow:
-                      "inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 1px rgba(0,0,0,0.6), 0 1px 1px rgba(0,0,0,0.4)",
-                  }}
-                />
-                {/* Lower fabric tape edge */}
-                <div
-                  className="h-[3px] rounded-b-sm"
-                  style={{
-                    background:
-                      "linear-gradient(180deg, #0f0f0f 0%, #1a1a1a 100%)",
-                    boxShadow:
-                      "inset 0 -1px 1px rgba(255,255,255,0.06)",
-                  }}
-                />
-              </div>
-              {/* Zipper pull tab — sits over the teeth on the right */}
+              {/* Zip-around: real card-guardian style. Four zipper
+                  strips hug the perimeter (top / right / bottom / left)
+                  with the horizontal strips reserving a small gap on
+                  the ends so the vertical strips can meet them at the
+                  corners without overlapping. Pull tab sits at the
+                  center-bottom, matching where the chain would come
+                  together on a physical zip binder. */}
+              <ZipperStrip orientation="horizontal" edge="top" />
+              <ZipperStrip orientation="horizontal" edge="bottom" />
+              <ZipperStrip orientation="vertical" edge="left" />
+              <ZipperStrip orientation="vertical" edge="right" />
+              {/* Pull tab — center-bottom, hangs slightly below the
+                  bottom zipper line. */}
               <div
                 className="absolute pointer-events-none z-10"
                 style={{
-                  right: "5%",
-                  bottom: "0.5%",
-                  width: "10px",
-                  height: "18px",
+                  left: "50%",
+                  bottom: "-4px",
+                  transform: "translateX(-50%)",
+                  width: "12px",
+                  height: "20px",
                   background:
                     "linear-gradient(180deg, #e0e0e0 0%, #7a7a7a 45%, #a8a8a8 60%, #6a6a6a 100%)",
                   borderRadius: "3px",
                   boxShadow:
-                    "0 2px 3px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.4)",
+                    "0 3px 4px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.4)",
                 }}
                 aria-hidden
               >
-                {/* Tiny hole at the top of the pull for the ring */}
+                {/* Pinhole for the ring attachment */}
                 <div
-                  className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                  className="absolute top-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
                   style={{
                     background: "#0a0a0a",
                     boxShadow:
@@ -1005,6 +977,89 @@ function EmptyPocketMark() {
       <span className="text-white/25 text-sm" aria-hidden>
         +
       </span>
+    </div>
+  );
+}
+
+/**
+ * Zipper strip along one edge of the outer shell. Horizontal strips
+ * (top/bottom) leave a 6% margin on each end so the vertical strips
+ * (left/right) can meet them at the corners without overlapping their
+ * teeth. Fabric-tape edges + a chromed-teeth center bar; three layers
+ * total, all CSS.
+ */
+function ZipperStrip({
+  orientation,
+  edge,
+}: {
+  orientation: "horizontal" | "vertical";
+  edge: "top" | "bottom" | "left" | "right";
+}) {
+  const horizontal = orientation === "horizontal";
+
+  // Container placement per edge.
+  const containerStyle: React.CSSProperties = horizontal
+    ? {
+        left: "6%",
+        right: "6%",
+        height: "11px",
+        top: edge === "top" ? "1px" : undefined,
+        bottom: edge === "bottom" ? "1px" : undefined,
+      }
+    : {
+        top: "3%",
+        bottom: "3%",
+        width: "11px",
+        left: edge === "left" ? "1px" : undefined,
+        right: edge === "right" ? "1px" : undefined,
+      };
+
+  // Teeth pattern rotates 90° for vertical strips so they interlock
+  // along the axis instead of across it.
+  const teethBackground = horizontal
+    ? "repeating-linear-gradient(90deg, #c8c8c8 0px, #c8c8c8 2px, #7a7a7a 2px, #7a7a7a 3px, #4a4a4a 3px, #4a4a4a 4px)"
+    : "repeating-linear-gradient(180deg, #c8c8c8 0px, #c8c8c8 2px, #7a7a7a 2px, #7a7a7a 3px, #4a4a4a 3px, #4a4a4a 4px)";
+
+  return (
+    <div
+      className={horizontal ? "absolute flex flex-col pointer-events-none" : "absolute flex flex-row pointer-events-none"}
+      style={containerStyle}
+      aria-hidden
+    >
+      {/* Outer fabric tape (side facing the edge of the binder) */}
+      <div
+        className={horizontal ? "h-[3px]" : "w-[3px]"}
+        style={{
+          background: horizontal
+            ? "linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%)"
+            : "linear-gradient(90deg, #1a1a1a 0%, #0f0f0f 100%)",
+          boxShadow: horizontal
+            ? "inset 0 1px 1px rgba(255,255,255,0.06)"
+            : "inset 1px 0 1px rgba(255,255,255,0.06)",
+        }}
+      />
+      {/* Metal teeth */}
+      <div
+        className={horizontal ? "h-[5px]" : "w-[5px]"}
+        style={{
+          backgroundImage: teethBackground,
+          boxShadow: horizontal
+            ? "inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 1px rgba(0,0,0,0.6), 0 1px 1px rgba(0,0,0,0.4)"
+            : "inset 1px 0 1px rgba(255,255,255,0.25), inset -1px 0 1px rgba(0,0,0,0.6), 1px 0 1px rgba(0,0,0,0.4)",
+        }}
+      />
+      {/* Inner fabric tape (side facing the pages) */}
+      <div
+        className={horizontal ? "h-[3px]" : "w-[3px]"}
+        style={{
+          background: horizontal
+            ? "linear-gradient(180deg, #0f0f0f 0%, #1a1a1a 100%)"
+            : "linear-gradient(90deg, #0f0f0f 0%, #1a1a1a 100%)",
+          boxShadow: horizontal
+            ? "inset 0 -1px 1px rgba(255,255,255,0.06)"
+            : "inset -1px 0 1px rgba(255,255,255,0.06)",
+        }}
+      />
     </div>
   );
 }

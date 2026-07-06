@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "🔗",
+    kr: "Master Sets 바인더 지퍼를 4면으로 확장 — 이전엔 바닥에만 붙어있던 지퍼를 top / right / bottom / left 네 방향 다 감싸는 zip-around 스타일로 재구성. 실제 카드 가디언 바인더의 외곽 지퍼 그대로. 수평 스트립은 양 끝에 6% 여백을 남겨서 수직 스트립이 코너에서 만날 때 이빨끼리 안 겹침. Pull tab 은 이제 오른쪽 → 중앙 하단으로 이동 (실물 지퍼 바인더에서 체인이 만나는 지점)",
+    en: "Master Sets binder zipper now wraps the whole shell — the previously bottom-only strip is replaced by four (top / right / bottom / left) so the binder reads as a proper zip-around like a real card guardian. Horizontals leave a 6% margin on each end so the verticals can meet them at the corners without their teeth overlapping. Pull tab moved from the right to dead center-bottom (where the chain actually meets on a physical zip binder)",
+  },
+  {
+    date: "2026-07-06",
     emoji: "🧷",
     kr: "Master Sets 바인더 스파인 정리 — 원래 가운데 있던 은색 링 3개 제거하고, 실제 카드 가디언 바인더처럼 두 페이지 사이에 얕은 크리즈 (홈) 만 남김. 다크 그림자 + 미세한 하이라이트 2겹으로 실제 폴딩된 나일론 느낌. 바닥에는 CSS로 그린 실제 지퍼 추가 — repeating-linear-gradient 로 은색 이빨 (teeth) + 위아래 fabric tape + 오른쪽에 pull tab (핀홀까지) 붙여서 진짜 지퍼처럼 보임",
     en: "Master Sets binder spine cleanup — dropped the three silver rings that used to sit on the centre gutter (per LO's reference photo, real card-guardian binders don't show them from this angle). Left just a shallow crease down the middle: dark shadow band + faint highlight ridges = folded nylon feel. Also added a real CSS zipper along the bottom edge — silver teeth (repeating-linear-gradient), fabric tape above and below, plus a metallic pull tab with a pinhole for the ring on the right. All CSS, no image assets",
