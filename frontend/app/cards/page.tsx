@@ -102,7 +102,7 @@ function BrowseCardsContent() {
     if (searchInput.trim()) next.set("q", searchInput.trim());
     else next.delete("q");
     next.delete("page");
-    router.push(`/cards?${next.toString()}`);
+    router.replace(`/cards?${next.toString()}`, { scroll: false });
   };
 
   const currentPage = Number(params.get("page") ?? "1") || 1;
@@ -112,7 +112,7 @@ function BrowseCardsContent() {
     const next = new URLSearchParams(params.toString());
     if (n === 1) next.delete("page");
     else next.set("page", String(n));
-    router.push(`/cards?${next.toString()}`);
+    router.replace(`/cards?${next.toString()}`, { scroll: false });
   };
 
   const changePageSize = (size: number) => {
@@ -120,7 +120,7 @@ function BrowseCardsContent() {
     if (size === DEFAULT_PAGE_SIZE) next.delete("page_size");
     else next.set("page_size", String(size));
     next.delete("page");
-    router.push(`/cards?${next.toString()}`);
+    router.replace(`/cards?${next.toString()}`, { scroll: false });
   };
 
   // Region chips — right under the search bar, above the sidebar's fine-
@@ -132,7 +132,7 @@ function BrowseCardsContent() {
     if (lang) next.set("language", lang);
     else next.delete("language");
     next.delete("page");
-    router.push(`/cards?${next.toString()}`);
+    router.replace(`/cards?${next.toString()}`, { scroll: false });
   };
   const REGION_CHIPS: { label: string; value: string | null; flag: string }[] = [
     { label: "All", value: null, flag: "🌏" },

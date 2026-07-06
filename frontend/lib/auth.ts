@@ -353,6 +353,28 @@ export async function submitCardReport(
   });
 }
 
+export type SetReportCategory =
+  | "missing_cards"
+  | "wrong_images"
+  | "wrong_metadata"
+  | "other";
+
+/** Public — anonymous OK. Mirrors submitCardReport but scoped to a
+ * whole set (for gaps that don't fit a single card row, like
+ * "cards are missing" or "logo is wrong"). */
+export async function submitSetReport(
+  setId: string,
+  payload: { category: SetReportCategory; comment?: string | null },
+): Promise<{ id: number; status: string }> {
+  return authFetch(`/sets/${setId}/reports`, {
+    method: "POST",
+    body: JSON.stringify({
+      category: payload.category,
+      comment: payload.comment ?? null,
+    }),
+  });
+}
+
 export async function listCardReports(opts: {
   status?: CardReportStatus | "all";
   page?: number;

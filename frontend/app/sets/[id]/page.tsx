@@ -14,6 +14,7 @@ import {
   PageSizeSelector,
 } from "@/components/PageSizeSelector";
 import { SetCompletion } from "@/components/SetCompletion";
+import { SetReportModal } from "@/components/SetReportModal";
 import {
   browseCards,
   BrowseParams,
@@ -52,6 +53,7 @@ function SetDetailContent() {
   const [data, setData] = useState<CardList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState(false);
 
   const pageSize =
     Number(searchParams.get("page_size") ?? String(DEFAULT_PAGE_SIZE)) ||
@@ -129,7 +131,7 @@ function SetDetailContent() {
     const next = new URLSearchParams(searchParams.toString());
     if (n === 1) next.delete("page");
     else next.set("page", String(n));
-    router.push(`/sets/${setId}?${next.toString()}`);
+    router.replace(`/sets/${setId}?${next.toString()}`, { scroll: false });
   };
 
   const changePageSize = (size: number) => {
@@ -137,7 +139,7 @@ function SetDetailContent() {
     if (size === DEFAULT_PAGE_SIZE) next.delete("page_size");
     else next.set("page_size", String(size));
     next.delete("page");
-    router.push(`/sets/${setId}?${next.toString()}`);
+    router.replace(`/sets/${setId}?${next.toString()}`, { scroll: false });
   };
 
   const releaseDate = set?.release_date
@@ -308,6 +310,14 @@ function SetDetailContent() {
           )}
         </div>
       </div>
+
+      {showReport && set && (
+        <SetReportModal
+          setId={set.id}
+          setName={set.name}
+          onClose={() => setShowReport(false)}
+        />
+      )}
     </main>
   );
 }

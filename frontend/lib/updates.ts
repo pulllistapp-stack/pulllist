@@ -29,6 +29,18 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "⚠",
+    kr: "세트 상세 페이지 (Sets → 세트 하나 클릭) 우측 상단에 'Report an issue' 버튼 추가 — 카드 몇 장 빠진 것 같거나, 이미지가 잘못됐거나, 세트 이름·로고·발매일이 틀렸을 때 4가지 카테고리 (Missing cards / Wrong images / Wrong info / Other) 로 신고 가능. 로그인 없이도 익명 신고 가능",
+    en: "Set pages: added a Report an issue button next to the set metadata — 4 categories (Missing cards / Wrong images / Wrong info / Other) so you can flag when a set has gaps, broken images, or wrong logo/release-date/name. Anonymous submissions accepted; if you're signed in the report attaches to your account",
+  },
+  {
+    date: "2026-07-06",
+    emoji: "🔙",
+    kr: "필터·페이지네이션·정렬 클릭할 때마다 뒤로가기 히스토리에 하나씩 쌓이던 문제 fix — 이제 레어도 3개 고르고 정렬 바꾸고 페이지 넘겨도 뒤로가기 한 번이면 원래 있던 목록 페이지 (예: /sets 또는 /cards) 로 바로 돌아감. 브라우저 세션 히스토리를 필터 상태로 오염시키던 `router.push` 를 `router.replace` 로 전환",
+    en: "Back-button fix: every filter tap / rarity toggle / pagination click used to push a new history entry, so after browsing you'd hit back 8 times to escape. Now filters and pagination REPLACE the URL instead of pushing — one Back always returns you to whatever list page brought you here (/sets, /cards)",
+  },
+  {
+    date: "2026-07-06",
     emoji: "📖",
     kr: "Master Sets 바인더가 실제 바인더처럼 3D 스프레드로 변신 — 이전엔 3x3 그리드가 세로로 쭉 이어졌는데, 이제 크림 종이 페이지 두 장이 나란히 펼쳐지고 가운데 놋쇠 3링 + 가죽 셸이 감싸는 모양. 페이지 옆 가장자리 클릭하면 rotateY 3D 애니메이션 (600ms cubic-bezier) 으로 넘어감. ←/→/Home/End 키보드 nav, 카드 이름으로 점프하는 검색바도 위쪽에 붙음. 3x3 = 스프레드 당 18장, 4x3 = 24장, 4x4 = 32장 — 128장 세트면 3x3 기준 8스프레드. 소유 카드는 컬러 + ✓, 미소유는 grayscale + 40% opacity 그대로. 플라스틱 슬리브 반사감 + 스파인 쪽 그림자로 종이 두께 표현",
     en: "Master Sets binder now reads as a real open binder instead of a scrolling grid — two cream paper pages laid out side by side, three brass rings down the center, leather shell wrapping the whole thing. Click either outer edge to flip; the page turns with a 3D rotateY animation (~600ms). ArrowLeft/Right + Home/End work; there's a card-name search that jumps to whichever spread contains the match. Spread capacity scales with binder size — 3x3 → 18 slots per spread (a 128-card set = 8 spreads), 4x3 → 24, 4x4 → 32. Owned cards render in colour with a ✓; missing ones stay grayscale + 40% opacity. Plastic-sleeve gloss on each pocket, gutter shadow near the spine, subtle page-thickness cues so it doesn't feel flat",

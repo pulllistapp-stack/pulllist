@@ -8,6 +8,7 @@ from app.models.portfolio import PortfolioSnapshot
 from app.models.processed_url import ProcessedUrl
 from app.models.refresh_token import RefreshToken
 from app.models.set import Set
+from app.models.set_report import SetReport
 from app.models.snapshot import CardPriceSnapshot
 from app.models.scan_cache import ScanCache
 from app.models.user import User
@@ -27,6 +28,7 @@ __all__ = [
     "RefreshToken",
     "ScanCache",
     "Set",
+    "SetReport",
     "User",
     "VisitLog",
     "WishlistItem",

@@ -181,7 +181,7 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ, language }: Prop
       }
       next.delete("page");
       const path = basePath ?? window.location.pathname;
-      router.push(`${path}?${next.toString()}`);
+      router.replace(`${path}?${next.toString()}`, { scroll: false });
     },
     [params, router, basePath],
   );
@@ -197,7 +197,7 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ, language }: Prop
     const next = new URLSearchParams();
     if (lockedQ && q) next.set("q", q);
     const path = basePath ?? window.location.pathname;
-    router.push(`${path}?${next.toString()}`);
+    router.replace(`${path}?${next.toString()}`, { scroll: false });
   };
 
   if (!options) {
@@ -206,12 +206,18 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ, language }: Prop
     );
   }
 
-  // Pick the rarity taxonomy for the current catalog language. JP
-  // catalog gets the JP-native codes (C / U / R / RR / RRR / AR /
-  // SR / SAR / HR / UR / CHR / CSR / SSR) — matches what's printed on
-  // the actual cards. EN/KR catalogs get the pokemontcg.io-style
-  // English labels the rest of the app has always used.
-  const activeLanguage = language ?? params.get("language") ?? "en";
+  // Language detection precedence:
+  //   1) explicit `language` prop (set-detail page passes set.language)
+  //   2) `?language=` URL param (cards page)
+  //   3) data sniff — if the set's rarity options include any JP-native
+  //      code (SR / SAR / UR etc.), treat this as JP. Covers the case
+  //      where the prop hasn't arrived yet (async set load) or the URL
+  //      hasn't been touched but the catalog is unmistakably JP.
+  //   4) fall back to 'en'.
+  const _JP_CODES = new Set(Object.values(JP_RARITY_GROUPS).flat());
+  const sniffed = options.rarities.some((r) => _JP_CODES.has(r)) ? "ja" : null;
+  const activeLanguage =
+    language ?? params.get("language") ?? sniffed ?? "en";
   const rarityGroups = rarityGroupsFor(activeLanguage);
   const rarityKeys = Object.keys(rarityGroups);
   const knownRarities = new Set(
