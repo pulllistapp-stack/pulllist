@@ -1,0 +1,368 @@
+"""Master-set routes — set-completion tracking with base + master modes.
+
+A user creates one MasterSet row per set they want to complete. The row
+itself carries only preferences (binder size, display mode, sort); the
+card list and progress are computed on read against `collection_items`
+so the moment a card is added, progress moves.
+
+Two completion definitions coexist per row:
+    * base   — one slot per Card in the set
+    * master — one slot per (Card, TCGplayer variant) — reverse holos,
+               holofoils, unlimited, etc. counted separately from the
+               base print. Variant enumeration comes from Card.
+               tcgplayer_prices JSON keys (the same source the collection
+               modal already uses for variant picking).
+
+EN-only for now — the endpoint refuses non-`en` sets so we don't display
+a half-populated Master target for JP catalogs that haven't been
+variant-indexed. Trivial to lift when JP variant data lands.
+"""
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import and_, delete, func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import get_current_user
+from app.database import get_db
+from app.models import Card, CollectionItem, MasterSet, Set, User
+
+
+router = APIRouter(prefix="/master-sets", tags=["master-sets"])
+
+
+ALLOWED_BINDER_SIZES = {"3x3", "4x3", "4x4"}
+ALLOWED_DISPLAY_MODES = {"base", "master"}
+ALLOWED_SORT_MODES = {"number", "rarity"}
+
+
+class MasterSetCreate(BaseModel):
+    set_id: str = Field(..., max_length=64)
+    binder_size: str = Field("3x3")
+    display_mode: str = Field("base")
+    sort_mode: str = Field("number")
+
+
+class MasterSetUpdate(BaseModel):
+    binder_size: str | None = None
+    display_mode: str | None = None
+    sort_mode: str | None = None
+
+
+class MasterSetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    set_id: str
+    set_name: str
+    set_logo_url: str | None
+    set_release_date: str | None
+    binder_size: str
+    display_mode: str
+    sort_mode: str
+    total_base: int
+    """Card rows in the set (base target)."""
+    owned_base: int
+    """Distinct Card ids in the set the user owns at least one copy of."""
+    total_master: int
+    """Sum of variant counts across the set. Reverse holo + normal count
+    as 2, hits with a single print count as 1."""
+    owned_master: int
+    """Distinct (card_id, variant) pairs the user owns from the set."""
+    created_at: datetime
+    updated_at: datetime
+
+
+class BinderSlot(BaseModel):
+    card_id: str
+    number: str | None
+    number_int: int | None
+    name: str
+    rarity: str | None
+    image_small: str | None
+    variant: str
+    """'base' for the numbered card row; TCGplayer variant key
+    ('normal' / 'holofoil' / 'reverseHolofoil' / ...) for master-mode
+    extras. The frontend uses this to render tiny variant badges on
+    reverse-holo / holo slots without an extra join."""
+    owned: bool
+
+
+class BinderView(BaseModel):
+    master_set: MasterSetRead
+    slots: list[BinderSlot]
+
+
+def _validate_prefs(
+    binder_size: str | None,
+    display_mode: str | None,
+    sort_mode: str | None,
+) -> None:
+    if binder_size is not None and binder_size not in ALLOWED_BINDER_SIZES:
+        raise HTTPException(400, f"binder_size must be one of {ALLOWED_BINDER_SIZES}")
+    if display_mode is not None and display_mode not in ALLOWED_DISPLAY_MODES:
+        raise HTTPException(400, f"display_mode must be one of {ALLOWED_DISPLAY_MODES}")
+    if sort_mode is not None and sort_mode not in ALLOWED_SORT_MODES:
+        raise HTTPException(400, f"sort_mode must be one of {ALLOWED_SORT_MODES}")
+
+
+def _variants_for(card: Card) -> list[str]:
+    """TCGplayer variant keys we treat as separate Master-mode slots.
+
+    Only accept dict payloads; legacy string / list rows are rare (a
+    handful of very old promo imports) and we treat them as base-only —
+    one slot, `normal`. When the card has no pricing at all we fall
+    back to the same single 'normal' slot so an empty pricing row
+    doesn't drop the card from the Master target entirely.
+    """
+    prices = card.tcgplayer_prices
+    if isinstance(prices, dict) and prices:
+        return list(prices.keys())
+    return ["normal"]
+
+
+async def _progress(
+    db: AsyncSession, user_id: str, set_id: str
+) -> tuple[int, int, int, int]:
+    """Return (total_base, owned_base, total_master, owned_master)."""
+    total_base_stmt = select(func.count()).select_from(Card).where(Card.set_id == set_id)
+    total_base = (await db.execute(total_base_stmt)).scalar_one()
+
+    owned_base_stmt = (
+        select(func.count(func.distinct(CollectionItem.card_id)))
+        .join(Card, CollectionItem.card_id == Card.id)
+        .where(Card.set_id == set_id, CollectionItem.user_id == user_id)
+    )
+    owned_base = (await db.execute(owned_base_stmt)).scalar_one() or 0
+
+    # Master target: walk every card, sum len(variants). Cheap — even
+    # a 250-card set is one indexed query returning ~250 rows.
+    variants_stmt = select(Card.id, Card.tcgplayer_prices).where(Card.set_id == set_id)
+    card_variants: dict[str, list[str]] = {}
+    for cid, prices in (await db.execute(variants_stmt)).all():
+        if isinstance(prices, dict) and prices:
+            card_variants[cid] = list(prices.keys())
+        else:
+            card_variants[cid] = ["normal"]
+    total_master = sum(len(v) for v in card_variants.values())
+
+    # Owned master: distinct (card_id, variant) pairs the user has,
+    # intersected against the set's card_variants map to drop stray
+    # collection rows with unusual variant strings.
+    owned_variants_stmt = (
+        select(CollectionItem.card_id, CollectionItem.variant)
+        .join(Card, CollectionItem.card_id == Card.id)
+        .where(Card.set_id == set_id, CollectionItem.user_id == user_id)
+        .distinct()
+    )
+    owned_master = 0
+    for cid, variant in (await db.execute(owned_variants_stmt)).all():
+        allowed = card_variants.get(cid, ["normal"])
+        if variant in allowed:
+            owned_master += 1
+    return total_base, owned_base, total_master, owned_master
+
+
+async def _row_to_read(db: AsyncSession, row: MasterSet, s: Set) -> MasterSetRead:
+    tb, ob, tm, om = await _progress(db, row.user_id, row.set_id)
+    return MasterSetRead(
+        id=row.id,
+        set_id=row.set_id,
+        set_name=s.name,
+        set_logo_url=s.logo_url,
+        set_release_date=s.release_date.isoformat() if s.release_date else None,
+        binder_size=row.binder_size,
+        display_mode=row.display_mode,
+        sort_mode=row.sort_mode,
+        total_base=tb,
+        owned_base=ob,
+        total_master=tm,
+        owned_master=om,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("", response_model=list[MasterSetRead])
+async def list_master_sets(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MasterSetRead]:
+    """Every master set the caller has, newest first."""
+    stmt = (
+        select(MasterSet, Set)
+        .join(Set, MasterSet.set_id == Set.id)
+        .where(MasterSet.user_id == user.id)
+        .order_by(MasterSet.created_at.desc())
+    )
+    rows = (await db.execute(stmt)).all()
+    return [await _row_to_read(db, ms, s) for ms, s in rows]
+
+
+@router.post("", response_model=MasterSetRead, status_code=status.HTTP_201_CREATED)
+async def create_master_set(
+    payload: MasterSetCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MasterSetRead:
+    _validate_prefs(payload.binder_size, payload.display_mode, payload.sort_mode)
+
+    s = (await db.execute(select(Set).where(Set.id == payload.set_id))).scalar_one_or_none()
+    if s is None:
+        raise HTTPException(404, "Set not found")
+    if (s.language or "en") != "en":
+        raise HTTPException(400, "Master sets are EN-only for now")
+
+    row = MasterSet(
+        user_id=user.id,
+        set_id=payload.set_id,
+        binder_size=payload.binder_size,
+        display_mode=payload.display_mode,
+        sort_mode=payload.sort_mode,
+    )
+    db.add(row)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "You already have a master set for this set")
+    await db.refresh(row)
+    return await _row_to_read(db, row, s)
+
+
+@router.patch("/{master_set_id}", response_model=MasterSetRead)
+async def update_master_set(
+    master_set_id: int,
+    payload: MasterSetUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MasterSetRead:
+    _validate_prefs(payload.binder_size, payload.display_mode, payload.sort_mode)
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    if payload.binder_size is not None:
+        row.binder_size = payload.binder_size
+    if payload.display_mode is not None:
+        row.display_mode = payload.display_mode
+    if payload.sort_mode is not None:
+        row.sort_mode = payload.sort_mode
+    await db.commit()
+    await db.refresh(row)
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    return await _row_to_read(db, row, s)
+
+
+@router.delete("/{master_set_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_master_set(
+    master_set_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    result = await db.execute(
+        delete(MasterSet).where(
+            MasterSet.id == master_set_id, MasterSet.user_id == user.id
+        )
+    )
+    if result.rowcount == 0:
+        raise HTTPException(404, "Master set not found")
+    await db.commit()
+
+
+@router.get("/{master_set_id}", response_model=BinderView)
+async def get_binder_view(
+    master_set_id: int,
+    mode: str | None = None,
+    sort: str | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> BinderView:
+    """Return the row + a flat slot list ready for grid rendering.
+
+    `mode` / `sort` are transient overrides — they let the client flip
+    Base ↔ Master and number ↔ rarity without a PATCH round-trip.
+    Omit to fall back to the row's persisted preferences.
+    """
+    _validate_prefs(None, mode, sort)
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    effective_mode = mode or row.display_mode
+    effective_sort = sort or row.sort_mode
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    head = await _row_to_read(db, row, s)
+
+    order_by = (
+        (Card.number_int.asc().nullslast(), Card.number.asc())
+        if effective_sort == "number"
+        else (Card.rarity.asc().nullslast(), Card.number_int.asc().nullslast())
+    )
+    cards = (
+        await db.execute(
+            select(Card).where(Card.set_id == row.set_id).order_by(*order_by)
+        )
+    ).scalars().all()
+
+    owned_pairs: set[tuple[str, str]] = {
+        (cid, variant)
+        for cid, variant in (
+            await db.execute(
+                select(CollectionItem.card_id, CollectionItem.variant)
+                .join(Card, CollectionItem.card_id == Card.id)
+                .where(Card.set_id == row.set_id, CollectionItem.user_id == user.id)
+                .distinct()
+            )
+        ).all()
+    }
+    owned_card_ids = {cid for cid, _ in owned_pairs}
+
+    slots: list[BinderSlot] = []
+    for c in cards:
+        if effective_mode == "base":
+            slots.append(
+                BinderSlot(
+                    card_id=c.id,
+                    number=c.number,
+                    number_int=c.number_int,
+                    name=c.name,
+                    rarity=c.rarity,
+                    image_small=c.image_small,
+                    variant="base",
+                    owned=c.id in owned_card_ids,
+                )
+            )
+        else:
+            for v in _variants_for(c):
+                slots.append(
+                    BinderSlot(
+                        card_id=c.id,
+                        number=c.number,
+                        number_int=c.number_int,
+                        name=c.name,
+                        rarity=c.rarity,
+                        image_small=c.image_small,
+                        variant=v,
+                        owned=(c.id, v) in owned_pairs,
+                    )
+                )
+
+    return BinderView(master_set=head, slots=slots)

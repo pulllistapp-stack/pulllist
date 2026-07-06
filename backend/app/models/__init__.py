@@ -1,6 +1,7 @@
 from app.models.card import Card
 from app.models.card_report import CardReport
 from app.models.collection import CollectionItem
+from app.models.master_set import MasterSet
 from app.models.news_post import NewsPost
 from app.models.news_view import NewsView
 from app.models.portfolio import PortfolioSnapshot
@@ -18,6 +19,7 @@ __all__ = [
     "CardPriceSnapshot",
     "CardReport",
     "CollectionItem",
+    "MasterSet",
     "NewsPost",
     "NewsView",
     "PortfolioSnapshot",

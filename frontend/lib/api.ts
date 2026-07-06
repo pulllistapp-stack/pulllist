@@ -507,3 +507,126 @@ export async function browseCards(
   }
   return data;
 }
+
+// ── Master Sets ────────────────────────────────────────────────────
+// Set-completion tracker. Server-side row stores prefs only; progress
+// numbers are recomputed on each read against the caller's collection.
+// Types mirror backend/app/api/master_sets.py's Pydantic schemas.
+
+export type BinderSize = "3x3" | "4x3" | "4x4";
+export type MasterSetDisplayMode = "base" | "master";
+export type MasterSetSortMode = "number" | "rarity";
+
+export type MasterSet = {
+  id: number;
+  set_id: string;
+  set_name: string;
+  set_logo_url: string | null;
+  set_release_date: string | null;
+  binder_size: BinderSize;
+  display_mode: MasterSetDisplayMode;
+  sort_mode: MasterSetSortMode;
+  total_base: number;
+  owned_base: number;
+  total_master: number;
+  owned_master: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BinderSlot = {
+  card_id: string;
+  number: string | null;
+  number_int: number | null;
+  name: string;
+  rarity: string | null;
+  image_small: string | null;
+  variant: string;
+  owned: boolean;
+};
+
+export type BinderView = {
+  master_set: MasterSet;
+  slots: BinderSlot[];
+};
+
+async function authedFetch<T>(
+  path: string,
+  token: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const text = await res.text();
+      detail = text ? ` — ${text.slice(0, 200)}` : "";
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`API ${res.status}${detail}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+export function listMasterSets(token: string): Promise<MasterSet[]> {
+  return authedFetch<MasterSet[]>(`/master-sets`, token);
+}
+
+export function createMasterSet(
+  payload: {
+    set_id: string;
+    binder_size?: BinderSize;
+    display_mode?: MasterSetDisplayMode;
+    sort_mode?: MasterSetSortMode;
+  },
+  token: string,
+): Promise<MasterSet> {
+  return authedFetch<MasterSet>(`/master-sets`, token, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateMasterSet(
+  id: number,
+  payload: {
+    binder_size?: BinderSize;
+    display_mode?: MasterSetDisplayMode;
+    sort_mode?: MasterSetSortMode;
+  },
+  token: string,
+): Promise<MasterSet> {
+  return authedFetch<MasterSet>(`/master-sets/${id}`, token, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMasterSet(id: number, token: string): Promise<void> {
+  return authedFetch<void>(`/master-sets/${id}`, token, { method: "DELETE" });
+}
+
+export function getBinderView(
+  id: number,
+  opts: {
+    mode?: MasterSetDisplayMode;
+    sort?: MasterSetSortMode;
+  },
+  token: string,
+): Promise<BinderView> {
+  const qs = new URLSearchParams();
+  if (opts.mode) qs.set("mode", opts.mode);
+  if (opts.sort) qs.set("sort", opts.sort);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return authedFetch<BinderView>(`/master-sets/${id}${suffix}`, token);
+}

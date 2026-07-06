@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-06 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-06",
+    emoji: "📖",
+    kr: "포트폴리오에 Master Sets 섹션 추가 — 세트 하나 골라서 완성해나가는 걸 바인더처럼 시각화. 3×3 (9포켓) / 4×3 (12포켓) / 4×4 (16포켓) 바인더 크기 선택, 소유 카드는 컬러 + ✓ 배지, 미소유는 실루엣, 상단에 진행률 바. Base 뷰 (한 카드당 한 슬롯, 128/128 채우면 완성) 와 Master 뷰 (reverse holo / holofoil / normal 다 별개 슬롯으로 계산) 토글 가능. 카드번호순 / 레어도순 정렬도 즉시 스위치. 100% 채우면 진행률 바가 초록으로 바뀜. EN 세트만 지원 (JP는 variant 인덱싱 후 오픈)",
+    en: "Portfolio: added a Master Sets section — pick a set, watch it fill up in a binder-style grid. Choose 3×3 (9-pocket), 4×3 (12-pocket), or 4×4 (16-pocket) pages. Owned cards render in colour with a ✓ badge; missing ones stay silhouetted. Progress bar up top swaps to green at 100%. Toggle Base view (one slot per card — hit 128/128 to complete) and Master view (every TCGplayer variant — reverse holo / holofoil / normal each count) without leaving the page; same for number vs rarity sort. EN sets only for now — JP opens once variant indexing lands",
+  },
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",

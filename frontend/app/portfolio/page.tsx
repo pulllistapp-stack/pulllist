@@ -26,6 +26,7 @@ import { AssetMixDonut, PALETTE } from "@/components/AssetMixDonut";
 import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
 import { CollectionItemEditModal } from "@/components/portfolio/CollectionItemEditModal";
+import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
 import { ShareModal } from "@/components/portfolio/ShareModal";
 import { PriceBadge } from "@/components/PriceBadge";
 import { VariantChip } from "@/components/VariantChip";
@@ -258,6 +259,8 @@ export default function PortfolioPage() {
         <span className="mx-2 text-text-tertiary">/</span>
         <span className="text-text-primary">Portfolio</span>
       </nav>
+
+      <PortfolioTabs active="collection" />
 
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
