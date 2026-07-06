@@ -101,6 +101,15 @@ export function BinderSpread({
   const [query, setQuery] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  // Snapshot the OUTGOING pages at the moment a flip starts. Without
+  // this, once the midpoint swap fires and `current` re-derives against
+  // the new spreadIndex, the flipping sheet's front face would suddenly
+  // render the *incoming* content instead of the page it was already
+  // showing. Refs (not state) so updating them doesn't retrigger the
+  // motion animation.
+  const outgoingRef = useRef<{ left: (BinderSlot | null)[]; right: (BinderSlot | null)[] } | null>(null);
+  const outgoingPageRef = useRef<{ left: number; right: number } | null>(null);
+
   useEffect(() => {
     if (spreadIndex >= totalSpreads) {
       setSpreadIndex(totalSpreads - 1);
@@ -129,6 +138,19 @@ export function BinderSpread({
     (next: number) => {
       const clamped = Math.max(0, Math.min(totalSpreads - 1, next));
       if (clamped === spreadIndex || flipping) return;
+      // Snapshot the pages we're leaving BEFORE the flip starts so
+      // the motion.div can render them stably even after we swap the
+      // static spread mid-flip.
+      const start = spreadIndex * slotsPerSpread;
+      const chunk = slots.slice(start, start + slotsPerSpread);
+      outgoingRef.current = {
+        left: padTo(chunk.slice(0, slotsPerPage), slotsPerPage),
+        right: padTo(chunk.slice(slotsPerPage, slotsPerSpread), slotsPerPage),
+      };
+      outgoingPageRef.current = {
+        left: spreadIndex * 2 + 1,
+        right: spreadIndex * 2 + 2,
+      };
       setDestIndex(clamped);
       setDirection(clamped > spreadIndex ? 1 : -1);
       setFlipping(true);
@@ -143,9 +165,11 @@ export function BinderSpread({
         setFlipping(false);
         setDirection(0);
         setDestIndex(null);
+        outgoingRef.current = null;
+        outgoingPageRef.current = null;
       }, 900);
     },
-    [spreadIndex, flipping, totalSpreads, onSpreadChange],
+    [spreadIndex, flipping, totalSpreads, onSpreadChange, slots, slotsPerPage, slotsPerSpread],
   );
 
   const handleNext = useCallback(() => {
@@ -300,71 +324,35 @@ export function BinderSpread({
                 aria-hidden
               />
 
-              {/* Flipping sheet */}
+              {/* Flipping sheet.
+                    KEY BUG FIX (LO 2026-07-06): the previous key of
+                    `flip-${spreadIndex}-${direction}` changed when
+                    `spreadIndex` was swapped mid-flip at 450ms →
+                    AnimatePresence unmounted the old motion.div and
+                    mounted a fresh one, which restarted the rotateY
+                    animation from 0 for its remaining 450ms. Visually
+                    this read as *two* pages flipping in sequence.
+                    Keying on `destIndex` keeps the identity stable for
+                    the entire flip because destIndex is set at start,
+                    doesn't change mid-flip, and is only cleared after
+                    the animation ends. Snapshot the outgoing pages at
+                    flip start too, so mid-flip re-renders don't yank
+                    the front face's content out from under the arc. */}
               <AnimatePresence>
                 {flipping && direction !== 0 && destination && (
-                  <motion.div
-                    key={`flip-${spreadIndex}-${direction}`}
-                    className="absolute top-0 h-full w-1/2 z-30 pointer-events-none"
-                    style={{
-                      left: direction === 1 ? "50%" : "0%",
-                      transformOrigin:
-                        direction === 1 ? "left center" : "right center",
-                      transformStyle: "preserve-3d",
-                    }}
-                    initial={{ rotateY: 0 }}
-                    animate={{ rotateY: direction === 1 ? -180 : 180 }}
-                    transition={{ duration: 0.9, ease: [0.65, 0, 0.35, 1] }}
-                  >
-                    {/* Front face — the outgoing page (what the user
-                        was just looking at on this side). */}
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        backfaceVisibility: "hidden",
-                        WebkitBackfaceVisibility: "hidden",
-                      }}
-                    >
-                      <PageBase
-                        slots={direction === 1 ? current.right : current.left}
-                        pageNumber={
-                          direction === 1
-                            ? spreadIndex * 2 + 2
-                            : spreadIndex * 2 + 1
-                        }
-                        gridSize={gridSize}
-                        side={direction === 1 ? "right" : "left"}
-                        floating
-                      />
-                    </div>
-                    {/* Back face — the incoming page from the destination
-                        spread. Rotated 180° so it reads right-way-up
-                        after the sheet lands. */}
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        backfaceVisibility: "hidden",
-                        WebkitBackfaceVisibility: "hidden",
-                        transform: "rotateY(180deg)",
-                      }}
-                    >
-                      <PageBase
-                        slots={
-                          direction === 1
-                            ? destination.left
-                            : destination.right
-                        }
-                        pageNumber={
-                          direction === 1
-                            ? destIndex! * 2 + 1
-                            : destIndex! * 2 + 2
-                        }
-                        gridSize={gridSize}
-                        side={direction === 1 ? "left" : "right"}
-                        floating
-                      />
-                    </div>
-                  </motion.div>
+                  <FlippingSheet
+                    key={`flip-${destIndex}-${direction}`}
+                    direction={direction}
+                    gridSize={gridSize}
+                    outgoingLeft={outgoingRef.current?.left ?? current.left}
+                    outgoingRight={outgoingRef.current?.right ?? current.right}
+                    outgoingLeftPage={outgoingPageRef.current?.left ?? 0}
+                    outgoingRightPage={outgoingPageRef.current?.right ?? 0}
+                    destinationLeft={destination.left}
+                    destinationRight={destination.right}
+                    destinationLeftPage={destIndex! * 2 + 1}
+                    destinationRightPage={destIndex! * 2 + 2}
+                  />
                 )}
               </AnimatePresence>
 
@@ -611,6 +599,111 @@ function CoverPage({
         Tap the binder to open · custom cover resized locally
       </p>
     </div>
+  );
+}
+
+/**
+ * The rotating page. Snapshots outgoing + destination content as props
+ * so the parent can swap its static spread mid-flip without disturbing
+ * what this component is rendering. Independent motion.div children
+ * animate a subtle self-shadow so the page catches light through the
+ * arc — the arc looks flat without it.
+ */
+function FlippingSheet({
+  direction,
+  gridSize,
+  outgoingLeft,
+  outgoingRight,
+  outgoingLeftPage,
+  outgoingRightPage,
+  destinationLeft,
+  destinationRight,
+  destinationLeftPage,
+  destinationRightPage,
+}: {
+  direction: 1 | -1;
+  gridSize: BinderSize;
+  outgoingLeft: (BinderSlot | null)[];
+  outgoingRight: (BinderSlot | null)[];
+  outgoingLeftPage: number;
+  outgoingRightPage: number;
+  destinationLeft: (BinderSlot | null)[];
+  destinationRight: (BinderSlot | null)[];
+  destinationLeftPage: number;
+  destinationRightPage: number;
+}) {
+  const frontSlots = direction === 1 ? outgoingRight : outgoingLeft;
+  const frontPage = direction === 1 ? outgoingRightPage : outgoingLeftPage;
+  const backSlots = direction === 1 ? destinationLeft : destinationRight;
+  const backPage = direction === 1 ? destinationLeftPage : destinationRightPage;
+
+  return (
+    <motion.div
+      className="absolute top-0 h-full w-1/2 z-30 pointer-events-none"
+      style={{
+        left: direction === 1 ? "50%" : "0%",
+        transformOrigin: direction === 1 ? "left center" : "right center",
+        transformStyle: "preserve-3d",
+      }}
+      initial={{ rotateY: 0 }}
+      animate={{ rotateY: direction === 1 ? -180 : 180 }}
+      transition={{ duration: 0.9, ease: [0.65, 0, 0.35, 1] }}
+    >
+      {/* Front face — the outgoing page catches less light as it
+          rotates away, so we crossfade a black overlay from 0 → ~0.55
+          over the first half of the arc. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backfaceVisibility: "hidden",
+          WebkitBackfaceVisibility: "hidden",
+        }}
+      >
+        <PageBase
+          slots={frontSlots}
+          pageNumber={frontPage}
+          gridSize={gridSize}
+          side={direction === 1 ? "right" : "left"}
+          floating
+        />
+        <motion.div
+          className="absolute inset-0 bg-black pointer-events-none rounded-[10px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.55] }}
+          transition={{ duration: 0.45, ease: "easeIn" }}
+          aria-hidden
+        />
+      </div>
+      {/* Back face — the incoming page starts shadowed and clears to
+          nothing as it lands. Rotated 180° so it reads right-way-up. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backfaceVisibility: "hidden",
+          WebkitBackfaceVisibility: "hidden",
+          transform: "rotateY(180deg)",
+        }}
+      >
+        <PageBase
+          slots={backSlots}
+          pageNumber={backPage}
+          gridSize={gridSize}
+          side={direction === 1 ? "left" : "right"}
+          floating
+        />
+        <motion.div
+          className="absolute inset-0 bg-black pointer-events-none rounded-[10px]"
+          initial={{ opacity: 0.55 }}
+          animate={{ opacity: [0.55, 0] }}
+          transition={{
+            duration: 0.45,
+            delay: 0.45,
+            ease: "easeOut",
+          }}
+          aria-hidden
+        />
+      </div>
+    </motion.div>
   );
 }
 

@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "📄",
+    kr: "Master Sets 페이지 넘김이 두 번 튀던 버그 fix — motion.div의 `key` 에 spreadIndex를 넣어놨는데 중간에 spread를 교체하면 key가 바뀌면서 AnimatePresence가 '다른 페이지'로 인식해서 애니메이션을 처음부터 다시 재생. 앞 절반 (0→90°) → 리셋 → 뒷 절반 (0→90°) 이 되어서 한 번 넘기는데 두 장 넘어가는 것처럼 보였음. key를 flip 전 스냅샷 destination index 기준으로 바꿔서 flip 내내 identity 안정 유지. 겸사겸사 넘어가는 페이지에 self-shadow (앞면은 0→55% 어두워지고, 뒷면은 55%→0 밝아지는) 오버레이 추가해서 실제로 페이지가 빛을 받았다 잃었다 하는 느낌",
+    en: "Master Sets page-flip fix: what looked like TWO pages flipping in sequence was actually one flip getting restarted mid-way. The motion.div's key included spreadIndex, and swapping the spread at the arc's midpoint changed the key → AnimatePresence unmounted the sheet and mounted a fresh one that replayed the animation from rotateY 0. So the visual was 0→90° → snap-back → 0→90° = double flip. Keying on the destination index (set at start, cleared at end) keeps identity stable for the whole 900ms arc. Also added a self-shadow crossfade — the outgoing face darkens as it turns away, the incoming face brightens as it lands, so the page actually reads as catching light instead of just spinning",
+  },
+  {
+    date: "2026-07-06",
     emoji: "🧵",
     kr: "Master Sets 바인더 디테일 폴리싱 — (1) 커버 어떤 이미지를 씌우든 (마스코트든 유저 커스텀 이미지든) 최상단에 dashed 스티치 테두리가 항상 뜸. 실제 바인더의 재봉 자국 느낌. 밝은 커버든 어두운 커버든 다 보이게 어두운 그림자 + 밝은 실 2겹 레이어. (2) 바인더 안쪽 (펼쳤을 때 페이지 배경) 을 크림색 종이에서 검정 나일론으로 변경 — LO 참조 사진처럼 카드가 유일한 색감이고 배경은 완전 다크. 페이지 번호는 흰색 40% 로 조정, 카드 포켓도 다크 베이스에 서브틀 인셋 섀도로 실감 나게",
     en: "Master Sets binder polish — (1) Cover now always shows a dashed-stitch border as the top layer, regardless of whether you're using the default mascot or a custom uploaded image. Two-layer (dark shadow + light thread) so the stitches read on any cover art, matching real card-guardian binders. (2) Inside pages swapped from cream paper to black nylon — the cards are the only colour, background stays flat dark. Page numbers and empty-pocket marks recoloured for the dark base; pocket sleeves darkened with subtle inset shadow so cards pop",
