@@ -196,9 +196,18 @@ function SetDetailContent() {
           </div>
 
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-3xl font-bold mb-1 tracking-tight">
-              {set.name}
-            </h1>
+            <div className="flex items-start justify-center md:justify-between gap-3 mb-1 flex-wrap">
+              <h1 className="text-3xl font-bold tracking-tight">{set.name}</h1>
+              <button
+                type="button"
+                onClick={() => setShowReport(true)}
+                title="Report missing cards, wrong images, or bad metadata"
+                className="shrink-0 inline-flex items-center gap-1 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-tertiary hover:text-accent-red hover:border-accent-red/40 transition-colors"
+              >
+                <span aria-hidden>⚠</span>
+                Report
+              </button>
+            </div>
             <div className="text-text-secondary text-sm flex flex-wrap gap-x-4 gap-y-1 justify-center md:justify-start">
               {set.series && (
                 <span>
