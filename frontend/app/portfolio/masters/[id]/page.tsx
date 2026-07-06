@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
+import { BinderSpread } from "@/components/portfolio/BinderSpread";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
 import {
   BinderSize,
@@ -17,12 +18,6 @@ import {
   updateMasterSet,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-
-const BINDER_COLS: Record<BinderSize, number> = {
-  "3x3": 3,
-  "4x3": 4,
-  "4x4": 4,
-};
 
 export default function BinderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -129,8 +124,6 @@ export default function BinderDetailPage() {
       </main>
     );
   }
-
-  const cols = BINDER_COLS[view.master_set.binder_size];
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
@@ -250,19 +243,15 @@ export default function BinderDetailPage() {
         />
       </section>
 
-      <section
-        className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
-      >
-        {view.slots.map((slot, idx) => (
-          <BinderSlotCell key={`${slot.card_id}-${slot.variant}-${idx}`} slot={slot} />
-        ))}
-      </section>
-
-      {view.slots.length === 0 && (
+      {view.slots.length === 0 ? (
         <div className="rounded-card border border-dashed border-border bg-bg-surface p-8 text-center text-sm text-text-secondary">
           This set has no cards catalogued yet.
         </div>
+      ) : (
+        <BinderSpread
+          slots={view.slots}
+          gridSize={view.master_set.binder_size}
+        />
       )}
     </main>
   );
@@ -317,73 +306,3 @@ function ToggleGroup({
   );
 }
 
-function BinderSlotCell({
-  slot,
-}: {
-  slot: BinderView["slots"][number];
-}) {
-  const label =
-    slot.variant === "base"
-      ? null
-      : slot.variant === "reverseHolofoil"
-        ? "Reverse"
-        : slot.variant === "holofoil"
-          ? "Holo"
-          : slot.variant === "1stEdition"
-            ? "1st Ed"
-            : slot.variant === "1stEditionHolofoil"
-              ? "1st Ed Holo"
-              : slot.variant === "unlimitedHolofoil"
-                ? "Unl. Holo"
-                : slot.variant === "unlimited"
-                  ? "Unlimited"
-                  : slot.variant;
-  return (
-    <Link
-      href={`/cards/${slot.card_id}`}
-      title={`${slot.name}${label ? ` · ${label}` : ""}${slot.owned ? " · owned" : ""}`}
-      className={
-        "relative block aspect-[3/4] rounded-btn border overflow-hidden bg-bg-surface transition-transform hover:scale-[1.02] " +
-        (slot.owned
-          ? "border-accent-green/40"
-          : "border-border")
-      }
-    >
-      {slot.image_small ? (
-        <Image
-          src={slot.image_small}
-          alt={slot.name}
-          fill
-          sizes="(max-width: 640px) 33vw, 20vw"
-          className={"object-cover " + (slot.owned ? "" : "grayscale opacity-40")}
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center p-1 text-center">
-          <div className="text-[10px] font-mono text-text-tertiary leading-tight">
-            {slot.number ?? "—"}
-            <br />
-            {slot.name.slice(0, 18)}
-          </div>
-        </div>
-      )}
-      {slot.number && (
-        <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[10px] font-mono text-white">
-          {slot.number}
-        </span>
-      )}
-      {label && (
-        <span className="absolute right-1 top-1 rounded bg-accent-yellow/90 px-1 py-0.5 text-[9px] font-semibold uppercase text-bg tracking-wider">
-          {label}
-        </span>
-      )}
-      {slot.owned && (
-        <span
-          className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent-green text-bg text-xs"
-          aria-label="Owned"
-        >
-          ✓
-        </span>
-      )}
-    </Link>
-  );
-}

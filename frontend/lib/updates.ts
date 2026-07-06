@@ -30,6 +30,12 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-06",
     emoji: "📖",
+    kr: "Master Sets 바인더가 실제 바인더처럼 3D 스프레드로 변신 — 이전엔 3x3 그리드가 세로로 쭉 이어졌는데, 이제 크림 종이 페이지 두 장이 나란히 펼쳐지고 가운데 놋쇠 3링 + 가죽 셸이 감싸는 모양. 페이지 옆 가장자리 클릭하면 rotateY 3D 애니메이션 (600ms cubic-bezier) 으로 넘어감. ←/→/Home/End 키보드 nav, 카드 이름으로 점프하는 검색바도 위쪽에 붙음. 3x3 = 스프레드 당 18장, 4x3 = 24장, 4x4 = 32장 — 128장 세트면 3x3 기준 8스프레드. 소유 카드는 컬러 + ✓, 미소유는 grayscale + 40% opacity 그대로. 플라스틱 슬리브 반사감 + 스파인 쪽 그림자로 종이 두께 표현",
+    en: "Master Sets binder now reads as a real open binder instead of a scrolling grid — two cream paper pages laid out side by side, three brass rings down the center, leather shell wrapping the whole thing. Click either outer edge to flip; the page turns with a 3D rotateY animation (~600ms). ArrowLeft/Right + Home/End work; there's a card-name search that jumps to whichever spread contains the match. Spread capacity scales with binder size — 3x3 → 18 slots per spread (a 128-card set = 8 spreads), 4x3 → 24, 4x4 → 32. Owned cards render in colour with a ✓; missing ones stay grayscale + 40% opacity. Plastic-sleeve gloss on each pocket, gutter shadow near the spine, subtle page-thickness cues so it doesn't feel flat",
+  },
+  {
+    date: "2026-07-06",
+    emoji: "📖",
     kr: "포트폴리오에 Master Sets 섹션 추가 — 세트 하나 골라서 완성해나가는 걸 바인더처럼 시각화. 3×3 (9포켓) / 4×3 (12포켓) / 4×4 (16포켓) 바인더 크기 선택, 소유 카드는 컬러 + ✓ 배지, 미소유는 실루엣, 상단에 진행률 바. Base 뷰 (한 카드당 한 슬롯, 128/128 채우면 완성) 와 Master 뷰 (reverse holo / holofoil / normal 다 별개 슬롯으로 계산) 토글 가능. 카드번호순 / 레어도순 정렬도 즉시 스위치. 100% 채우면 진행률 바가 초록으로 바뀜. EN 세트만 지원 (JP는 variant 인덱싱 후 오픈)",
     en: "Portfolio: added a Master Sets section — pick a set, watch it fill up in a binder-style grid. Choose 3×3 (9-pocket), 4×3 (12-pocket), or 4×4 (16-pocket) pages. Owned cards render in colour with a ✓ badge; missing ones stay silhouetted. Progress bar up top swaps to green at 100%. Toggle Base view (one slot per card — hit 128/128 to complete) and Master view (every TCGplayer variant — reverse holo / holofoil / normal each count) without leaving the page; same for number vs rarity sort. EN sets only for now — JP opens once variant indexing lands",
   },
