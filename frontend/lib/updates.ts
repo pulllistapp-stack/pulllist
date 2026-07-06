@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "🧵",
+    kr: "Master Sets 바인더 디테일 폴리싱 — (1) 커버 어떤 이미지를 씌우든 (마스코트든 유저 커스텀 이미지든) 최상단에 dashed 스티치 테두리가 항상 뜸. 실제 바인더의 재봉 자국 느낌. 밝은 커버든 어두운 커버든 다 보이게 어두운 그림자 + 밝은 실 2겹 레이어. (2) 바인더 안쪽 (펼쳤을 때 페이지 배경) 을 크림색 종이에서 검정 나일론으로 변경 — LO 참조 사진처럼 카드가 유일한 색감이고 배경은 완전 다크. 페이지 번호는 흰색 40% 로 조정, 카드 포켓도 다크 베이스에 서브틀 인셋 섀도로 실감 나게",
+    en: "Master Sets binder polish — (1) Cover now always shows a dashed-stitch border as the top layer, regardless of whether you're using the default mascot or a custom uploaded image. Two-layer (dark shadow + light thread) so the stitches read on any cover art, matching real card-guardian binders. (2) Inside pages swapped from cream paper to black nylon — the cards are the only colour, background stays flat dark. Page numbers and empty-pocket marks recoloured for the dark base; pocket sleeves darkened with subtle inset shadow so cards pop",
+  },
+  {
+    date: "2026-07-06",
     emoji: "🖼",
     kr: "Master Sets 바인더 대공사 — (1) 처음 열면 검은 나일론 커버로 덮여있고, 탭하면 열리는 UX. (2) 커버 중앙에 기본 마스코트 (Dragonite) 박혀있고, 유저가 자기 이미지 업로드해서 커스텀 커버 가능. 이미지는 브라우저에서 자동으로 1200px + JPEG 85% 로 리사이즈해서 500KB 이하로 압축 후 저장, 교체할 때마다 이전 이미지 덮어써져서 스토리지 안 참. (3) 애니메이션 자연스럽게 — 넘김 시간 600ms → 900ms, ease curve 부드럽게, 페이지 뒷면에 진짜 다음 스프레드 왼쪽 페이지가 렌더링되어 실물 책 넘기는 감각, 넘어가는 동안 스프레드 위에 그림자 살짝 지는 depth cue 추가. (4) 페이지 넘기기 아이콘 (◀ / ▶) 이 가장자리 hover 시 뜨고, 하단에 진짜 클릭 가능한 Prev / Next 버튼 추가. (5) 팔레트를 크림 가죽에서 다크 차콜 + 은색 링 으로 변경 (LO 참조 이미지의 지퍼 바인더 톤)",
     en: "Master Sets binder overhaul — (1) Opens as a closed dark-nylon cover; tap or Enter to open. (2) Default cover shows the mascot + set name; users can upload a custom image which is resized in-browser to ~1200px JPEG 85% and stored under 500KB. Uploading a new one overwrites the old — no orphan blobs. (3) Page-turn animation smoothed — 600ms → 900ms, gentler ease, and the back of the flipping sheet now shows the actual destination-left page for a real book feel. Ambient shadow darkens the resting spread mid-flip for depth. (4) Edge zones widened to 12% and reveal a floating chevron on hover — the previous invisible 10% strip was un-discoverable. Added real bottom Prev / Next buttons for good measure. (5) Palette swapped from cream leather to charcoal + silver rings to match the modern zip-binder reference",

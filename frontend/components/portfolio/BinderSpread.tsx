@@ -505,8 +505,8 @@ function CoverPage({
             }}
             aria-hidden
           />
-          {/* inner content — custom image or mascot placeholder */}
-          <div className="absolute inset-6 rounded-[12px] flex flex-col items-center justify-center overflow-hidden">
+          {/* Cover content — image (full-bleed) OR mascot placeholder. */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden">
             {coverImageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -537,8 +537,28 @@ function CoverPage({
               </>
             )}
           </div>
+
+          {/* Stitching — always on top of whatever cover art is showing.
+              Two layers: a dark shadow underneath + light thread on top
+              so the dashes read on both bright and dim covers (matches
+              LO's Sylveon reference). CSS dashed border gives the
+              stitch cadence; z-30 keeps it above the image + weave. */}
+          <div
+            className="absolute inset-[10px] rounded-[12px] pointer-events-none z-30"
+            style={{
+              border: "2px dashed rgba(0,0,0,0.4)",
+              transform: "translate(0.6px, 0.6px)",
+            }}
+            aria-hidden
+          />
+          <div
+            className="absolute inset-[10px] rounded-[12px] pointer-events-none z-30"
+            style={{ border: "2px dashed rgba(255,255,255,0.55)" }}
+            aria-hidden
+          />
+
           {/* hover hint */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/95 text-black text-xs font-semibold px-4 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/95 text-black text-xs font-semibold px-4 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-40">
             Tap to open
           </div>
         </motion.div>
@@ -660,29 +680,32 @@ function PageBase({
         (isLeft ? "rounded-l-[10px]" : "rounded-r-[10px]")
       }
       style={{
+        // Black nylon interior — LO's reference photo shows the inside
+        // as flat black with the cards being the only visual highlight.
         background:
-          "linear-gradient(160deg, #f5efe1 0%, #ece4d0 100%)",
+          "linear-gradient(160deg, #0d0d0d 0%, #050505 100%)",
         boxShadow: floating
-          ? "0 25px 45px -12px rgba(0,0,0,0.4)"
+          ? "0 25px 45px -12px rgba(0,0,0,0.55)"
           : undefined,
       }}
     >
       <div
         className={
-          "absolute top-3 text-[9px] font-bold text-stone-500/70 tracking-[0.25em] uppercase pointer-events-none " +
+          "absolute top-3 text-[9px] font-bold text-white/40 tracking-[0.25em] uppercase pointer-events-none " +
           (isLeft ? "left-5" : "right-5")
         }
       >
         Page {pageNumber}
       </div>
 
-      {/* Gutter shadow near the spine */}
+      {/* Gutter shadow near the spine — deeper black falling into the
+          center crease so it reads as a fold, not a seam. */}
       <div
         className={
           "pointer-events-none absolute top-0 bottom-0 w-8 " +
           (isLeft
-            ? "right-0 bg-gradient-to-l from-black/18 to-transparent"
-            : "left-0 bg-gradient-to-r from-black/18 to-transparent")
+            ? "right-0 bg-gradient-to-l from-black/70 to-transparent"
+            : "left-0 bg-gradient-to-r from-black/70 to-transparent")
         }
         aria-hidden
       />
@@ -708,17 +731,21 @@ function Pocket({ slot }: { slot: BinderSlot | null }) {
     <div
       className="relative aspect-[3/4] w-full rounded-[3px] overflow-hidden"
       style={{
-        backgroundColor: "#e5dcc4",
+        // Near-black pocket base so cards pop against it, with a
+        // darker inset shadow for the recessed sleeve feel and a
+        // 1px lifted highlight at the bottom.
+        backgroundColor: "#0e0e0e",
         boxShadow:
-          "inset 0 2px 4px rgba(70, 50, 20, 0.18), inset 0 -1px 2px rgba(255,255,255,0.4)",
+          "inset 0 2px 4px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(255,255,255,0.04)",
       }}
     >
-      {/* Plastic-sleeve gloss */}
+      {/* Plastic-sleeve gloss — lower intensity so it reads as a
+          subtle sheen on black plastic instead of a milky wash. */}
       <div
-        className="pointer-events-none absolute inset-0 z-10 opacity-80"
+        className="pointer-events-none absolute inset-0 z-10 opacity-60"
         style={{
           background:
-            "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 100%)",
+            "linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 45%, rgba(255,255,255,0) 100%)",
         }}
         aria-hidden
       />
@@ -799,8 +826,8 @@ function SlotContents({ slot }: { slot: BinderSlot }) {
 
 function EmptyPocketMark() {
   return (
-    <div className="absolute inset-1 flex items-center justify-center rounded-sm border border-dashed border-stone-400/25">
-      <span className="text-stone-400/50 text-sm" aria-hidden>
+    <div className="absolute inset-1 flex items-center justify-center rounded-sm border border-dashed border-white/10">
+      <span className="text-white/25 text-sm" aria-hidden>
         +
       </span>
     </div>
