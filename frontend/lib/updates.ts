@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "🇯🇵",
+    kr: "일본판 세트 필터 사이드바 레어도 표기를 EN 라벨(Rare Secret / Illustration Rare…) 대신 실제 카드에 찍힌 JP 코드(C/U/R/RR/RRR/AR/SR/SAR/HR/UR/CHR/CSR/SSR)로 렌더링 — 일본판 브라우저는 EN 카탈로그와 다른 taxonomy 표시. 3단 감지: (1) URL의 `?language=ja`, (2) 세트 자체가 JP면 세트 상세 페이지에서 강제, (3) 세트의 실제 레어도 분포에 JP 코드가 하나라도 있으면 자동으로 JP 모드로 스위치. 언어별로 남는 잔여 라벨은 Misc 섹션에서 필터링되어 두 taxonomy가 뒤섞이지 않음. 함께 남아있던 JP 카드 7,869장의 EN 스타일 라벨을 JP 코드로 재매핑 (Rare Secret → UR, Illustration Rare → AR, Special Illustration Rare → SAR 등)",
+    en: "JP set filter sidebar now renders rarity labels using JP codes (C/U/R/RR/RRR/AR/SR/SAR/HR/UR/CHR/CSR/SSR) — the actual codes printed on the cards — instead of pokemontcg.io English labels. Three-tier language detection: (1) explicit `?language=ja`, (2) set-detail pages force JP when the set is JP, (3) data sniff — if the set's rarities include any JP-native code, swap taxonomies automatically. Leftover labels from the other language get filtered out of the Misc bucket so you never see two taxonomies at once. Also remapped 7,869 JP cards whose rarity was still an EN label (Rare Secret → UR, Illustration Rare → AR, Special Illustration Rare → SAR, etc.)",
+  },
+  {
+    date: "2026-07-06",
     emoji: "⚠",
     kr: "세트 상세 페이지 (Sets → 세트 하나 클릭) 우측 상단에 'Report an issue' 버튼 추가 — 카드 몇 장 빠진 것 같거나, 이미지가 잘못됐거나, 세트 이름·로고·발매일이 틀렸을 때 4가지 카테고리 (Missing cards / Wrong images / Wrong info / Other) 로 신고 가능. 로그인 없이도 익명 신고 가능",
     en: "Set pages: added a Report an issue button next to the set metadata — 4 categories (Missing cards / Wrong images / Wrong info / Other) so you can flag when a set has gaps, broken images, or wrong logo/release-date/name. Anonymous submissions accepted; if you're signed in the report attaches to your account",
