@@ -464,6 +464,7 @@ export type BrowseParams = {
   artist?: string;
   owned?: "in" | "not_in";
   condition?: string;
+  language?: string;
   sort?: string;
   page?: number;
   page_size?: number;

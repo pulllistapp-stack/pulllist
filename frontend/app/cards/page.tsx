@@ -68,6 +68,7 @@ function BrowseCardsContent() {
       "artist",
       "owned",
       "condition",
+      "language",
       "sort",
     ] as const) {
       const v = params.get(key);
@@ -122,6 +123,23 @@ function BrowseCardsContent() {
     router.push(`/cards?${next.toString()}`);
   };
 
+  // Region chips — right under the search bar, above the sidebar's fine-
+  // grain filters. `language` is a raw Card.language code (en / ja / ko),
+  // matches the backend index directly. `null` selection = all regions.
+  const activeLanguage = params.get("language");
+  const chooseLanguage = (lang: string | null) => {
+    const next = new URLSearchParams(params.toString());
+    if (lang) next.set("language", lang);
+    else next.delete("language");
+    next.delete("page");
+    router.push(`/cards?${next.toString()}`);
+  };
+  const REGION_CHIPS: { label: string; value: string | null; flag: string }[] = [
+    { label: "All", value: null, flag: "🌏" },
+    { label: "EN", value: "en", flag: "🇺🇸" },
+    { label: "JP", value: "ja", flag: "🇯🇵" },
+  ];
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
       <nav className="mb-4 text-sm text-text-secondary">
@@ -151,7 +169,7 @@ function BrowseCardsContent() {
         </div>
 
         <div className="flex-1 min-w-0">
-          <form onSubmit={submitSearch} className="mb-5 flex gap-2">
+          <form onSubmit={submitSearch} className="mb-3 flex gap-2">
             <input
               type="text"
               value={searchInput}
@@ -166,6 +184,34 @@ function BrowseCardsContent() {
               Search
             </button>
           </form>
+
+          <div
+            role="tablist"
+            aria-label="Region"
+            className="mb-5 flex flex-wrap gap-1.5"
+          >
+            {REGION_CHIPS.map((c) => {
+              const active = c.value === activeLanguage;
+              return (
+                <button
+                  key={c.label}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => chooseLanguage(c.value)}
+                  className={
+                    "inline-flex items-center gap-1 rounded-chip border px-2.5 py-1 text-xs font-medium transition-colors " +
+                    (active
+                      ? "bg-accent-yellow text-bg border-accent-yellow"
+                      : "bg-bg-surface text-text-secondary border-border hover:text-text-primary hover:border-text-tertiary")
+                  }
+                >
+                  <span aria-hidden>{c.flag}</span>
+                  <span>{c.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
           <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
             <h1 className="text-xl font-bold">

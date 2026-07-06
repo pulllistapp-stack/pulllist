@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-05 ─────────────────────────────────────────────────
   {
     date: "2026-07-05",
+    emoji: "🌏",
+    kr: "Cards 탭 검색바 밑에 지역 (All · 🇺🇸 EN · 🇯🇵 JP) 칩 추가 — 이제 EN 카탈로그만 or JP 카탈로그만 좁혀서 브라우징 가능. URL의 `language` 파라미터로 저장돼서 링크 공유해도 필터 유지됨. 사이드바 안 열고 상단에서 바로 스위치 가능한 게 목적. KR 카탈로그는 준비되면 추가",
+    en: "Cards page: added an All · 🇺🇸 EN · 🇯🇵 JP region row right under the search bar — one tap narrows the whole grid to just that print language without needing to dig into the sidebar. The choice sticks in the URL (`?language=en` etc.) so shared links keep the filter. KR chip drops in once the KR catalog is live",
+  },
+  {
+    date: "2026-07-05",
     emoji: "🎴",
     kr: "30th Celebration (me30) 세트가 전체 38장으로 완성 — 저번 라운드에서 프로모 세트(mep)에 잘못 배정되어있던 30주년 관련 18장 (Alolan Exeggutor 094, Lucario 095, Moltres 096, Articuno 097, Zapdos 098, Greninja ex 099, Sylveon ex 100, Nidorina 101 + Pokémon Center 변종, Victini 102, Zeraora 103, Mewtwo 104, Mew 105, Ditto 106, 그리고 SIR 4장 — Pikachu ex 107, Espeon ex 108, Pikachu ex 109, Umbreon ex 110)을 me30 세트로 이동. 이제 브라우저에서 30th Celebration 클릭하면 38장 다 뜸",
     en: "30th Celebration (me30) set now shows the full 38-card lineup — 18 cards that had been miscategorised under the 'Promo' set last pass (Alolan Exeggutor 094 → Ditto 106 + the four Special Illustration Rares: Pikachu ex 107, Espeon ex 108, Pikachu ex 109, Umbreon ex 110, plus a Pokémon Center variant Nidorina 101) have been reassigned to me30. Browsing the set now surfaces every 30-stamp card in one place",

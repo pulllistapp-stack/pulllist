@@ -205,6 +205,14 @@ async def browse_cards(
     artist: str | None = Query(None, description="Substring match"),
     owned: str | None = Query(None, description="all / in / not_in"),
     condition: str | None = Query(None, description="Comma-separated NM,LP,..."),
+    language: str | None = Query(
+        None,
+        description=(
+            "Comma-separated language codes (en / ja / ko). Empty or "
+            "omitted = every language. Cards store the raw print "
+            "language on Card.language, indexed."
+        ),
+    ),
     sort: str = Query("relevance"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=250),
@@ -263,6 +271,10 @@ async def browse_cards(
     artists_sel = _split_csv(artist)
     if artists_sel:
         filters.append(Card.artist.in_(artists_sel))
+
+    languages = _split_csv(language)
+    if languages:
+        filters.append(Card.language.in_(languages))
 
     # Collection-aware filters — only when authenticated.
     if user and owned in ("in", "not_in"):
