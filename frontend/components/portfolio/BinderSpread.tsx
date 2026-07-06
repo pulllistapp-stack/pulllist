@@ -773,10 +773,18 @@ function PageBase({
         (isLeft ? "rounded-l-[10px]" : "rounded-r-[10px]")
       }
       style={{
-        // Black nylon interior — LO's reference photo shows the inside
-        // as flat black with the cards being the only visual highlight.
-        background:
-          "linear-gradient(160deg, #0d0d0d 0%, #050505 100%)",
+        // Perforated ballistic-nylon interior — two offset radial-gradient
+        // dot layers over a near-black base gives the fine mesh weave you
+        // see on real card-binder inner pages. Second layer is dimmer +
+        // half-step offset so the pattern reads as woven, not gridded.
+        backgroundColor: "#0a0a0a",
+        backgroundImage: [
+          "radial-gradient(rgba(255,255,255,0.075) 0.6px, transparent 1.3px)",
+          "radial-gradient(rgba(255,255,255,0.04) 0.5px, transparent 1.1px)",
+          "linear-gradient(160deg, rgba(255,255,255,0.02) 0%, transparent 100%)",
+        ].join(", "),
+        backgroundSize: "6px 6px, 6px 6px, 100% 100%",
+        backgroundPosition: "0 0, 3px 3px, 0 0",
         boxShadow: floating
           ? "0 25px 45px -12px rgba(0,0,0,0.55)"
           : undefined,

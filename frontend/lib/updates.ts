@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "🕸",
+    kr: "Master Sets 바인더 안쪽에 mesh 질감 추가 — 그동안 검정 그라디언트로만 채워져있던 페이지 배경에 미세한 dot pattern 을 두 겹 오프셋으로 덧입혀서 실제 카드 바인더의 perforated ballistic nylon (구멍 뚫린 검정 나일론) 처럼 보이게 함. 6px 간격 dot + 3px 오프셋으로 half-step, 반짝임 무게 다르게 해서 그리드가 아니라 짜여진 mesh 로 읽힘. 카드는 여전히 유일한 색감으로 도드라짐",
+    en: "Master Sets binder interior now has a mesh texture — the previously flat black gradient gets two offset radial-gradient dot layers on top, so the pages read as real perforated ballistic-nylon binder pockets instead of a solid black wash. 6px dot grid with a 3px half-step offset and two different opacities so the pattern feels woven, not gridded. Cards still pop as the only colour",
+  },
+  {
+    date: "2026-07-06",
     emoji: "📄",
     kr: "Master Sets 페이지 넘김이 두 번 튀던 버그 fix — motion.div의 `key` 에 spreadIndex를 넣어놨는데 중간에 spread를 교체하면 key가 바뀌면서 AnimatePresence가 '다른 페이지'로 인식해서 애니메이션을 처음부터 다시 재생. 앞 절반 (0→90°) → 리셋 → 뒷 절반 (0→90°) 이 되어서 한 번 넘기는데 두 장 넘어가는 것처럼 보였음. key를 flip 전 스냅샷 destination index 기준으로 바꿔서 flip 내내 identity 안정 유지. 겸사겸사 넘어가는 페이지에 self-shadow (앞면은 0→55% 어두워지고, 뒷면은 55%→0 밝아지는) 오버레이 추가해서 실제로 페이지가 빛을 받았다 잃었다 하는 느낌",
     en: "Master Sets page-flip fix: what looked like TWO pages flipping in sequence was actually one flip getting restarted mid-way. The motion.div's key included spreadIndex, and swapping the spread at the arc's midpoint changed the key → AnimatePresence unmounted the sheet and mounted a fresh one that replayed the animation from rotateY 0. So the visual was 0→90° → snap-back → 0→90° = double flip. Keying on the destination index (set at start, cleared at end) keeps identity stable for the whole 900ms arc. Also added a self-shadow crossfade — the outgoing face darkens as it turns away, the incoming face brightens as it lands, so the page actually reads as catching light instead of just spinning",
