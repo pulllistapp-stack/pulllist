@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
+    emoji: "🧷",
+    kr: "Master Sets 바인더 스파인 정리 — 원래 가운데 있던 은색 링 3개 제거하고, 실제 카드 가디언 바인더처럼 두 페이지 사이에 얕은 크리즈 (홈) 만 남김. 다크 그림자 + 미세한 하이라이트 2겹으로 실제 폴딩된 나일론 느낌. 바닥에는 CSS로 그린 실제 지퍼 추가 — repeating-linear-gradient 로 은색 이빨 (teeth) + 위아래 fabric tape + 오른쪽에 pull tab (핀홀까지) 붙여서 진짜 지퍼처럼 보임",
+    en: "Master Sets binder spine cleanup — dropped the three silver rings that used to sit on the centre gutter (per LO's reference photo, real card-guardian binders don't show them from this angle). Left just a shallow crease down the middle: dark shadow band + faint highlight ridges = folded nylon feel. Also added a real CSS zipper along the bottom edge — silver teeth (repeating-linear-gradient), fabric tape above and below, plus a metallic pull tab with a pinhole for the ring on the right. All CSS, no image assets",
+  },
+  {
+    date: "2026-07-06",
     emoji: "🕸",
     kr: "Master Sets 바인더 안쪽에 mesh 질감 추가 — 그동안 검정 그라디언트로만 채워져있던 페이지 배경에 미세한 dot pattern 을 두 겹 오프셋으로 덧입혀서 실제 카드 바인더의 perforated ballistic nylon (구멍 뚫린 검정 나일론) 처럼 보이게 함. 6px 간격 dot + 3px 오프셋으로 half-step, 반짝임 무게 다르게 해서 그리드가 아니라 짜여진 mesh 로 읽힘. 카드는 여전히 유일한 색감으로 도드라짐",
     en: "Master Sets binder interior now has a mesh texture — the previously flat black gradient gets two offset radial-gradient dot layers on top, so the pages read as real perforated ballistic-nylon binder pockets instead of a solid black wash. 6px dot grid with a 3px half-step offset and two different opacities so the pattern feels woven, not gridded. Cards still pop as the only colour",

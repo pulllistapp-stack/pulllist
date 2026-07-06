@@ -283,14 +283,73 @@ export function BinderSpread({
                     "repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.15) 0 1px, transparent 1px 3px)",
                 }}
               />
-              {/* zip strip along the bottom */}
+              {/* Zipper along the bottom — realistic teeth via a
+                  repeating-linear-gradient of alternating light/dark
+                  bars, sandwiched between two fabric "tape" strips and
+                  finished with a metallic pull tab on the right.
+                  All CSS, no image asset needed. */}
               <div
-                className="absolute bottom-2 left-4 right-4 h-1 rounded-full opacity-70 pointer-events-none"
+                className="absolute bottom-1 left-[6%] right-[6%] flex flex-col pointer-events-none"
+                aria-hidden
+              >
+                {/* Upper fabric tape edge */}
+                <div
+                  className="h-[3px] rounded-t-sm"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%)",
+                    boxShadow:
+                      "inset 0 1px 1px rgba(255,255,255,0.06)",
+                  }}
+                />
+                {/* Teeth — repeating gradient reads as interlocking
+                    zipper teeth when scaled tightly. */}
+                <div
+                  className="h-[5px]"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(90deg, #c8c8c8 0px, #c8c8c8 2px, #7a7a7a 2px, #7a7a7a 3px, #4a4a4a 3px, #4a4a4a 4px)",
+                    boxShadow:
+                      "inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 1px rgba(0,0,0,0.6), 0 1px 1px rgba(0,0,0,0.4)",
+                  }}
+                />
+                {/* Lower fabric tape edge */}
+                <div
+                  className="h-[3px] rounded-b-sm"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, #0f0f0f 0%, #1a1a1a 100%)",
+                    boxShadow:
+                      "inset 0 -1px 1px rgba(255,255,255,0.06)",
+                  }}
+                />
+              </div>
+              {/* Zipper pull tab — sits over the teeth on the right */}
+              <div
+                className="absolute pointer-events-none z-10"
                 style={{
+                  right: "5%",
+                  bottom: "0.5%",
+                  width: "10px",
+                  height: "18px",
                   background:
-                    "linear-gradient(90deg, transparent 0%, #3a3a3a 6%, #3a3a3a 94%, transparent 100%)",
+                    "linear-gradient(180deg, #e0e0e0 0%, #7a7a7a 45%, #a8a8a8 60%, #6a6a6a 100%)",
+                  borderRadius: "3px",
+                  boxShadow:
+                    "0 2px 3px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(0,0,0,0.4)",
                 }}
-              />
+                aria-hidden
+              >
+                {/* Tiny hole at the top of the pull for the ring */}
+                <div
+                  className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
+                  style={{
+                    background: "#0a0a0a",
+                    boxShadow:
+                      "inset 0 1px 1px rgba(0,0,0,0.8), 0 0 1px rgba(255,255,255,0.2)",
+                  }}
+                />
+              </div>
             </div>
 
             <div
@@ -356,15 +415,30 @@ export function BinderSpread({
                 )}
               </AnimatePresence>
 
-              {/* Thin rings, silver */}
+              {/* Center spine groove — no rings, per LO's reference
+                  photo (just a subtle valley where the two pages meet).
+                  A thin dark strip with an inset shadow reads as a
+                  crease without competing with the cards for attention. */}
               <div
-                className="pointer-events-none absolute left-1/2 top-0 h-full w-8 -translate-x-1/2 z-20 flex flex-col items-center justify-around py-[8%]"
+                className="pointer-events-none absolute left-1/2 top-[5%] bottom-[5%] w-[10px] -translate-x-1/2 z-20"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 40%, rgba(0,0,0,0.75) 50%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0) 100%)",
+                  borderRadius: "6px",
+                  boxShadow: "inset 0 0 6px rgba(0,0,0,0.7)",
+                }}
                 aria-hidden
-              >
-                {[0, 1, 2].map((i) => (
-                  <SilverRing key={i} />
-                ))}
-              </div>
+              />
+              {/* Faint highlight along the spine edges — catches light
+                  where the fabric folds around the groove. */}
+              <div
+                className="pointer-events-none absolute left-1/2 top-[5%] bottom-[5%] w-[10px] -translate-x-1/2 z-20"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, transparent 15%, rgba(255,255,255,0.06) 22%, transparent 32%, transparent 68%, rgba(255,255,255,0.06) 78%, transparent 85%, transparent 100%)",
+                }}
+                aria-hidden
+              />
 
               {/* Wider edge zones with a persistent chevron affordance
                   on hover. z-40 sits above pages + rings without needing
@@ -931,30 +1005,6 @@ function EmptyPocketMark() {
       <span className="text-white/25 text-sm" aria-hidden>
         +
       </span>
-    </div>
-  );
-}
-
-function SilverRing() {
-  return (
-    <div
-      className="relative w-6 h-12"
-      aria-hidden
-      style={{
-        background:
-          "linear-gradient(90deg, #6a6a6a 0%, #d0d0d0 45%, #eeeeee 55%, #6a6a6a 100%)",
-        borderRadius: "6px",
-        boxShadow:
-          "inset 0 1px 2px rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.35)",
-      }}
-    >
-      <div
-        className="absolute inset-y-1.5 left-1/2 -translate-x-1/2 w-[65%] rounded-full"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 100%)",
-        }}
-      />
     </div>
   );
 }
