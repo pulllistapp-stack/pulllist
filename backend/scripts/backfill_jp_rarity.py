@@ -239,6 +239,18 @@ async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged
         # incomplete rarity from TCGdex's /ja API. Limitless's EN-
         # equivalent picker works on ANY JP card with set_id+number,
         # so widening the filter picks them up too.
+        # Safety filter: skip DECK sets and STUB sets.
+        # DECK sets (starter decks / build boxes / trainer boxes) hold
+        # reprints of MAIN-set cards. When we pass a DECK reprint's
+        # (set_id, number) to Limitless, the JP detail page lists the
+        # SAME card's EN prints across every set it ever appeared in —
+        # including SAR variants that live in totally unrelated sets.
+        # The position heuristic then treats the reprint as a "secret
+        # rare" (because DECK sets have small totals so any number
+        # >85% of total looks late-in-set) and assigns the SAR rarity.
+        # Result: 197 name-duplicate SIRs across DECK reprints, all
+        # wrong. Bulbapedia JP set articles are the correct source for
+        # reprint rarities — see scrape_bulbapedia_jp_rarity.py.
         sql = """
             SELECT c.id, c.set_id, c.number, COALESCE(s.total, s.printed_total) AS set_total
             FROM cards c
@@ -246,6 +258,7 @@ async def run(only_set: str | None, dry: bool, limit: int | None, include_tagged
             WHERE c.language='ja'
               AND c.number IS NOT NULL
               AND s.id NOT LIKE 'JPP-%'
+              AND (s.set_type IS NULL OR s.set_type NOT IN ('DECK', 'STUB'))
         """
         if not include_tagged:
             sql += " AND c.rarity IS NULL"
