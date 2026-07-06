@@ -154,13 +154,14 @@ export default function BinderDetailPage() {
 
       <header className="mb-6 flex items-start gap-4 flex-wrap">
         {view.master_set.set_logo_url ? (
-          <div className="relative h-16 w-24 shrink-0">
+          <div className="relative h-16 w-24 shrink-0 flex items-center justify-center">
             <Image
               src={view.master_set.set_logo_url}
               alt=""
-              fill
-              className="object-contain"
-              sizes="96px"
+              width={96}
+              height={64}
+              className="max-h-16 w-auto object-contain"
+              unoptimized
             />
           </div>
         ) : null}

@@ -184,13 +184,14 @@ function MasterSetCard({
       <Link href={`/portfolio/masters/${row.id}`} className="block">
         <div className="flex items-start gap-3 mb-3">
           {row.set_logo_url ? (
-            <div className="relative h-12 w-16 shrink-0">
+            <div className="relative h-12 w-16 shrink-0 flex items-center justify-center">
               <Image
                 src={row.set_logo_url}
                 alt=""
-                fill
-                className="object-contain"
-                sizes="64px"
+                width={64}
+                height={48}
+                className="max-h-12 w-auto object-contain"
+                unoptimized
               />
             </div>
           ) : (
@@ -415,13 +416,14 @@ function CreateMasterSetModal({
                       }
                     >
                       {s.logo_url ? (
-                        <div className="relative h-6 w-10 shrink-0">
+                        <div className="relative h-6 w-10 shrink-0 flex items-center justify-center">
                           <Image
                             src={s.logo_url}
                             alt=""
-                            fill
-                            className="object-contain"
-                            sizes="40px"
+                            width={40}
+                            height={24}
+                            className="max-h-6 w-auto object-contain"
+                            unoptimized
                           />
                         </div>
                       ) : (

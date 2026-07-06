@@ -64,6 +64,12 @@ const nextConfig = {
       // hostname because Shopify serves every merchant off the same
       // subdomain with paths keyed by shop id.
       { protocol: "https", hostname: "cdn.shopify.com" },
+      // Scrydex — hosts SV / MEV era set logos that neither pokemontcg.io
+      // nor pokemon.com's CDN carry (Chaos Rising me4, Perfect Order me3,
+      // Ascended Heroes me2pt5, etc.). SetCard renders these fine because
+      // it uses <Image unoptimized>; the Master Set modal/detail also
+      // needs the hostname allowlisted for the optimizer's ping-check.
+      { protocol: "https", hostname: "images.scrydex.com" },
     ],
   },
   async rewrites() {
