@@ -51,7 +51,49 @@ from scripts.backfill_jp_set_logos import _BULBAPEDIA_SLUGS as _LOGO_SLUGS
 
 # Set IDs where we know Bulbapedia has a Japanese Set list section.
 # Falls back to sets.name_en → "{Name}_(TCG)" when not listed here.
-_SET_TO_SLUG: dict[str, str] = {**_LOGO_SLUGS}
+_SET_TO_SLUG: dict[str, str] = {
+    **_LOGO_SLUGS,
+    # SV era (2023–2026)
+    "SV2a":  "Pok%C3%A9mon_Card_151_(TCG)",
+    "SV4a":  "Shiny_Treasure_ex_(TCG)",
+    "SV6":   "Mask_of_Change_(TCG)",
+    "SV8":   "Super-Electric_Breaker_(TCG)",
+    "SV8a":  "Terastal_Festival_ex_(TCG)",
+    "SV9a":  "Heat_Wave_Arena_(TCG)",
+    "SV11W": "White_Flare_(TCG)",
+    "SV11B": "Black_Bolt_(TCG)",
+    "S6K":   "Jet-Black_Poltergeist_(TCG)",
+    "S7D":   "Towering_Perfection_(TCG)",
+    "S8b":   "VMAX_Climax_(TCG)",
+    "S10b":  "Pok%C3%A9mon_GO_(TCG)",
+    "S12a":  "VSTAR_Universe_(TCG)",
+    "S4a":   "Shiny_Star_V_(TCG)",
+    # SM era (2016–2019)
+    "SM4p":  "GX_Battle_Boost_(TCG)",
+    "SM5M":  "Ultra_Moon_(TCG)",
+    "SM5S":  "Ultra_Sun_(TCG)",
+    "SM6b":  "Champion_Road_(TCG)",
+    "SM7a":  "Thunderclap_Spark_(TCG)",
+    "SM8b":  "GX_Ultra_Shiny_(TCG)",
+    "SM11a": "Remix_Bout_(TCG)",
+    "SM11b": "Dream_League_(TCG)",
+    "SM12a": "Tag_All_Stars_(TCG)",
+    # e-Card era (2001–2002)
+    "E1":    "Expedition_Base_Set_(TCG)",
+    "E2":    "Aquapolis_(TCG)",
+    "E4":    "Split_Earth_(TCG)",
+    "E5":    "Mysterious_Mountains_(TCG)",
+    # PMCG (WoTC era, 1996–1999)
+    "PMCG5": "Gym_Heroes_(TCG)",
+    "PMCG6": "Gym_Challenge_(TCG)",
+    # PCG era (2004–2006)
+    "PCG2":  "Clash_of_the_Blue_Sky_(TCG)",
+    "PCG3":  "Rocket_Gang_Strikes_Back_(TCG)",
+    "PCG5":  "Mirage_Forest_(TCG)",
+    "PCG6":  "Holon_Research_Tower_(TCG)",
+    "PCG8":  "Miracle_Crystal_(TCG)",
+    "PCG9":  "Battle_at_Furthest_Ends_(TCG)",
+}
 
 
 # Canonical JP rarity codes we accept. Anything else surfaces in the
@@ -70,22 +112,28 @@ _JP_RARITIES: set[str] = {
 }
 
 
-# Row parser. Bulbapedia's Set list rows follow one of these shapes:
+# Row parser. Bulbapedia's Set list rows look like:
 #   <tr>
-#     <td>001/069</td>
-#     <td><a href="...">Card Name</a> ...</td>
-#     <td>[type icon]</td>
-#     <td>C</td>
+#     <td align="center">001/073</td>
+#     <td><img src="RegMark_G.png"></td>       <-- regulation mark
+#     <td><a href="/wiki/Tropius_(...)">Tropius</a></td>
+#     <th><img alt="Grass" ...></th>            <-- type icon
+#     <td><img alt="C" src="Rarity_C.png"></td> <-- RARITY (image, not text!)
+#     <td>Promotion</td>
 #   </tr>
-# We grab the FIRST cell that looks like "NNN/DDD", then look for the
-# rarity code in later cells.
+# Rarity is a Rarity_X.png image with alt="X". We look for either the
+# alt attribute or the filename to recover the code.
 _ROW_RE = re.compile(
     r"<tr[^>]*>(.*?)</tr>", re.DOTALL | re.IGNORECASE,
 )
 _CELL_RE = re.compile(
-    r"<td[^>]*>(.*?)</td>", re.DOTALL | re.IGNORECASE,
+    r"<t[dh][^>]*>(.*?)</t[dh]>", re.DOTALL | re.IGNORECASE,
 )
-_NUM_RE = re.compile(r"^\s*(\d{1,4})\s*/", re.MULTILINE)
+_NUM_RE = re.compile(r"(\d{1,4})\s*/\s*\d{1,4}")
+_RARITY_IMG_RE = re.compile(
+    r'/Rarity_([A-Z]{1,4})\.png|<img[^>]+alt="([A-Za-z0-9]{1,4})"[^>]+/Rarity_',
+    re.IGNORECASE,
+)
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
@@ -98,37 +146,44 @@ def _parse_set_list(html: str) -> list[tuple[int, str, str]]:
     out: list[tuple[int, str, str]] = []
     for m in _ROW_RE.finditer(html):
         row = m.group(1)
-        cells = [_strip_html(c) for c in _CELL_RE.findall(row)]
-        if len(cells) < 2:
+        cells_html = _CELL_RE.findall(row)
+        if len(cells_html) < 3:
             continue
-        # Find the cell that looks like "NNN/DDD"
+        cells_text = [_strip_html(c) for c in cells_html]
+
+        # Card number ("NNN/DDD")
         num_int = None
-        for cell in cells[:2]:  # number is usually first or second
-            m2 = _NUM_RE.search(cell)
+        for t in cells_text[:3]:
+            m2 = _NUM_RE.search(t)
             if m2:
                 num_int = int(m2.group(1))
                 break
         if num_int is None:
             continue
-        # Card name = the cell with the most alphabetic content that
-        # isn't the number cell
-        name_candidates = [
-            c for c in cells
-            if not _NUM_RE.search(c) and len(c) >= 2 and any(
-                ch.isalpha() or "぀" <= ch <= "ヿ" or
-                "一" <= ch <= "鿿" for ch in c
-            )
-        ]
-        if not name_candidates:
-            continue
-        name = name_candidates[0]
-        # Rarity code — one of the JP tier tokens, usually the LAST cell
-        rarity = None
-        for cell in reversed(cells):
-            code = cell.strip().split()[0] if cell.strip() else ""
-            if code in _JP_RARITIES:
-                rarity = code
+
+        # Card name — non-number, non-empty cell with letters/kana/kanji
+        name = None
+        for t in cells_text:
+            if not t or _NUM_RE.search(t):
+                continue
+            if any(
+                ch.isalpha() or "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿"
+                for ch in t
+            ):
+                name = t
                 break
+        if name is None:
+            continue
+
+        # Rarity — search cell HTML for Rarity_X.png filename
+        rarity = None
+        for cell_html in cells_html:
+            m3 = _RARITY_IMG_RE.search(cell_html)
+            if m3:
+                code = (m3.group(1) or m3.group(2) or "").upper()
+                if code in _JP_RARITIES:
+                    rarity = code
+                    break
         if rarity is None:
             continue
         out.append((num_int, name, rarity))

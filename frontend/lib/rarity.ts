@@ -23,6 +23,27 @@ export type RarityTier =
   | "other";
 
 export function rarityTier(rarity: string): RarityTier {
+  // JP native rarity codes (C / U / R / RR / RRR / AR / SR / SAR /
+  // HR / UR / CHR / CSR / SSR) sit alongside EN labels in the same
+  // column. Map them to the shared tier system so chip colours stay
+  // consistent when the filter sidebar renders a JP card catalog.
+  switch (rarity) {
+    case "C":   return "common";
+    case "U":   return "uncommon";
+    case "R":   return "rare";
+    case "RR":  return "ultra";
+    case "RRR": return "ultra";
+    case "AR":  return "illustration";
+    case "SR":  return "ultra";
+    case "SAR": return "sir";
+    case "HR":  return "hyper";
+    case "UR":  return "hyper";
+    case "CHR": return "illustration";
+    case "CSR": return "illustration";
+    case "SSR": return "shiny";
+    case "ACE": return "ace";
+  }
+
   const n = rarity.toLowerCase();
   if (rarity === "Common") return "common";
   if (rarity === "Uncommon") return "uncommon";

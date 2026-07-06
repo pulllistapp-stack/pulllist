@@ -16,7 +16,7 @@ type Props = {
   lockedQ?: string;
 };
 
-const RARITY_GROUPS: Record<string, string[]> = {
+const EN_RARITY_GROUPS: Record<string, string[]> = {
   Common: ["Common"],
   Uncommon: ["Uncommon"],
   Rare: ["Rare"],
@@ -66,6 +66,30 @@ const RARITY_GROUPS: Record<string, string[]> = {
     "Rare Holo ☆",
   ],
 };
+
+// JP native rarity taxonomy (C / U / R / RR / RRR / AR / SR / SAR /
+// HR / UR / CHR / CSR / SSR). Rendered when the language filter is
+// 'ja' so the user sees SAR instead of "Special Illustration Rare",
+// UR instead of "Hyper Rare", etc.
+const JP_RARITY_GROUPS: Record<string, string[]> = {
+  "Common (C)": ["C"],
+  "Uncommon (U)": ["U"],
+  "Rare (R)": ["R"],
+  "Double / Triple Rare": ["RR", "RRR"],
+  "Art Rare (AR)": ["AR"],
+  "Super Rare (SR)": ["SR"],
+  "Special Art Rare (SAR)": ["SAR"],
+  "Character (CHR / CSR)": ["CHR", "CSR"],
+  "Shiny (SSR)": ["SSR"],
+  "Hyper Rare (HR)": ["HR"],
+  "Ultra Rare (UR)": ["UR"],
+  "ACE": ["ACE"],
+  Promo: ["Promo", "P"],
+};
+
+function rarityGroupsFor(language: string): Record<string, string[]> {
+  return language === "ja" ? JP_RARITY_GROUPS : EN_RARITY_GROUPS;
+}
 
 // Rarity color tier system lives in @/lib/rarity — shared with TrendingPage,
 // CardThumb, etc. so chips look consistent everywhere.
@@ -177,15 +201,33 @@ export function FilterSidebar({ basePath, lockedSetId, lockedQ }: Props) {
     );
   }
 
-  // Group rarities — collapse anything not in options into "Other"
-  const rarityKeys = Object.keys(RARITY_GROUPS);
+  // Pick the rarity taxonomy for the current catalog language. JP
+  // catalog gets the JP-native codes (C / U / R / RR / RRR / AR /
+  // SR / SAR / HR / UR / CHR / CSR / SSR) — matches what's printed on
+  // the actual cards. EN/KR catalogs get the pokemontcg.io-style
+  // English labels the rest of the app has always used.
+  const activeLanguage = params.get("language") ?? "en";
+  const rarityGroups = rarityGroupsFor(activeLanguage);
+  const rarityKeys = Object.keys(rarityGroups);
   const knownRarities = new Set(
-    rarityKeys.flatMap((k) => RARITY_GROUPS[k]),
+    rarityKeys.flatMap((k) => rarityGroups[k]),
   );
-  const extraRarities = options.rarities.filter((r) => !knownRarities.has(r));
+  // When the JP taxonomy is active, drop any leftover EN-style labels
+  // from the "Misc" section — they're all cards whose Bulbapedia
+  // rarity rebuild hasn't landed yet, and surfacing them here would
+  // give the user two taxonomies at once. The reverse guard on the EN
+  // side keeps stray JP codes out of the English catalog filter.
+  const _EN_KNOWN = new Set(Object.values(EN_RARITY_GROUPS).flat());
+  const _JP_KNOWN = new Set(Object.values(JP_RARITY_GROUPS).flat());
+  const extraRarities = options.rarities.filter((r) => {
+    if (knownRarities.has(r)) return false;
+    if (activeLanguage === "ja" && _EN_KNOWN.has(r)) return false;
+    if (activeLanguage !== "ja" && _JP_KNOWN.has(r)) return false;
+    return true;
+  });
   const groupedRarities = rarityKeys.map((k) => ({
     label: k,
-    rarities: RARITY_GROUPS[k].filter((r) => options.rarities.includes(r)),
+    rarities: rarityGroups[k].filter((r) => options.rarities.includes(r)),
   })).filter((g) => g.rarities.length > 0);
   if (extraRarities.length > 0) {
     groupedRarities.push({ label: "Misc", rarities: extraRarities });
