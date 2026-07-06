@@ -1,24 +1,49 @@
 "use client";
 
 /**
- * BinderSpread — the physical open-binder scene for a master set.
+ * BinderSpread — closed-cover → open-spread binder scene for a master set.
  *
- * Ports the layout Variant produced (leather shell + brass rings + page
- * thickness + rotateY page-flip animation) into our project, wired to
- * our BinderSlot type. The surrounding chrome — breadcrumbs, tabs,
- * progress bar, mode/sort toggles — lives on the parent page, so this
- * component intentionally does NOT re-implement any of them; it renders
- * the spread scene, click-to-flip edges, and keyboard nav only.
+ * v2 rewrite (per LO 2026-07-06):
+ *   • Closed cover first — mascot centered (or custom image), set name,
+ *     tap to open. Same click also swings the front cover away.
+ *   • Simpler charcoal shell reference from LO's physical binder photo,
+ *     less "grandma leather", more "modern zip binder".
+ *   • Real bottom Prev/Next buttons + wider edge zones with a visible
+ *     chevron on hover — the previous invisible 10% strip was
+ *     un-discoverable.
+ *   • preserve-3d moved off the outer container onto the flip motion.div
+ *     only — buttons at z-40 were being defeated by the parent's 3D
+ *     stacking context.
+ *   • Content swap during flip: both left and right pages jump to the
+ *     destination spread at the midpoint (when the flipping sheet is
+ *     edge-on and invisible) so the arc never reveals a stale state.
+ *     Back face of the flipping sheet renders the destination-left page
+ *     for a physical-book feel instead of a blank card.
+ *   • Longer, gentler flip (900ms cubic-bezier) + a shadow-follow div
+ *     that darkens the resting spread as the sheet rises.
  *
- * External texture URLs from the Variant draft are removed on purpose:
- * they'd need next.config.mjs remotePatterns just to load a decorative
- * background. Cream + subtle CSS gradient reads close enough at this
- * viewing distance and keeps the component self-contained.
+ * Cover upload / clear are wired through props so the parent page owns
+ * the API call (matches the mode/sort PATCH pattern).
  */
 
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+  Loader2,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { BinderSize, BinderSlot } from "@/lib/api";
 
@@ -45,56 +70,80 @@ type Direction = 1 | -1 | 0;
 export function BinderSpread({
   slots,
   gridSize,
+  setName,
+  coverImageUrl,
   initialSpreadIndex = 0,
   onSpreadChange,
+  onUploadCover,
+  onClearCover,
+  uploadBusy,
 }: {
   slots: BinderSlot[];
   gridSize: BinderSize;
+  setName: string;
+  coverImageUrl: string | null;
   initialSpreadIndex?: number;
   onSpreadChange?: (index: number) => void;
+  /** Async — resize + POST live in the parent page. */
+  onUploadCover?: (file: File) => Promise<void>;
+  onClearCover?: () => Promise<void>;
+  uploadBusy?: boolean;
 }) {
   const slotsPerPage = SLOTS_PER_PAGE[gridSize];
   const slotsPerSpread = slotsPerPage * 2;
   const totalSpreads = Math.max(1, Math.ceil(slots.length / slotsPerSpread));
 
+  const [coverOpen, setCoverOpen] = useState(false);
   const [spreadIndex, setSpreadIndex] = useState(initialSpreadIndex);
+  const [destIndex, setDestIndex] = useState<number | null>(null);
   const [flipping, setFlipping] = useState(false);
   const [direction, setDirection] = useState<Direction>(0);
   const [query, setQuery] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  // Grid size may change while user's on a later spread than the new
-  // grid can reach; clamp to keep the spread pointer valid.
   useEffect(() => {
     if (spreadIndex >= totalSpreads) {
       setSpreadIndex(totalSpreads - 1);
     }
   }, [gridSize, spreadIndex, totalSpreads]);
 
-  const { leftSlots, rightSlots } = useMemo(() => {
-    const start = spreadIndex * slotsPerSpread;
-    const chunk = slots.slice(start, start + slotsPerSpread);
-    return {
-      leftSlots: padTo(chunk.slice(0, slotsPerPage), slotsPerPage),
-      rightSlots: padTo(chunk.slice(slotsPerPage, slotsPerSpread), slotsPerPage),
-    };
-  }, [slots, spreadIndex, slotsPerPage, slotsPerSpread]);
+  const spreadFor = useCallback(
+    (index: number) => {
+      const start = index * slotsPerSpread;
+      const chunk = slots.slice(start, start + slotsPerSpread);
+      return {
+        left: padTo(chunk.slice(0, slotsPerPage), slotsPerPage),
+        right: padTo(chunk.slice(slotsPerPage, slotsPerSpread), slotsPerPage),
+      };
+    },
+    [slots, slotsPerPage, slotsPerSpread],
+  );
+
+  const current = useMemo(() => spreadFor(spreadIndex), [spreadFor, spreadIndex]);
+  const destination = useMemo(
+    () => (destIndex !== null ? spreadFor(destIndex) : null),
+    [destIndex, spreadFor],
+  );
 
   const goToSpread = useCallback(
     (next: number) => {
       const clamped = Math.max(0, Math.min(totalSpreads - 1, next));
       if (clamped === spreadIndex || flipping) return;
+      setDestIndex(clamped);
       setDirection(clamped > spreadIndex ? 1 : -1);
       setFlipping(true);
-      // Swap the page contents at the midpoint of the flip so the arc
-      // never reveals a stale spread. 300ms of 600ms feels natural.
+      // Midpoint swap: sheet is edge-on and invisible at rotateY(±90°).
+      // Move the underlying spread to the destination here so the tail
+      // half of the flip animation lands over the correct next content.
       window.setTimeout(() => {
         setSpreadIndex(clamped);
         onSpreadChange?.(clamped);
-      }, 300);
+      }, 450);
       window.setTimeout(() => {
         setFlipping(false);
         setDirection(0);
-      }, 600);
+        setDestIndex(null);
+      }, 900);
     },
     [spreadIndex, flipping, totalSpreads, onSpreadChange],
   );
@@ -106,6 +155,25 @@ export function BinderSpread({
   const handlePrev = useCallback(() => {
     if (spreadIndex > 0) goToSpread(spreadIndex - 1);
   }, [spreadIndex, goToSpread]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA"))
+        return;
+      if (!coverOpen) {
+        // While the cover is showing, Enter / → opens it.
+        if (e.key === "Enter" || e.key === "ArrowRight") setCoverOpen(true);
+        return;
+      }
+      if (e.key === "ArrowRight") handleNext();
+      else if (e.key === "ArrowLeft") handlePrev();
+      else if (e.key === "Home") goToSpread(0);
+      else if (e.key === "End") goToSpread(totalSpreads - 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [coverOpen, handleNext, handlePrev, goToSpread, totalSpreads]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -119,187 +187,452 @@ export function BinderSpread({
     }
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Don't hijack arrow keys while the user is typing in an input.
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA"))
-        return;
-      if (e.key === "ArrowRight") handleNext();
-      else if (e.key === "ArrowLeft") handlePrev();
-      else if (e.key === "Home") goToSpread(0);
-      else if (e.key === "End") goToSpread(totalSpreads - 1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [handleNext, handlePrev, goToSpread, totalSpreads]);
-
-  const leftPageNum = spreadIndex * 2 + 1;
-  const rightPageNum = spreadIndex * 2 + 2;
+  const onCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onUploadCover) await onUploadCover(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   return (
     <div className="w-full flex flex-col items-center">
-      {/* Search + spread counter */}
-      <div className="mb-4 flex w-full max-w-5xl items-center justify-between gap-3 flex-wrap">
-        <div className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
-          Spread {spreadIndex + 1} of {totalSpreads}
-        </div>
-        <div className="relative">
-          <span
-            aria-hidden
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm"
-          >
-            🔍
-          </span>
-          <input
-            type="text"
-            value={query}
-            onChange={handleSearch}
-            placeholder="Jump to card…"
-            className="bg-bg-surface border border-border rounded-full py-2 pl-9 pr-4 text-sm w-64 focus:outline-none focus:border-accent-yellow/50"
-          />
-        </div>
-      </div>
-
-      {/* Binder scene */}
-      <div
-        className="relative w-full max-w-5xl"
-        style={{ perspective: "1600px" }}
-      >
-        {/* Leather shell */}
-        <div
-          className="absolute inset-x-[-1.5%] inset-y-[-3%] rounded-[28px] -z-10 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.35)]"
-          style={{
-            background:
-              "radial-gradient(circle at 30% 20%, #6b4a35 0%, #4a3020 60%, #2d1c10 100%)",
-          }}
-          aria-hidden
+      {/* Cover view — hides the spread until the user opens the binder. */}
+      {!coverOpen ? (
+        <CoverPage
+          setName={setName}
+          coverImageUrl={coverImageUrl}
+          onOpen={() => setCoverOpen(true)}
+          onPickImage={() => fileRef.current?.click()}
+          onClearCover={onClearCover}
+          uploadBusy={uploadBusy}
         />
-
-        <div
-          className="relative w-full flex items-stretch justify-center"
-          style={{
-            aspectRatio: gridSize === "4x4" ? "3 / 2.6" : "3 / 2.1",
-            transformStyle: "preserve-3d",
-          }}
-        >
-          {/* Left page (static base under the flipping overlay) */}
-          <PageBase
-            slots={leftSlots}
-            pageNumber={leftPageNum}
-            gridSize={gridSize}
-            side="left"
-          />
-          {/* Right page (static base) */}
-          <PageBase
-            slots={rightSlots}
-            pageNumber={rightPageNum}
-            gridSize={gridSize}
-            side="right"
-          />
-
-          {/* Flipping-page overlay */}
-          <AnimatePresence>
-            {flipping && direction !== 0 && (
-              <motion.div
-                key={`flip-${spreadIndex}-${direction}`}
-                className="absolute top-0 h-full w-1/2 z-30 pointer-events-none"
-                style={{
-                  left: direction === 1 ? "50%" : "0%",
-                  transformOrigin: direction === 1 ? "left center" : "right center",
-                  transformStyle: "preserve-3d",
-                }}
-                initial={{ rotateY: 0 }}
-                animate={{ rotateY: direction === 1 ? -180 : 180 }}
-                transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+      ) : (
+        <>
+          {/* Header row: cover-close + spread counter + search */}
+          <div className="mb-4 flex w-full max-w-5xl items-center justify-between gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setCoverOpen(false)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary hover:border-text-tertiary"
+            >
+              <X className="h-3.5 w-3.5" />
+              Close binder
+            </button>
+            <div className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
+              Spread {spreadIndex + 1} of {totalSpreads}
+            </div>
+            <div className="relative">
+              <span
+                aria-hidden
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm"
               >
-                {/* Front face — the outgoing page */}
-                <div
-                  className="absolute inset-0"
-                  style={{ backfaceVisibility: "hidden" }}
-                >
-                  <PageBase
-                    slots={direction === 1 ? rightSlots : leftSlots}
-                    pageNumber={direction === 1 ? rightPageNum : leftPageNum}
-                    gridSize={gridSize}
-                    side={direction === 1 ? "right" : "left"}
-                    floating
-                  />
-                </div>
-                {/* Back face — a blank next page (contents rendered by
-                    the base layer once the flip completes). */}
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backfaceVisibility: "hidden",
-                    transform: "rotateY(180deg)",
-                  }}
-                >
-                  <PageBase
-                    slots={padTo([], slotsPerPage)}
-                    pageNumber={
-                      direction === 1 ? rightPageNum + 1 : leftPageNum - 1
-                    }
-                    gridSize={gridSize}
-                    side={direction === 1 ? "left" : "right"}
-                    floating
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Brass rings (in front of pages, behind the flip overlay) */}
-          <div
-            className="pointer-events-none absolute left-1/2 top-0 h-full w-16 -translate-x-1/2 z-20 flex flex-col items-center justify-around py-[8%]"
-            aria-hidden
-          >
-            {[0, 1, 2].map((i) => (
-              <Ring key={i} />
-            ))}
+                🔍
+              </span>
+              <input
+                type="text"
+                value={query}
+                onChange={handleSearch}
+                placeholder="Jump to card…"
+                className="bg-bg-surface border border-border rounded-full py-2 pl-9 pr-4 text-sm w-56 focus:outline-none focus:border-accent-yellow/50"
+              />
+            </div>
           </div>
 
-          {/* Click-to-flip edges */}
-          <button
-            type="button"
-            onClick={handlePrev}
-            disabled={spreadIndex === 0 || flipping}
-            aria-label="Previous spread"
-            className="absolute left-0 top-[10%] bottom-[10%] w-[10%] z-40 cursor-pointer group disabled:cursor-default"
+          {/* Binder scene */}
+          <div
+            className="relative w-full max-w-5xl"
+            style={{ perspective: "1800px" }}
           >
-            <span className="absolute inset-y-0 left-0 w-full opacity-0 group-hover:opacity-100 group-disabled:opacity-0 transition-opacity bg-gradient-to-r from-black/10 to-transparent" />
-          </button>
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={spreadIndex >= totalSpreads - 1 || flipping}
-            aria-label="Next spread"
-            className="absolute right-0 top-[10%] bottom-[10%] w-[10%] z-40 cursor-pointer group disabled:cursor-default"
-          >
-            <span className="absolute inset-y-0 right-0 w-full opacity-0 group-hover:opacity-100 group-disabled:opacity-0 transition-opacity bg-gradient-to-l from-black/10 to-transparent" />
-          </button>
-        </div>
+            {/* Charcoal outer shell */}
+            <div
+              className="absolute inset-x-[-1.5%] inset-y-[-3%] rounded-[24px] -z-10 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.55)]"
+              style={{
+                background:
+                  "linear-gradient(160deg, #1a1a1a 0%, #0d0d0d 55%, #1a1a1a 100%)",
+              }}
+              aria-hidden
+            >
+              {/* subtle nylon-weave noise */}
+              <div
+                className="absolute inset-0 opacity-25 mix-blend-overlay pointer-events-none rounded-[24px]"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.15) 0 1px, transparent 1px 3px)",
+                }}
+              />
+              {/* zip strip along the bottom */}
+              <div
+                className="absolute bottom-2 left-4 right-4 h-1 rounded-full opacity-70 pointer-events-none"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, #3a3a3a 6%, #3a3a3a 94%, transparent 100%)",
+                }}
+              />
+            </div>
+
+            <div
+              className="relative w-full flex items-stretch justify-center"
+              style={{
+                aspectRatio: gridSize === "4x4" ? "3 / 2.6" : "3 / 2.1",
+              }}
+            >
+              {/* Static pages beneath the flip */}
+              <PageBase
+                slots={current.left}
+                pageNumber={spreadIndex * 2 + 1}
+                gridSize={gridSize}
+                side="left"
+              />
+              <PageBase
+                slots={current.right}
+                pageNumber={spreadIndex * 2 + 2}
+                gridSize={gridSize}
+                side="right"
+              />
+
+              {/* Ambient shadow that darkens the resting spread while a
+                  flip is in progress. Adds perceived depth without
+                  needing per-page 3D shadows. */}
+              <motion.div
+                className="pointer-events-none absolute inset-0 bg-black z-25"
+                initial={false}
+                animate={{ opacity: flipping ? 0.18 : 0 }}
+                transition={{ duration: 0.2 }}
+                aria-hidden
+              />
+
+              {/* Flipping sheet */}
+              <AnimatePresence>
+                {flipping && direction !== 0 && destination && (
+                  <motion.div
+                    key={`flip-${spreadIndex}-${direction}`}
+                    className="absolute top-0 h-full w-1/2 z-30 pointer-events-none"
+                    style={{
+                      left: direction === 1 ? "50%" : "0%",
+                      transformOrigin:
+                        direction === 1 ? "left center" : "right center",
+                      transformStyle: "preserve-3d",
+                    }}
+                    initial={{ rotateY: 0 }}
+                    animate={{ rotateY: direction === 1 ? -180 : 180 }}
+                    transition={{ duration: 0.9, ease: [0.65, 0, 0.35, 1] }}
+                  >
+                    {/* Front face — the outgoing page (what the user
+                        was just looking at on this side). */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        backfaceVisibility: "hidden",
+                        WebkitBackfaceVisibility: "hidden",
+                      }}
+                    >
+                      <PageBase
+                        slots={direction === 1 ? current.right : current.left}
+                        pageNumber={
+                          direction === 1
+                            ? spreadIndex * 2 + 2
+                            : spreadIndex * 2 + 1
+                        }
+                        gridSize={gridSize}
+                        side={direction === 1 ? "right" : "left"}
+                        floating
+                      />
+                    </div>
+                    {/* Back face — the incoming page from the destination
+                        spread. Rotated 180° so it reads right-way-up
+                        after the sheet lands. */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        backfaceVisibility: "hidden",
+                        WebkitBackfaceVisibility: "hidden",
+                        transform: "rotateY(180deg)",
+                      }}
+                    >
+                      <PageBase
+                        slots={
+                          direction === 1
+                            ? destination.left
+                            : destination.right
+                        }
+                        pageNumber={
+                          direction === 1
+                            ? destIndex! * 2 + 1
+                            : destIndex! * 2 + 2
+                        }
+                        gridSize={gridSize}
+                        side={direction === 1 ? "left" : "right"}
+                        floating
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Thin rings, silver */}
+              <div
+                className="pointer-events-none absolute left-1/2 top-0 h-full w-8 -translate-x-1/2 z-20 flex flex-col items-center justify-around py-[8%]"
+                aria-hidden
+              >
+                {[0, 1, 2].map((i) => (
+                  <SilverRing key={i} />
+                ))}
+              </div>
+
+              {/* Wider edge zones with a persistent chevron affordance
+                  on hover. z-40 sits above pages + rings without needing
+                  the parent's preserve-3d (which was breaking clicks). */}
+              <EdgeButton
+                side="left"
+                onClick={handlePrev}
+                disabled={spreadIndex === 0 || flipping}
+                label="Previous spread"
+              />
+              <EdgeButton
+                side="right"
+                onClick={handleNext}
+                disabled={spreadIndex >= totalSpreads - 1 || flipping}
+                label="Next spread"
+              />
+            </div>
+          </div>
+
+          {/* Explicit nav — LO called out the earlier hints strip
+              looked clickable but wasn't. These are real buttons. */}
+          <div className="mt-5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={spreadIndex === 0 || flipping}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:border-accent-yellow/50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Prev
+            </button>
+            <div className="min-w-[6ch] text-center font-mono text-xs text-text-tertiary tabular-nums">
+              {spreadIndex + 1} / {totalSpreads}
+            </div>
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={spreadIndex >= totalSpreads - 1 || flipping}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:border-accent-yellow/50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
+            Also works with{" "}
+            <kbd className="rounded bg-bg-surface border border-border px-1 py-0.5 mx-0.5">
+              ←
+            </kbd>{" "}
+            /{" "}
+            <kbd className="rounded bg-bg-surface border border-border px-1 py-0.5 mx-0.5">
+              →
+            </kbd>
+          </div>
+        </>
+      )}
+
+      {/* Hidden file input — triggered from the cover page's picker btn */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={onCoverFile}
+        className="hidden"
+      />
+    </div>
+  );
+}
+
+function CoverPage({
+  setName,
+  coverImageUrl,
+  onOpen,
+  onPickImage,
+  onClearCover,
+  uploadBusy,
+}: {
+  setName: string;
+  coverImageUrl: string | null;
+  onOpen: () => void;
+  onPickImage: () => void;
+  onClearCover?: () => Promise<void>;
+  uploadBusy?: boolean;
+}) {
+  const [clearing, setClearing] = useState(false);
+  return (
+    <div className="w-full flex flex-col items-center">
+      <div
+        className="relative w-full max-w-lg cursor-pointer group"
+        style={{ perspective: "1600px" }}
+        onClick={onOpen}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") onOpen();
+        }}
+        aria-label="Open binder"
+      >
+        <motion.div
+          initial={{ rotateY: 0 }}
+          whileHover={{ rotateY: -8 }}
+          transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+          className="relative aspect-[3/4] w-full rounded-[18px] overflow-hidden shadow-[0_30px_60px_-20px_rgba(0,0,0,0.6)]"
+          style={{
+            background:
+              "linear-gradient(160deg, #1a1a1a 0%, #0d0d0d 55%, #222222 100%)",
+            transformOrigin: "left center",
+          }}
+        >
+          {/* nylon weave overlay */}
+          <div
+            className="absolute inset-0 opacity-25 mix-blend-overlay pointer-events-none"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 3px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.15) 0 1px, transparent 1px 3px)",
+            }}
+            aria-hidden
+          />
+          {/* zip along the right */}
+          <div
+            className="absolute top-4 bottom-4 right-2 w-[3px] rounded-full opacity-70 pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(180deg, transparent 0%, #3a3a3a 6%, #3a3a3a 94%, transparent 100%)",
+            }}
+            aria-hidden
+          />
+          {/* inner content — custom image or mascot placeholder */}
+          <div className="absolute inset-6 rounded-[12px] flex flex-col items-center justify-center overflow-hidden">
+            {coverImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverImageUrl}
+                alt="Binder cover"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <>
+                <div className="relative h-40 w-40 mb-4 opacity-95">
+                  <Image
+                    src="/pullist-mascot.png"
+                    alt="Mascot"
+                    fill
+                    className="object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                    sizes="160px"
+                    unoptimized
+                  />
+                </div>
+                <div className="text-center px-6">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60 mb-2">
+                    Master Set
+                  </div>
+                  <div className="text-white text-2xl font-bold tracking-tight drop-shadow-md">
+                    {setName}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          {/* hover hint */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/95 text-black text-xs font-semibold px-4 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+            Tap to open
+          </div>
+        </motion.div>
       </div>
 
-      {/* Keyboard hint strip */}
-      <div className="mt-6 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">
-        <span className="flex items-center gap-1">
-          <kbd className="rounded bg-bg-surface border border-border px-1 py-0.5">
-            ←
-          </kbd>
-          Prev
-        </span>
-        <span className="text-text-tertiary/60">·</span>
-        <span>Click page edge to flip</span>
-        <span className="text-text-tertiary/60">·</span>
-        <span className="flex items-center gap-1">
-          Next
-          <kbd className="rounded bg-bg-surface border border-border px-1 py-0.5">
-            →
-          </kbd>
-        </span>
+      {/* Cover management controls */}
+      <div className="mt-4 flex items-center gap-2 flex-wrap justify-center">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPickImage();
+          }}
+          disabled={uploadBusy}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-4 py-2 text-xs font-semibold text-text-primary hover:border-accent-yellow/50 disabled:opacity-50"
+        >
+          {uploadBusy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ImageIcon className="h-3.5 w-3.5" />
+          )}
+          {coverImageUrl ? "Replace cover" : "Upload cover"}
+        </button>
+        {coverImageUrl && onClearCover && (
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!confirm("Remove custom cover?")) return;
+              setClearing(true);
+              try {
+                await onClearCover();
+              } finally {
+                setClearing(false);
+              }
+            }}
+            disabled={clearing || uploadBusy}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-4 py-2 text-xs font-semibold text-text-secondary hover:text-accent-red hover:border-accent-red/40 disabled:opacity-50"
+          >
+            {clearing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+            Remove
+          </button>
+        )}
       </div>
+      <p className="mt-2 text-[10px] uppercase tracking-wider text-text-tertiary">
+        Tap the binder to open · custom cover resized locally
+      </p>
     </div>
+  );
+}
+
+function EdgeButton({
+  side,
+  onClick,
+  disabled,
+  label,
+}: {
+  side: "left" | "right";
+  onClick: () => void;
+  disabled: boolean;
+  label: string;
+}) {
+  const isLeft = side === "left";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className={
+        "group absolute top-[8%] bottom-[8%] w-[12%] z-40 flex items-center justify-center cursor-pointer disabled:cursor-default " +
+        (isLeft ? "left-0" : "right-0")
+      }
+    >
+      <span
+        className={
+          "absolute inset-y-0 w-full transition-opacity opacity-0 group-hover:opacity-100 group-disabled:opacity-0 " +
+          (isLeft
+            ? "left-0 bg-gradient-to-r from-black/25 to-transparent"
+            : "right-0 bg-gradient-to-l from-black/25 to-transparent")
+        }
+      />
+      <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-black shadow-md opacity-0 group-hover:opacity-100 group-disabled:opacity-0 transition-opacity">
+        {isLeft ? (
+          <ChevronLeft className="h-5 w-5" />
+        ) : (
+          <ChevronRight className="h-5 w-5" />
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -317,48 +650,43 @@ function PageBase({
   floating?: boolean;
 }) {
   const isLeft = side === "left";
+  const positionClass = floating ? "absolute inset-0" : "flex-1 h-full";
   return (
     <div
       className={
-        "relative flex flex-col p-[3.5%] " +
-        (floating
-          ? "absolute inset-0"
-          : "flex-1 h-full ") +
-        (isLeft ? "rounded-l-lg" : "rounded-r-lg")
+        "flex flex-col p-[3.5%] " +
+        positionClass +
+        " " +
+        (isLeft ? "rounded-l-[10px]" : "rounded-r-[10px]")
       }
       style={{
-        // Warm cream page with a subtle radial gradient for depth so the
-        // outer edges read slightly cooler than the center — mimics a
-        // page catching soft overhead light.
         background:
-          "radial-gradient(circle at 50% 40%, #fdf7e6 0%, #f5ecd6 100%)",
+          "linear-gradient(160deg, #f5efe1 0%, #ece4d0 100%)",
         boxShadow: floating
-          ? "0 20px 40px -10px rgba(0,0,0,0.3)"
+          ? "0 25px 45px -12px rgba(0,0,0,0.4)"
           : undefined,
       }}
     >
-      {/* Page number in outer corner */}
       <div
         className={
-          "absolute top-2 text-[9px] font-bold text-stone-500/70 tracking-[0.2em] uppercase " +
-          (isLeft ? "left-4" : "right-4")
+          "absolute top-3 text-[9px] font-bold text-stone-500/70 tracking-[0.25em] uppercase pointer-events-none " +
+          (isLeft ? "left-5" : "right-5")
         }
       >
         Page {pageNumber}
       </div>
 
-      {/* Gutter shadow near the spine (fades to nothing at the outer edge) */}
+      {/* Gutter shadow near the spine */}
       <div
         className={
           "pointer-events-none absolute top-0 bottom-0 w-8 " +
           (isLeft
-            ? "right-0 bg-gradient-to-l from-black/15 to-transparent"
-            : "left-0 bg-gradient-to-r from-black/15 to-transparent")
+            ? "right-0 bg-gradient-to-l from-black/18 to-transparent"
+            : "left-0 bg-gradient-to-r from-black/18 to-transparent")
         }
         aria-hidden
       />
 
-      {/* Slot grid */}
       <div
         className={
           "mt-4 grid gap-[2.5%] flex-1 " +
@@ -380,21 +708,20 @@ function Pocket({ slot }: { slot: BinderSlot | null }) {
     <div
       className="relative aspect-[3/4] w-full rounded-[3px] overflow-hidden"
       style={{
-        backgroundColor: "#efe7d4",
+        backgroundColor: "#e5dcc4",
         boxShadow:
-          "inset 0 2px 4px rgba(70, 50, 20, 0.15), inset 0 -1px 2px rgba(255, 255, 255, 0.4)",
+          "inset 0 2px 4px rgba(70, 50, 20, 0.18), inset 0 -1px 2px rgba(255,255,255,0.4)",
       }}
     >
       {/* Plastic-sleeve gloss */}
       <div
-        className="pointer-events-none absolute inset-0 z-10 opacity-70"
+        className="pointer-events-none absolute inset-0 z-10 opacity-80"
         style={{
           background:
-            "linear-gradient(135deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0) 35%, rgba(255,255,255,0) 100%)",
+            "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 100%)",
         }}
         aria-hidden
       />
-
       {slot ? <SlotContents slot={slot} /> : <EmptyPocketMark />}
     </div>
   );
@@ -418,92 +745,86 @@ function SlotContents({ slot }: { slot: BinderSlot }) {
                   ? "Unl"
                   : slot.variant.slice(0, 4);
 
-  const body = (
-    <div
-      className={
-        "relative w-full h-full transition-[filter,opacity] duration-500 " +
-        (slot.owned ? "" : "grayscale opacity-40")
-      }
-    >
-      {slot.image_small ? (
-        // Plain <img> instead of next/image — we render dozens of slots
-        // per spread and every card image is on a next-config allowlisted
-        // hostname anyway. Avoids the optimizer paying per-slot ping cost.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={slot.image_small}
-          alt={slot.name}
-          className="w-full h-full object-contain"
-          loading="lazy"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center p-1 text-center">
-          <div className="text-[9px] font-mono text-stone-600/70 leading-tight">
-            {slot.number ?? "—"}
-            <br />
-            {slot.name.slice(0, 16)}
-          </div>
-        </div>
-      )}
-      {slot.number && (
-        <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[8px] font-mono text-white z-10">
-          {slot.number}
-        </span>
-      )}
-      {variantLabel && (
-        <span className="absolute right-1 top-1 rounded bg-amber-500/90 px-1 py-0.5 text-[8px] font-semibold uppercase text-stone-900 tracking-wider z-10">
-          {variantLabel}
-        </span>
-      )}
-      {slot.owned && (
-        <span
-          className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] shadow border border-white/50 z-10"
-          aria-label="Owned"
-        >
-          ✓
-        </span>
-      )}
-    </div>
-  );
-
   return (
     <Link
       href={`/cards/${slot.card_id}`}
       title={`${slot.name}${slot.owned ? " · owned" : ""}`}
       className="absolute inset-0 block"
     >
-      {body}
+      <div
+        className={
+          "relative w-full h-full transition-[filter,opacity] duration-500 " +
+          (slot.owned ? "" : "grayscale opacity-40")
+        }
+      >
+        {slot.image_small ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={slot.image_small}
+            alt={slot.name}
+            className="w-full h-full object-contain"
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center p-1 text-center">
+            <div className="text-[9px] font-mono text-stone-600/70 leading-tight">
+              {slot.number ?? "—"}
+              <br />
+              {slot.name.slice(0, 16)}
+            </div>
+          </div>
+        )}
+        {slot.number && (
+          <span className="absolute left-1 top-1 rounded bg-black/60 px-1 py-0.5 text-[8px] font-mono text-white z-10">
+            {slot.number}
+          </span>
+        )}
+        {variantLabel && (
+          <span className="absolute right-1 top-1 rounded bg-amber-500/90 px-1 py-0.5 text-[8px] font-semibold uppercase text-stone-900 tracking-wider z-10">
+            {variantLabel}
+          </span>
+        )}
+        {slot.owned && (
+          <span
+            className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] shadow border border-white/50 z-10"
+            aria-label="Owned"
+          >
+            ✓
+          </span>
+        )}
+      </div>
     </Link>
   );
 }
 
 function EmptyPocketMark() {
   return (
-    <div className="absolute inset-1 flex items-center justify-center rounded-sm border-2 border-dashed border-stone-400/30">
-      <span className="text-stone-400/60 text-lg" aria-hidden>
+    <div className="absolute inset-1 flex items-center justify-center rounded-sm border border-dashed border-stone-400/25">
+      <span className="text-stone-400/50 text-sm" aria-hidden>
         +
       </span>
     </div>
   );
 }
 
-function Ring() {
+function SilverRing() {
   return (
     <div
-      className="relative w-8 h-14"
+      className="relative w-6 h-12"
       aria-hidden
       style={{
-        background: "linear-gradient(90deg, #8a7345 0%, #d4b877 50%, #8a7345 100%)",
-        borderRadius: "8px",
+        background:
+          "linear-gradient(90deg, #6a6a6a 0%, #d0d0d0 45%, #eeeeee 55%, #6a6a6a 100%)",
+        borderRadius: "6px",
         boxShadow:
-          "inset 0 1px 2px rgba(255,255,255,0.4), 0 3px 6px rgba(0,0,0,0.3)",
+          "inset 0 1px 2px rgba(255,255,255,0.5), 0 2px 4px rgba(0,0,0,0.35)",
       }}
     >
       <div
-        className="absolute inset-y-2 left-1/2 -translate-x-1/2 w-[70%] rounded-full"
+        className="absolute inset-y-1.5 left-1/2 -translate-x-1/2 w-[65%] rounded-full"
         style={{
           background:
-            "linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.05) 100%)",
+            "linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 100%)",
         }}
       />
     </div>

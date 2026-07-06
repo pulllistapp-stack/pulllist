@@ -72,6 +72,8 @@ class MasterSetRead(BaseModel):
     as 2, hits with a single print count as 1."""
     owned_master: int
     """Distinct (card_id, variant) pairs the user owns from the set."""
+    cover_image_url: str | None = None
+    """User-uploaded cover image as a data: URL. Null → default mascot."""
     created_at: datetime
     updated_at: datetime
 
@@ -166,7 +168,16 @@ async def _progress(
     return total_base, owned_base, total_master, owned_master
 
 
-async def _row_to_read(db: AsyncSession, row: MasterSet, s: Set) -> MasterSetRead:
+async def _row_to_read(
+    db: AsyncSession,
+    row: MasterSet,
+    s: Set,
+    *,
+    include_cover: bool = True,
+) -> MasterSetRead:
+    """Build the response DTO. `include_cover=False` on list endpoints
+    keeps the response light — cover data URLs can be ~600KB each and
+    a user with 10 binders would blow up the list payload otherwise."""
     tb, ob, tm, om = await _progress(db, row.user_id, row.set_id)
     return MasterSetRead(
         id=row.id,
@@ -181,6 +192,7 @@ async def _row_to_read(db: AsyncSession, row: MasterSet, s: Set) -> MasterSetRea
         owned_base=ob,
         total_master=tm,
         owned_master=om,
+        cover_image_url=row.cover_image_url if include_cover else None,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -199,7 +211,9 @@ async def list_master_sets(
         .order_by(MasterSet.created_at.desc())
     )
     rows = (await db.execute(stmt)).all()
-    return [await _row_to_read(db, ms, s) for ms, s in rows]
+    return [
+        await _row_to_read(db, ms, s, include_cover=False) for ms, s in rows
+    ]
 
 
 @router.post("", response_model=MasterSetRead, status_code=status.HTTP_201_CREATED)
@@ -366,3 +380,80 @@ async def get_binder_view(
                 )
 
     return BinderView(master_set=head, slots=slots)
+
+
+# ── Cover image ─────────────────────────────────────────────────────
+# Stored inline as a data: URL — frontend resizes to ~800x1200 JPEG
+# before submit so payloads stay under a soft cap. Replacing the row's
+# value is a UPDATE, so there are no orphan blobs to clean up if the
+# user swaps covers (LO's requirement — "storage 안 차게").
+
+_COVER_MAX_BYTES = 800_000
+"""~600KB base64 = ~800KB of Text — comfortable ceiling for Neon rows
+without ballooning list-endpoint responses. Frontend enforces a stricter
+target (700KB), this is the last-line-of-defence server-side."""
+
+
+class CoverUploadIn(BaseModel):
+    image_data_url: str = Field(..., min_length=32)
+    """data:image/{jpeg|png|webp};base64,... — validated for prefix +
+    length. We don't inspect the payload bytes — the frontend does the
+    resize + format work."""
+
+
+@router.put("/{master_set_id}/cover", response_model=MasterSetRead)
+async def set_master_set_cover(
+    master_set_id: int,
+    payload: CoverUploadIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MasterSetRead:
+    if not payload.image_data_url.startswith("data:image/"):
+        raise HTTPException(400, "cover must be a data:image/… URL")
+    if len(payload.image_data_url) > _COVER_MAX_BYTES:
+        raise HTTPException(
+            413,
+            f"cover exceeds {_COVER_MAX_BYTES // 1000}KB — "
+            "resize / recompress before uploading",
+        )
+
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    row.cover_image_url = payload.image_data_url
+    await db.commit()
+    await db.refresh(row)
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    return await _row_to_read(db, row, s)
+
+
+@router.delete("/{master_set_id}/cover", response_model=MasterSetRead)
+async def clear_master_set_cover(
+    master_set_id: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MasterSetRead:
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    row.cover_image_url = None
+    await db.commit()
+    await db.refresh(row)
+
+    s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
+    return await _row_to_read(db, row, s)

@@ -531,6 +531,7 @@ export type MasterSet = {
   owned_base: number;
   total_master: number;
   owned_master: number;
+  cover_image_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -630,4 +631,24 @@ export function getBinderView(
   if (opts.sort) qs.set("sort", opts.sort);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return authedFetch<BinderView>(`/master-sets/${id}${suffix}`, token);
+}
+
+export function setMasterSetCover(
+  id: number,
+  imageDataUrl: string,
+  token: string,
+): Promise<MasterSet> {
+  return authedFetch<MasterSet>(`/master-sets/${id}/cover`, token, {
+    method: "PUT",
+    body: JSON.stringify({ image_data_url: imageDataUrl }),
+  });
+}
+
+export function clearMasterSetCover(
+  id: number,
+  token: string,
+): Promise<MasterSet> {
+  return authedFetch<MasterSet>(`/master-sets/${id}/cover`, token, {
+    method: "DELETE",
+  });
 }

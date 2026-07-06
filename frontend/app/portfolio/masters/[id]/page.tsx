@@ -14,10 +14,13 @@ import {
   BinderView,
   MasterSetDisplayMode,
   MasterSetSortMode,
+  clearMasterSetCover,
   getBinderView,
+  setMasterSetCover,
   updateMasterSet,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { fileToResizedDataUrl } from "@/lib/image-resize";
 
 export default function BinderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -30,6 +33,7 @@ export default function BinderDetailPage() {
   const [mode, setMode] = useState<MasterSetDisplayMode | null>(null);
   const [sort, setSort] = useState<MasterSetSortMode | null>(null);
   const [busy, setBusy] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
 
   const reload = useCallback(
     async (m: MasterSetDisplayMode | null, s: MasterSetSortMode | null) => {
@@ -99,6 +103,38 @@ export default function BinderDetailPage() {
       setBusy(false);
     }
   };
+
+  const handleUploadCover = useCallback(
+    async (file: File) => {
+      const token = getToken();
+      if (!token || !view) return;
+      setCoverBusy(true);
+      try {
+        const dataUrl = await fileToResizedDataUrl(file);
+        const updated = await setMasterSetCover(masterSetId, dataUrl, token);
+        setView((v) => (v ? { ...v, master_set: updated } : v));
+      } catch (e) {
+        alert(e instanceof Error ? e.message : "Cover upload failed");
+      } finally {
+        setCoverBusy(false);
+      }
+    },
+    [masterSetId, view],
+  );
+
+  const handleClearCover = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setCoverBusy(true);
+    try {
+      const updated = await clearMasterSetCover(masterSetId, token);
+      setView((v) => (v ? { ...v, master_set: updated } : v));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Remove failed");
+    } finally {
+      setCoverBusy(false);
+    }
+  }, [masterSetId]);
 
   const pct = useMemo(() => {
     if (!view || !mode) return 0;
@@ -251,6 +287,11 @@ export default function BinderDetailPage() {
         <BinderSpread
           slots={view.slots}
           gridSize={view.master_set.binder_size}
+          setName={view.master_set.set_name}
+          coverImageUrl={view.master_set.cover_image_url}
+          onUploadCover={handleUploadCover}
+          onClearCover={handleClearCover}
+          uploadBusy={coverBusy}
         />
       )}
     </main>

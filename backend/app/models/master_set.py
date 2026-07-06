@@ -22,7 +22,7 @@ Persisted on the row so the visual survives across sessions and devices.
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -62,6 +62,13 @@ class MasterSet(Base):
     """Card layout order — 'number' (mimics binder-page-by-page) or
     'rarity' (groups Common → Uncommon → Rare → hits). Persisted so
     a user with an unusual preference doesn't reset every visit."""
+
+    cover_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Custom binder cover, stored as a data: URL (base64 JPEG). Null =
+    show the default mascot. Frontend resizes uploads to ~800x1200 max
+    before submit so the payload stays under ~700KB. Replacing the row's
+    URL is the only cleanup step — no external storage service, so no
+    orphan blobs to garbage-collect."""
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
