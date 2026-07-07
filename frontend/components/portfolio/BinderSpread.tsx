@@ -572,6 +572,36 @@ function CoverPage({
             )}
           </div>
 
+          {/* Diamond-quilted PU-leather texture overlay — sits above
+              whatever cover art is showing so uploaded photos take on
+              a "real binder material" feel. Two crossing repeating
+              linear-gradients give the diamond grid; the dark bands
+              read as stitch grooves + the tight bright band next to
+              each one reads as the puffed leather ridge catching light.
+              Multiply blend keeps darker underlying pixels dark and
+              softens the effect on white backgrounds so it works on
+              any cover image without a per-image tune. */}
+          <div
+            className="absolute inset-0 pointer-events-none z-20 rounded-[18px] mix-blend-multiply opacity-70"
+            aria-hidden
+            style={{
+              backgroundImage: [
+                "repeating-linear-gradient(45deg, rgba(0,0,0,0.28) 0px, rgba(0,0,0,0.28) 1.5px, transparent 1.5px, transparent 22px)",
+                "repeating-linear-gradient(-45deg, rgba(0,0,0,0.28) 0px, rgba(0,0,0,0.28) 1.5px, transparent 1.5px, transparent 22px)",
+              ].join(", "),
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none z-20 rounded-[18px] mix-blend-screen opacity-45"
+            aria-hidden
+            style={{
+              backgroundImage: [
+                "repeating-linear-gradient(45deg, transparent 1.5px, rgba(255,255,255,0.35) 1.5px, rgba(255,255,255,0.35) 3px, transparent 3px, transparent 22px)",
+                "repeating-linear-gradient(-45deg, transparent 1.5px, rgba(255,255,255,0.35) 1.5px, rgba(255,255,255,0.35) 3px, transparent 3px, transparent 22px)",
+              ].join(", "),
+            }}
+          />
+
           {/* Stitching — always on top of whatever cover art is showing.
               Two layers: a dark shadow underneath + light thread on top
               so the dashes read on both bright and dim covers (matches
