@@ -246,9 +246,10 @@ async def list_master_sets(
         .order_by(MasterSet.created_at.desc())
     )
     rows = (await db.execute(stmt)).all()
-    return [
-        await _row_to_read(db, ms, s, include_cover=False) for ms, s in rows
-    ]
+    # Cover included on list so the /portfolio/masters cards can render a
+    # mini closed-binder preview. Master-set count per user is typically
+    # single digits; the payload cost is worth the visual affordance.
+    return [await _row_to_read(db, ms, s, include_cover=True) for ms, s in rows]
 
 
 @router.post("", response_model=MasterSetRead, status_code=status.HTTP_201_CREATED)

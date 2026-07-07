@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
+import { MiniBinderCover } from "@/components/portfolio/MiniBinderCover";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
 import {
   BinderSize,
@@ -183,22 +184,24 @@ function MasterSetCard({
     <li className="rounded-card border border-border bg-bg-surface p-4 hover:border-accent-yellow/40 transition-colors">
       <Link href={`/portfolio/masters/${row.id}`} className="block">
         <div className="flex items-start gap-3 mb-3">
-          {row.set_logo_url ? (
-            <div className="relative h-12 w-16 shrink-0 flex items-center justify-center">
-              <Image
-                src={row.set_logo_url}
-                alt=""
-                width={64}
-                height={48}
-                className="max-h-12 w-auto object-contain"
-                unoptimized
-              />
-            </div>
-          ) : (
-            <div className="h-12 w-16 rounded-btn bg-bg shrink-0" aria-hidden />
-          )}
+          <MiniBinderCover
+            coverImageUrl={row.cover_image_url}
+            className="h-16 w-12"
+          />
           <div className="min-w-0 flex-1">
-            <div className="font-semibold truncate">{row.set_name}</div>
+            <div className="flex items-center gap-2 mb-0.5">
+              {row.set_logo_url && (
+                <Image
+                  src={row.set_logo_url}
+                  alt=""
+                  width={44}
+                  height={20}
+                  className="max-h-5 w-auto object-contain shrink-0"
+                  unoptimized
+                />
+              )}
+              <div className="font-semibold truncate">{row.set_name}</div>
+            </div>
             <div className="text-xs text-text-tertiary uppercase tracking-wider">
               {row.binder_size} binder ·{" "}
               {row.display_mode === "master" ? "Master view" : "Base view"}
