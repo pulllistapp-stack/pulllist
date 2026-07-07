@@ -290,25 +290,89 @@ def _score_item(item: NewsItem, source_counts: dict[str, int]) -> int:
     return score
 
 
+# Content-word tokenizer for cross-source title dedupe. Strips
+# punctuation, lowercases, splits on whitespace, drops short
+# stopwords / connector words that carry no topical signal
+# (published_at year like "2026" stays — it's meaningful).
+_TITLE_STOPWORDS = frozenset({
+    "a", "an", "the", "and", "or", "for", "of", "in", "on", "at",
+    "to", "from", "with", "by", "is", "are", "be", "as", "it",
+    "this", "that", "these", "those", "released", "reveal",
+    "revealed", "confirmed", "coming", "soon", "now", "here",
+    "sept", "september", "oct", "october", "nov", "november",
+    "dec", "december", "release", "launch", "launches", "drops",
+    "drop", "listed", "worldwide", "us", "en", "english",
+})
+_TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _title_tokens(title: str) -> set[str]:
+    """Content-word set for Jaccard similarity. Case-folds, strips
+    punctuation, drops stopwords + calendar filler that Claude
+    (correctly) reformats between source rewrites."""
+    tokens = _TITLE_TOKEN_RE.findall(title.lower())
+    return {t for t in tokens if len(t) >= 2 and t not in _TITLE_STOPWORDS}
+
+
+def _titles_look_alike(a: set[str], b: set[str]) -> bool:
+    """Jaccard threshold of 0.6 on content words. Empirically enough
+    to catch 'Jirachi ex Revealed for 30th Celebration — Drops
+    September 16' vs 'Jirachi ex Revealed for 30th Celebration —
+    Worldwide Release Sept. 16' (same story, different retailer
+    framing) while still letting through distinct posts about the
+    same set that share the set name."""
+    if not a or not b:
+        return False
+    overlap = len(a & b)
+    union = len(a | b)
+    return overlap / union >= 0.6
+
+
 def _select_for_publishing(
     fresh: list[NewsItem], limit: int
 ) -> list[NewsItem]:
     """Pick `limit` items from `fresh` favoring TCG card content and
-    source diversity. Greedy: each round recompute source_counts
-    against the already-picked slate, score everyone, take the
-    leader. Recomputing per round is what makes the round-robin
-    behavior emerge — without it the highest-default-bonus source
-    would still monopolize the slate."""
+    source diversity, and skipping cross-source duplicates.
+
+    Greedy: each round recompute source_counts against the already-
+    picked slate, score everyone, take the leader. Recomputing per
+    round is what makes the round-robin behavior emerge — without
+    it the highest-default-bonus source would still monopolize the
+    slate.
+
+    Title dedupe: after taking the round leader, drop any remaining
+    pool item whose title tokens overlap the leader by >=60%. Same
+    story from a second source (e.g. Jirachi ex reveal on PokeBeach
+    + Pokemon.com + gamespress) collapses to a single publish."""
     selected: list[NewsItem] = []
+    picked_tokens: list[set[str]] = []
     pool = list(fresh)
     while pool and len(selected) < limit:
         source_counts: dict[str, int] = {}
         for s in selected:
             k = s.source_name.lower()
             source_counts[k] = source_counts.get(k, 0) + 1
-        # Stable sort + reverse — same-score ties preserve input order.
         pool.sort(key=lambda i: _score_item(i, source_counts), reverse=True)
-        selected.append(pool.pop(0))
+        winner = pool.pop(0)
+        winner_tokens = _title_tokens(winner.title)
+        if any(_titles_look_alike(winner_tokens, prev) for prev in picked_tokens):
+            # Winner duplicates something we already picked this
+            # round — skip it AND don't count it against the source
+            # (its scoring diversity slot goes to whoever's next).
+            log.info(
+                "select: dropping cross-source dupe %r (matches earlier pick)",
+                winner.title[:80],
+            )
+            continue
+        selected.append(winner)
+        picked_tokens.append(winner_tokens)
+        # Also purge the pool of anything that duplicates the winner
+        # so it doesn't win a later round after re-scoring — much
+        # cheaper than re-checking against `picked_tokens` every loop.
+        pool = [
+            p for p in pool
+            if not _titles_look_alike(_title_tokens(p.title), winner_tokens)
+        ]
     return selected
 
 
