@@ -582,22 +582,22 @@ function CoverPage({
               softens the effect on white backgrounds so it works on
               any cover image without a per-image tune. */}
           <div
-            className="absolute inset-0 pointer-events-none z-20 rounded-[18px] mix-blend-multiply opacity-70"
+            className="absolute inset-0 pointer-events-none z-20 rounded-[18px] mix-blend-multiply opacity-75"
             aria-hidden
             style={{
               backgroundImage: [
-                "repeating-linear-gradient(45deg, rgba(0,0,0,0.28) 0px, rgba(0,0,0,0.28) 1.5px, transparent 1.5px, transparent 22px)",
-                "repeating-linear-gradient(-45deg, rgba(0,0,0,0.28) 0px, rgba(0,0,0,0.28) 1.5px, transparent 1.5px, transparent 22px)",
+                "repeating-linear-gradient(45deg, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.4) 0.6px, transparent 0.6px, transparent 5px)",
+                "repeating-linear-gradient(-45deg, rgba(0,0,0,0.4) 0px, rgba(0,0,0,0.4) 0.6px, transparent 0.6px, transparent 5px)",
               ].join(", "),
             }}
           />
           <div
-            className="absolute inset-0 pointer-events-none z-20 rounded-[18px] mix-blend-screen opacity-45"
+            className="absolute inset-0 pointer-events-none z-20 rounded-[18px] mix-blend-screen opacity-55"
             aria-hidden
             style={{
               backgroundImage: [
-                "repeating-linear-gradient(45deg, transparent 1.5px, rgba(255,255,255,0.35) 1.5px, rgba(255,255,255,0.35) 3px, transparent 3px, transparent 22px)",
-                "repeating-linear-gradient(-45deg, transparent 1.5px, rgba(255,255,255,0.35) 1.5px, rgba(255,255,255,0.35) 3px, transparent 3px, transparent 22px)",
+                "repeating-linear-gradient(45deg, transparent 0.6px, rgba(255,255,255,0.45) 0.6px, rgba(255,255,255,0.45) 1.4px, transparent 1.4px, transparent 5px)",
+                "repeating-linear-gradient(-45deg, transparent 0.6px, rgba(255,255,255,0.45) 0.6px, rgba(255,255,255,0.45) 1.4px, transparent 1.4px, transparent 5px)",
               ].join(", "),
             }}
           />
