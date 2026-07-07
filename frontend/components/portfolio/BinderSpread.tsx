@@ -483,15 +483,14 @@ export function BinderSpread({
 }
 
 const COVER_MAX_WIDTH: Record<BinderSize, string> = {
-  // Closed cover sized to feel like the same physical binder that will
-  // open into the spread. Open scenes cap at max-w-5xl (~1024px) with
-  // landscape aspect ~3/2.1, so the closed portrait (aspect 3/4) that
-  // lines up in height sits around 34-42rem depending on grid density.
-  // Bumped from the previous 28/34/40rem set — LO called the cover way
-  // too small vs the open binder.
+  // Sized to feel like the same physical binder about to open into
+  // the spread. LO tuned this by eye:
+  //   3x3 at 36rem read perfectly matched.
+  //   4x3 at 42rem read smaller than the open binder → 44rem.
+  //   4x4 at 48rem read bigger than the open binder → 44rem.
   "3x3": "36rem", // ~576px
-  "4x3": "42rem", // ~672px
-  "4x4": "48rem", // ~768px
+  "4x3": "44rem", // ~704px
+  "4x4": "44rem", // ~704px
 };
 
 function CoverPage({
@@ -569,32 +568,18 @@ function CoverPage({
                     uploaded photo without cropping — LO's fix for the
                     "some parts get cut off" complaint. */}
           {coverImageUrl && (
-            <>
-              {/* Blurred, oversized fill so the letterbox doesn't read
-                  as a plain black gap. Opacity kept low + a dark tint
-                  overlaid so it doesn't compete with the sharp
-                  foreground for attention — LO's fix for "the image
-                  looks cropped." */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={coverImageUrl}
-                alt=""
-                aria-hidden
-                className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-40"
-              />
-              <div
-                className="absolute inset-0 bg-black/50 pointer-events-none"
-                aria-hidden
-              />
-              {/* Sharp full image — the user sees exactly what they
-                  uploaded, edge to edge, no crop. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={coverImageUrl}
-                alt="Binder cover"
-                className="absolute inset-0 h-full w-full object-contain"
-              />
-            </>
+            // LO's latest ask: image should hit every edge — no
+            // letterbox, no atmospheric blur behind. Switched from
+            // object-contain (letterboxed the full image) to
+            // object-cover (fills the whole cover, minor edges trim).
+            // The old two-layer blur-fill trick is gone with the
+            // letterbox it was covering up.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverImageUrl}
+              alt="Binder cover"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           )}
 
           {/* Diamond-quilted PU-leather texture overlay — sits above
