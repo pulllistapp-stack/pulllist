@@ -228,7 +228,7 @@ export default function PortfolioPage() {
 
   if (authLoading || !user) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-16">
+      <main className="mx-auto max-w-[100rem] px-6 py-16">
         <MascotLoader size="lg" />
       </main>
     );
@@ -251,7 +251,7 @@ export default function PortfolioPage() {
   const setsTouched = summary?.sets_touched ?? 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
+    <main className="mx-auto max-w-[100rem] px-6 py-10">
       <nav className="mb-6 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home
@@ -714,7 +714,7 @@ export default function PortfolioPage() {
           role="region"
           aria-label="Manage mode actions"
         >
-          <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap items-center gap-3">
+          <div className="mx-auto max-w-[100rem] px-4 py-3 flex flex-wrap items-center gap-3">
             <span className="text-sm font-mono text-text-secondary">
               <span className="text-text-primary font-bold">
                 {selected.size}

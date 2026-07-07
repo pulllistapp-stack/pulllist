@@ -62,7 +62,7 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/80 border-b border-border">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
+      <div className="mx-auto max-w-[100rem] px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
         <Link
           href="/"
           className="flex items-center flex-shrink-0 hover:opacity-90"
@@ -195,7 +195,7 @@ export function TopNav() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-bg">
-          <nav className="mx-auto max-w-7xl px-4 sm:px-6 py-4 flex flex-col gap-1 text-sm">
+          <nav className="mx-auto max-w-[100rem] px-4 sm:px-6 py-4 flex flex-col gap-1 text-sm">
             <MobileLink href="/sets">Browse sets</MobileLink>
             <MobileLink href="/cards">Browse cards</MobileLink>
             <MobileLink href="/trending">Trending</MobileLink>

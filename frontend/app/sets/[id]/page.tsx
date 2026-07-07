@@ -35,7 +35,7 @@ export default function SetDetailPage() {
 
 function PageLoading() {
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-[100rem] px-4 py-8">
       <div className="text-text-tertiary py-12 text-center">Loading…</div>
     </main>
   );
@@ -155,7 +155,7 @@ function SetDetailContent() {
   );
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-[100rem] px-4 py-8">
       <nav className="mb-6 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home

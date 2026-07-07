@@ -71,7 +71,7 @@ export default async function HomePage() {
   return (
     <main className="relative overflow-hidden">
       {/* ────────── HERO ────────── */}
-      <section className="relative mx-auto max-w-7xl px-6 pt-12 pb-20 sm:pt-20 sm:pb-28">
+      <section className="relative mx-auto max-w-[100rem] px-6 pt-12 pb-20 sm:pt-20 sm:pb-28">
         {/* Atmospheric glows */}
         <div
           aria-hidden
@@ -124,7 +124,7 @@ export default async function HomePage() {
       {/* ────────── TRENDING STRIP ────────── */}
       {movers.length > 0 && (
         <section className="border-y border-border bg-bg-surface/40 backdrop-blur-sm">
-          <div className="mx-auto max-w-7xl px-6 py-12">
+          <div className="mx-auto max-w-[100rem] px-6 py-12">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -163,7 +163,7 @@ export default async function HomePage() {
 
       {/* ────────── FEATURED SETS ────────── */}
       {newestSets.length > 0 && (
-        <section className="mx-auto max-w-7xl px-6 py-16">
+        <section className="mx-auto max-w-[100rem] px-6 py-16">
           <div className="flex items-center justify-between mb-7">
             <div>
               <h2 className="text-2xl font-bold">Latest sets</h2>
@@ -188,7 +188,7 @@ export default async function HomePage() {
       )}
 
       {/* ────────── FEATURE PILLARS ────────── */}
-      <section className="mx-auto max-w-7xl px-6 pb-16">
+      <section className="mx-auto max-w-[100rem] px-6 pb-16">
         <h2 className="text-2xl font-bold mb-7">Built for collectors</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <FeatureCard
@@ -216,7 +216,7 @@ export default async function HomePage() {
       </section>
 
       {/* ────────── FINAL CTA ────────── */}
-      <section className="mx-auto max-w-7xl px-6 pb-20">
+      <section className="mx-auto max-w-[100rem] px-6 pb-20">
         <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-accent-yellow/10 via-amber-200/5 to-teal-400/10 dark:from-accent-yellow/10 dark:via-amber-500/5 dark:to-teal-500/10 px-8 py-12 sm:px-12 sm:py-16 text-center">
           <Sparkles
             aria-hidden

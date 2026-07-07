@@ -57,7 +57,7 @@ export default function PublicBinderPage() {
 
   if (!view) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-[100rem] px-6 py-10">
         <MascotLoader size="lg" className="py-12" />
       </main>
     );
@@ -74,7 +74,7 @@ export default function PublicBinderPage() {
   const complete = pctBase === 100 && view.slots.length > 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
+    <main className="mx-auto max-w-[100rem] px-6 py-10">
       <div className="mb-6 rounded-card border border-border bg-bg-surface p-3 text-xs text-text-tertiary flex flex-wrap items-center gap-2">
         <span aria-hidden>👀</span>
         You&apos;re viewing someone&apos;s public master set. Sign in to build your

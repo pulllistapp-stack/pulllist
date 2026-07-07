@@ -70,14 +70,14 @@ export default function MasterSetsListPage() {
 
   if (authLoading || !user) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-[100rem] px-6 py-10">
         <MascotLoader size="lg" className="py-12" />
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
+    <main className="mx-auto max-w-[100rem] px-6 py-10">
       <nav className="mb-6 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home

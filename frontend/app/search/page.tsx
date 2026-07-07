@@ -59,7 +59,7 @@ export default async function SearchPage({ searchParams }: Props) {
   const totalPages = result ? Math.max(1, Math.ceil(result.total / pageSize)) : 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
+    <main className="mx-auto max-w-[100rem] px-6 py-10">
       <nav className="mb-6 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home

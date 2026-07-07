@@ -26,7 +26,7 @@ export default function BrowseCardsPage() {
 
 function PageLoading() {
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-[100rem] px-4 py-8">
       <MascotLoader size="lg" className="py-12" />
     </main>
   );
@@ -141,7 +141,7 @@ function BrowseCardsContent() {
   ];
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-[100rem] px-4 py-8">
       <nav className="mb-4 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home

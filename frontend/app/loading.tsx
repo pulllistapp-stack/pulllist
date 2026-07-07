@@ -10,7 +10,7 @@ import { MascotLoader } from "@/components/MascotLoader";
 export default function Loading() {
   return (
     <div
-      className="px-4 sm:px-6 py-16 sm:py-24 max-w-7xl mx-auto flex items-center justify-center min-h-[40vh]"
+      className="px-4 sm:px-6 py-16 sm:py-24 max-w-[100rem] mx-auto flex items-center justify-center min-h-[40vh]"
       aria-busy="true"
       aria-live="polite"
     >

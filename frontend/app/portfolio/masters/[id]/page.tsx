@@ -151,7 +151,7 @@ export default function BinderDetailPage() {
 
   if (authLoading || !user || !view) {
     return (
-      <main className="mx-auto max-w-7xl px-6 py-10">
+      <main className="mx-auto max-w-[100rem] px-6 py-10">
         <MascotLoader size="lg" className="py-12" />
         {error && (
           <div className="mt-4 rounded-card bg-accent-red/10 border border-accent-red/30 p-4 text-sm">
@@ -164,7 +164,7 @@ export default function BinderDetailPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
+    <main className="mx-auto max-w-[100rem] px-6 py-10">
       <nav className="mb-6 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home
