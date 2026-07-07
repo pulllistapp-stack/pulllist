@@ -539,38 +539,20 @@ function CoverPage({
             }}
             aria-hidden
           />
-          {/* Cover content — image (full-bleed) OR mascot placeholder. */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden">
-            {coverImageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={coverImageUrl}
-                alt="Binder cover"
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : (
-              <>
-                <div className="relative h-40 w-40 mb-4 opacity-95">
-                  <Image
-                    src="/pullist-mascot.png"
-                    alt="Mascot"
-                    fill
-                    className="object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-                    sizes="160px"
-                    unoptimized
-                  />
-                </div>
-                <div className="text-center px-6">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60 mb-2">
-                    Master Set
-                  </div>
-                  <div className="text-white text-2xl font-bold tracking-tight drop-shadow-md">
-                    {setName}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Cover background — the layer the quilted texture lands on.
+              For an uploaded photo, the whole photo is the "material"
+              and takes the quilt. For the default state, we leave the
+              dark nylon shell showing through (no background image
+              here) and render the mascot + title on TOP of the quilt
+              layer further down so it doesn't get patterned over. */}
+          {coverImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverImageUrl}
+              alt="Binder cover"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
 
           {/* Diamond-quilted PU-leather texture overlay — sits above
               whatever cover art is showing so uploaded photos take on
@@ -601,6 +583,33 @@ function CoverPage({
               ].join(", "),
             }}
           />
+
+          {/* Default-cover foreground — mascot + set name. Renders
+              ONLY when there's no uploaded image. Placed above the
+              quilted texture (z-25 > z-20) so the material stitching
+              stays on the shell and doesn't crawl over the mascot. */}
+          {!coverImageUrl && (
+            <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center pointer-events-none">
+              <div className="relative h-40 w-40 mb-4 opacity-95">
+                <Image
+                  src="/pullist-mascot.png"
+                  alt="Mascot"
+                  fill
+                  className="object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+                  sizes="160px"
+                  unoptimized
+                />
+              </div>
+              <div className="text-center px-6">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60 mb-2">
+                  Master Set
+                </div>
+                <div className="text-white text-2xl font-bold tracking-tight drop-shadow-md">
+                  {setName}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Stitching — always on top of whatever cover art is showing.
               Two layers: a dark shadow underneath + light thread on top
