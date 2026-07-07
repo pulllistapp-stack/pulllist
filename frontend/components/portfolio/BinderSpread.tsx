@@ -232,8 +232,10 @@ export function BinderSpread({
         />
       ) : (
         <>
-          {/* Header row: cover-close + spread counter + search */}
-          <div className="mb-4 flex w-full max-w-5xl items-center justify-between gap-3 flex-wrap">
+          {/* Header row: cover-close + spread counter + search.
+              Extra bottom margin so the chrome doesn't hug the top
+              of the binder — LO's "답답한 느낌" complaint. */}
+          <div className="mb-8 md:mb-10 flex w-full max-w-5xl items-center justify-between gap-3 flex-wrap">
             <button
               type="button"
               onClick={() => setCoverOpen(false)}
@@ -432,8 +434,10 @@ export function BinderSpread({
           </div>
 
           {/* Explicit nav — LO called out the earlier hints strip
-              looked clickable but wasn't. These are real buttons. */}
-          <div className="mt-5 flex items-center gap-2">
+              looked clickable but wasn't. These are real buttons.
+              Wide top gap so the controls sit clearly below the
+              binder instead of hugging the bottom zipper. */}
+          <div className="mt-8 md:mt-10 flex items-center gap-2">
             <button
               type="button"
               onClick={handlePrev}
