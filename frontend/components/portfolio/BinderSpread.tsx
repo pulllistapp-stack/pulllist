@@ -680,47 +680,58 @@ function CoverPage({
             }}
           />
 
-          {/* Spine — the thick, rounded left edge of a physical binder.
-              Three cues stacked to sell the depth:
-                (1) A darker vertical band along the outer ~18% of the
-                    left edge, gradient fading right so it reads as
-                    the fabric wrapping the spine ridge.
-                (2) A thin darker crease line right at the spine/front
-                    boundary — where the material folds around the
-                    rings.
-                (3) A subtle highlight just to the right of the crease
-                    so the front cover edge catches light against the
-                    recessed spine.
-              All sit at z-[22]: above the quilted material (z-20) so
-              the depth cue reads as physical, below the mascot / logo
-              / stitching so the foreground content stays clean. */}
+          {/* Spine — reworked per LO's overlay: a narrow ~7% dark band
+              hugging the outer left edge, with (a) a fine indented
+              crease line right near the outer edge (~2%) and (b) a
+              vertical dashed stitching line at the spine/front-cover
+              boundary (~7%). Matches the reference Card Guardian
+              binder profile. All at z-[22]: above the quilted material
+              (z-20) so the depth reads as physical, below the mascot /
+              logo / stitching border. */}
           <div
             className="pointer-events-none absolute inset-y-0 left-0 z-[22] rounded-l-[18px]"
             style={{
-              width: "18%",
+              width: "7.5%",
               background:
-                "linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.35) 25%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 100%)",
+                "linear-gradient(90deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.28) 40%, rgba(0,0,0,0.15) 80%, rgba(0,0,0,0) 100%)",
             }}
             aria-hidden
           />
+          {/* Indented crease (음각) — thin dark line near the outer
+              edge that reads as a subtle groove in the fabric. */}
           <div
-            className="pointer-events-none absolute inset-y-[3%] z-[22]"
+            className="pointer-events-none absolute inset-y-[4%] z-[22]"
             style={{
-              left: "17.5%",
-              width: "1.5px",
+              left: "2%",
+              width: "1.2px",
               background:
-                "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 8%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.55) 92%, transparent 100%)",
+                "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 10%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.55) 90%, transparent 100%)",
               borderRadius: "1px",
             }}
             aria-hidden
           />
+          {/* Vertical stitching at the spine/front boundary. Two
+              layers (dark shadow + light thread) match the outer
+              border stitch style so it reads as continuous stitching
+              wrapping the binder edge. */}
           <div
-            className="pointer-events-none absolute inset-y-[3%] z-[22]"
+            className="pointer-events-none absolute inset-y-[4%] z-[22]"
             style={{
-              left: "19%",
+              left: "7%",
               width: "2px",
-              background:
-                "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.08) 15%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.08) 85%, transparent 100%)",
+              backgroundImage:
+                "repeating-linear-gradient(0deg, rgba(0,0,0,0.45) 0 3px, transparent 3px 6px)",
+              transform: "translate(0.5px, 0.5px)",
+            }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-y-[4%] z-[22]"
+            style={{
+              left: "7%",
+              width: "2px",
+              backgroundImage:
+                "repeating-linear-gradient(0deg, rgba(255,255,255,0.6) 0 3px, transparent 3px 6px)",
             }}
             aria-hidden
           />
