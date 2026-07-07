@@ -693,3 +693,19 @@ export function listMasterSetsForCard(
     token,
   );
 }
+
+export function collectSpread(
+  masterSetId: number,
+  spreadIndex: number,
+  mode: MasterSetDisplayMode | null,
+  token: string,
+): Promise<{ added: number }> {
+  return authedFetch<{ added: number }>(
+    `/master-sets/${masterSetId}/spread/${spreadIndex}/collect`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({ mode }),
+    },
+  );
+}

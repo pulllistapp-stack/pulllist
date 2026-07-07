@@ -17,6 +17,7 @@ import {
   MasterSetDisplayMode,
   MasterSetSortMode,
   clearMasterSetCover,
+  collectSpread,
   getBinderView,
   setMasterSetCover,
   updateMasterSet,
@@ -38,6 +39,8 @@ export default function BinderDetailPage() {
   const [coverBusy, setCoverBusy] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [collectBusy, setCollectBusy] = useState(false);
+  const [collectToast, setCollectToast] = useState<string | null>(null);
 
   const reload = useCallback(
     async (m: MasterSetDisplayMode | null, s: MasterSetSortMode | null) => {
@@ -128,6 +131,33 @@ export default function BinderDetailPage() {
       }
     },
     [masterSetId, view],
+  );
+
+  const handleCollectSpread = useCallback(
+    async (spreadIndex: number) => {
+      const token = getToken();
+      if (!token) return { added: 0 };
+      setCollectBusy(true);
+      try {
+        const result = await collectSpread(masterSetId, spreadIndex, mode, token);
+        setCollectToast(
+          result.added === 0
+            ? "Already own every card on this spread."
+            : `Added ${result.added} card${result.added === 1 ? "" : "s"} to your collection.`,
+        );
+        window.setTimeout(() => setCollectToast(null), 3200);
+        // Refresh binder view so newly-owned cards flip to colour.
+        await reload(mode, sort);
+        return result;
+      } catch (e) {
+        setCollectToast(e instanceof Error ? e.message : "Collect failed");
+        window.setTimeout(() => setCollectToast(null), 3200);
+        return { added: 0 };
+      } finally {
+        setCollectBusy(false);
+      }
+    },
+    [masterSetId, mode, sort, reload],
   );
 
   const handleClearCover = useCallback(async () => {
@@ -318,6 +348,8 @@ export default function BinderDetailPage() {
           onUploadCover={handleUploadCover}
           onClearCover={handleClearCover}
           uploadBusy={coverBusy}
+          onCollectSpread={handleCollectSpread}
+          collectBusy={collectBusy}
         />
       )}
 
@@ -326,6 +358,15 @@ export default function BinderDetailPage() {
           setName={view.master_set.set_name}
           onDismiss={() => setCelebrating(false)}
         />
+      )}
+
+      {collectToast && (
+        <div
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 rounded-full bg-bg-elevated border border-border shadow-lg px-4 py-2 text-sm text-text-primary"
+          role="status"
+        >
+          {collectToast}
+        </div>
       )}
 
       {showShare && (

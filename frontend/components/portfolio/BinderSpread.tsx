@@ -80,6 +80,8 @@ export function BinderSpread({
   onUploadCover,
   onClearCover,
   uploadBusy,
+  onCollectSpread,
+  collectBusy,
 }: {
   slots: BinderSlot[];
   gridSize: BinderSize;
@@ -96,6 +98,10 @@ export function BinderSpread({
   onUploadCover?: (file: File) => Promise<void>;
   onClearCover?: () => Promise<void>;
   uploadBusy?: boolean;
+  /** Bulk-add every card visible on the current spread to the
+   *  caller's collection. Parent supplies the actual API call. */
+  onCollectSpread?: (spreadIndex: number) => Promise<{ added: number }>;
+  collectBusy?: boolean;
 }) {
   const slotsPerPage = SLOTS_PER_PAGE[gridSize];
   const slotsPerSpread = slotsPerPage * 2;
@@ -287,14 +293,32 @@ export function BinderSpread({
               Extra bottom margin so the chrome doesn't hug the top
               of the binder — LO's "답답한 느낌" complaint. */}
           <div className="mb-8 md:mb-10 flex w-full max-w-5xl items-center justify-between gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={() => closeCover()}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary hover:border-text-tertiary"
-            >
-              <X className="h-3.5 w-3.5" />
-              Close binder
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => closeCover()}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary hover:border-text-tertiary"
+              >
+                <X className="h-3.5 w-3.5" />
+                Close binder
+              </button>
+              {onCollectSpread && (
+                <button
+                  type="button"
+                  onClick={() => onCollectSpread(spreadIndex)}
+                  disabled={collectBusy || flipping}
+                  title="Add every card visible on this spread to your collection (already-owned cards are skipped)"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-1.5 text-xs font-semibold text-accent-yellow hover:bg-accent-yellow/20 disabled:opacity-50"
+                >
+                  {collectBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <span aria-hidden>＋</span>
+                  )}
+                  Collect this spread
+                </button>
+              )}
+            </div>
             <div className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
               Spread {spreadIndex + 1} of {totalSpreads}
             </div>
@@ -856,8 +880,11 @@ function CoverPage({
         </motion.div>
       </div>
 
-      {/* Cover management controls */}
-      <div className="mt-4 flex items-center gap-2 flex-wrap justify-center">
+      {/* Cover management controls. mt-20 so the pill buttons sit
+          below the closed binder's drop shadow (60px blur -20px offset
+          ≈ 40px reach) instead of sitting in the darkened zone the
+          shadow paints onto the page background. */}
+      <div className="mt-20 flex items-center gap-2 flex-wrap justify-center">
         <button
           type="button"
           onClick={(e) => {

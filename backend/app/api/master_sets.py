@@ -665,3 +665,107 @@ async def get_public_binder_view(
                 )
 
     return BinderView(master_set=head, slots=slots)
+
+
+# ── Bulk-collect a spread ───────────────────────────────────────────
+# Convenience: "Collect all cards on this spread" — one click adds any
+# unowned cards from the currently-open spread into the user's
+# collection. Idempotent (already-owned cards are skipped) so a
+# double-click doesn't create duplicate rows.
+
+
+class CollectSpreadIn(BaseModel):
+    mode: str | None = None
+    """Override the master set's display_mode ('base' | 'master') for
+    this call. Base adds each card's `normal` variant; master adds one
+    row per (card, variant) slot that isn't already owned."""
+
+
+@router.post("/{master_set_id}/spread/{spread_index}/collect")
+async def collect_spread(
+    master_set_id: int,
+    spread_index: int,
+    payload: CollectSpreadIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    if spread_index < 0:
+        raise HTTPException(400, "spread_index must be >= 0")
+
+    row = (
+        await db.execute(
+            select(MasterSet).where(
+                MasterSet.id == master_set_id, MasterSet.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(404, "Master set not found")
+
+    effective_mode = payload.mode or row.display_mode
+    if effective_mode not in ALLOWED_DISPLAY_MODES:
+        raise HTTPException(400, f"mode must be one of {ALLOWED_DISPLAY_MODES}")
+
+    slots_per_page = {"3x3": 9, "4x3": 12, "4x4": 16}[row.binder_size]
+    slots_per_spread = slots_per_page * 2
+
+    order_by = (
+        (Card.number_int.asc().nullslast(), Card.number.asc())
+        if row.sort_mode == "number"
+        else (Card.rarity.asc().nullslast(), Card.number_int.asc().nullslast())
+    )
+    cards = (
+        await db.execute(
+            select(Card).where(Card.set_id == row.set_id).order_by(*order_by)
+        )
+    ).scalars().all()
+
+    # Same slot expansion the binder view uses — walk in card order and
+    # take the target spread's slice.
+    slots: list[tuple[str, str]] = []
+    for c in cards:
+        if effective_mode == "base":
+            slots.append((c.id, "normal"))
+        else:
+            for v in _variants_for(c):
+                slots.append((c.id, v))
+
+    start = spread_index * slots_per_spread
+    target = slots[start : start + slots_per_spread]
+    if not target:
+        return {"added": 0}
+
+    # Skip anything the user already owns in the exact same variant.
+    target_card_ids = {cid for cid, _ in target}
+    owned = {
+        (cid, variant)
+        for cid, variant in (
+            await db.execute(
+                select(CollectionItem.card_id, CollectionItem.variant).where(
+                    CollectionItem.user_id == user.id,
+                    CollectionItem.card_id.in_(target_card_ids),
+                )
+            )
+        ).all()
+    }
+
+    added = 0
+    for card_id, variant in target:
+        if (card_id, variant) in owned:
+            continue
+        item = CollectionItem(
+            user_id=user.id,
+            card_id=card_id,
+            qty=1,
+            variant=variant,
+            condition="NM",
+            is_graded=False,
+            acquisition_type="other",
+        )
+        db.add(item)
+        added += 1
+
+    if added:
+        await db.commit()
+
+    return {"added": added}
