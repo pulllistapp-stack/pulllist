@@ -22,7 +22,7 @@ export function Footer() {
 
   return (
     <footer className="mt-20 border-t border-border bg-bg-surface/40">
-      <div className="mx-auto max-w-6xl px-4 py-10">
+      <div className="mx-auto max-w-[100rem] px-4 py-10">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <Link
@@ -147,39 +147,40 @@ export function Footer() {
                   Contact
                 </Link>
               </li>
+              <li>
+                <Link
+                  href="/legal"
+                  className="text-text-secondary hover:text-text-primary"
+                >
+                  Legal &amp; attributions
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-10 border-t border-border pt-6 text-xs text-text-tertiary">
-          <p className="mb-3 leading-relaxed">
-            PullList participates in affiliate programs with TCGplayer and the
-            eBay Partner Network. When you click an outbound &quot;Buy&quot; or
-            listing link and complete a qualifying purchase, we may earn a
-            commission at no extra cost to you. Affiliate links are labeled
-            with an &quot;Ad&quot; tag where they appear inline.
+        {/* Compact bottom bar. Full affiliate disclosure, attributions,
+            and trademark notice live on /legal — linking them from
+            here satisfies FTC "clear and conspicuous" + CC attribution
+            requirements while keeping the footer clean. */}
+        <div className="mt-10 border-t border-border pt-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center text-xs text-text-tertiary">
+          <p className="leading-relaxed">
+            © {new Date().getFullYear()} PullList · Fan-built, unaffiliated with
+            Nintendo / The Pokémon Company ·{" "}
+            <Link
+              href="/legal"
+              className="underline decoration-dotted hover:text-text-secondary"
+            >
+              Affiliate &amp; attributions
+            </Link>
           </p>
-          <p className="mb-3 leading-relaxed">
-            Card data: pokemontcg.io (CC BY 4.0), TCGdex (MIT), Limitless TCG.
-            JP set logos courtesy of Bulbapedia / Bulbagarden Archives
-            (CC BY-NC-SA 2.5). See <Link href="/about" className="underline hover:text-text-secondary">About</Link> for the full attributions.
-          </p>
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-            <p className="max-w-2xl leading-relaxed">
-              © {new Date().getFullYear()} PullList. Pokémon and all related
-              characters are trademarks of Nintendo, Creatures Inc., GAME FREAK
-              inc., and The Pokémon Company International. Wizards of the Coast
-              owns trademarks on older Pokémon TCG sets. PullList is unaffiliated
-              with, not endorsed by, and not sponsored by any of these companies.
-            </p>
-            <span className="inline-flex shrink-0 items-center gap-1.5 font-medium uppercase tracking-wider">
-              <span className="relative inline-flex h-2 w-2">
-                <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              Systems operational
+          <span className="inline-flex shrink-0 items-center gap-1.5 font-medium uppercase tracking-wider">
+            <span className="relative inline-flex h-2 w-2">
+              <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-          </div>
+            Systems operational
+          </span>
         </div>
       </div>
     </footer>
