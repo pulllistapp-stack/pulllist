@@ -78,6 +78,16 @@ class MasterSet(Base):
     rotated on demand; setting to null revokes access. Unique so tokens
     don't collide across users."""
 
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    """Timestamp of the first time the caller's base-mode completion
+    hit 100%. Null = never completed (or still completing). Used to
+    (a) gate the confetti + banner one-shot on the binder detail
+    page (only fires when we transition null → now this session)
+    and (b) persistently show the gold treatment on the cover
+    afterwards. Stays populated even if the collection dips back
+    under 100% — LO's setup is "you did the thing," and losing a
+    card shouldn't undo the medal."""
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

@@ -83,6 +83,13 @@ class MasterSetRead(BaseModel):
     """User-uploaded cover image as a data: URL. Null → default mascot."""
     share_token: str | None = None
     """Public share token; null → not shared. Only surfaced to the row owner."""
+    completed_at: datetime | None = None
+    """First-time 100% completion timestamp. Null → not yet completed.
+    Used by the frontend to fire the celebration one-shot and to keep
+    the gold cover treatment after the first hit."""
+    just_completed: bool = False
+    """True on the response that FIRST stamps completed_at. Signals to
+    the client "fire the confetti now"; every subsequent read is false."""
     created_at: datetime
     updated_at: datetime
 
@@ -183,11 +190,30 @@ async def _row_to_read(
     s: Set,
     *,
     include_cover: bool = True,
+    stamp_completion: bool = False,
 ) -> MasterSetRead:
     """Build the response DTO. `include_cover=False` on list endpoints
     keeps the response light — cover data URLs can be ~600KB each and
-    a user with 10 binders would blow up the list payload otherwise."""
+    a user with 10 binders would blow up the list payload otherwise.
+
+    `stamp_completion=True` (only on detail endpoint) commits the
+    completed_at field on the FIRST call where base progress hits 100%.
+    Returns `just_completed=True` on that same response so the client
+    can fire the one-shot confetti."""
     tb, ob, tm, om = await _progress(db, row.user_id, row.set_id)
+
+    just_completed = False
+    if (
+        stamp_completion
+        and row.completed_at is None
+        and tb > 0
+        and ob >= tb
+    ):
+        row.completed_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(row)
+        just_completed = True
+
     return MasterSetRead(
         id=row.id,
         set_id=row.set_id,
@@ -203,6 +229,8 @@ async def _row_to_read(
         owned_master=om,
         cover_image_url=row.cover_image_url if include_cover else None,
         share_token=row.share_token,
+        completed_at=row.completed_at,
+        just_completed=just_completed,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -359,7 +387,10 @@ async def get_binder_view(
     effective_sort = sort or row.sort_mode
 
     s = (await db.execute(select(Set).where(Set.id == row.set_id))).scalar_one()
-    head = await _row_to_read(db, row, s)
+    # Detail read is the natural place to stamp first-time completion —
+    # it fires whenever the user visits their binder, and the `just_completed`
+    # flag on the response drives the client-side celebration.
+    head = await _row_to_read(db, row, s, stamp_completion=True)
 
     order_by = (
         (Card.number_int.asc().nullslast(), Card.number.asc())

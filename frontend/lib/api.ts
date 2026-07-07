@@ -533,6 +533,8 @@ export type MasterSet = {
   owned_master: number;
   cover_image_url: string | null;
   share_token: string | null;
+  completed_at: string | null;
+  just_completed: boolean;
   created_at: string;
   updated_at: string;
 };

@@ -73,6 +73,7 @@ export function BinderSpread({
   gridSize,
   setName,
   coverImageUrl,
+  isCompleted = false,
   initialSpreadIndex = 0,
   onSpreadChange,
   onUploadCover,
@@ -83,6 +84,8 @@ export function BinderSpread({
   gridSize: BinderSize;
   setName: string;
   coverImageUrl: string | null;
+  /** true → gold stitching, fly mascot, sparkles on the closed cover. */
+  isCompleted?: boolean;
   initialSpreadIndex?: number;
   onSpreadChange?: (index: number) => void;
   /** Async — resize + POST live in the parent page. */
@@ -267,6 +270,7 @@ export function BinderSpread({
           setName={setName}
           coverImageUrl={coverImageUrl}
           gridSize={gridSize}
+          isCompleted={isCompleted}
           onOpen={() => openCover()}
           onPickImage={() => fileRef.current?.click()}
           onClearCover={onClearCover}
@@ -528,6 +532,15 @@ export function BinderSpread({
   );
 }
 
+const SPARKLE_POSITIONS: { x: number; y: number; delay: number }[] = [
+  { x: 12, y: 15, delay: 0 },
+  { x: 82, y: 20, delay: 0.4 },
+  { x: 22, y: 68, delay: 0.8 },
+  { x: 75, y: 75, delay: 1.2 },
+  { x: 50, y: 40, delay: 0.6 },
+  { x: 88, y: 55, delay: 1.6 },
+];
+
 const COVER_MAX_WIDTH: Record<BinderSize, string> = {
   // Sized to feel like the same physical binder about to open into
   // the spread. LO tuned this by eye:
@@ -543,6 +556,7 @@ function CoverPage({
   setName,
   coverImageUrl,
   gridSize,
+  isCompleted,
   onOpen,
   onPickImage,
   onClearCover,
@@ -551,6 +565,7 @@ function CoverPage({
   setName: string;
   coverImageUrl: string | null;
   gridSize: BinderSize;
+  isCompleted?: boolean;
   onOpen: () => void;
   onPickImage: () => void;
   onClearCover?: () => Promise<void>;
@@ -661,12 +676,14 @@ function CoverPage({
           {/* Default-cover foreground — mascot + set name. Renders
               ONLY when there's no uploaded image. Placed above the
               quilted texture (z-25 > z-20) so the material stitching
-              stays on the shell and doesn't crawl over the mascot. */}
+              stays on the shell and doesn't crawl over the mascot.
+              Once completed the mascot swaps to the fly variant + a
+              MASTER seal replaces the normal Master Set caption. */}
           {!coverImageUrl && (
             <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center pointer-events-none">
               <div className="relative h-40 w-40 mb-4 opacity-95">
                 <Image
-                  src="/pullist-mascot.png"
+                  src={isCompleted ? "/pullist-mascot-fly.png" : "/pullist-mascot.png"}
                   alt="Mascot"
                   fill
                   className="object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
@@ -675,8 +692,13 @@ function CoverPage({
                 />
               </div>
               <div className="text-center px-6">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/60 mb-2">
-                  Master Set
+                <div
+                  className={
+                    "text-[10px] font-black uppercase tracking-[0.3em] mb-2 " +
+                    (isCompleted ? "text-amber-300" : "text-white/60")
+                  }
+                >
+                  {isCompleted ? "★ Master Complete ★" : "Master Set"}
                 </div>
                 <div className="text-white text-2xl font-bold tracking-tight drop-shadow-md">
                   {setName}
@@ -685,11 +707,40 @@ function CoverPage({
             </div>
           )}
 
-          {/* Stitching — always on top of whatever cover art is showing.
-              Two layers: a dark shadow underneath + light thread on top
-              so the dashes read on both bright and dim covers (matches
-              LO's Sylveon reference). CSS dashed border gives the
-              stitch cadence; z-30 keeps it above the image + weave. */}
+          {/* Persistent sparkles for the completed state. Six framer-
+              motion diamonds twinkling at staggered intervals — CSS
+              only, no extra asset. Sits at z-[26] over quilt + mascot
+              but below the stitch border. */}
+          {isCompleted && (
+            <div className="absolute inset-0 z-[26] pointer-events-none" aria-hidden>
+              {SPARKLE_POSITIONS.map((p, i) => (
+                <motion.span
+                  key={i}
+                  className="absolute h-2 w-2 rotate-45 rounded-[1px]"
+                  style={{
+                    left: `${p.x}%`,
+                    top: `${p.y}%`,
+                    background:
+                      "linear-gradient(135deg, #fde68a 0%, #facc15 50%, #f59e0b 100%)",
+                    boxShadow: "0 0 6px rgba(250, 204, 21, 0.7)",
+                  }}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: [0, 1, 0], scale: [0.5, 1.2, 0.5] }}
+                  transition={{
+                    duration: 2.2,
+                    repeat: Infinity,
+                    delay: p.delay,
+                    ease: "easeInOut",
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Stitching — dashed border around the cover. Gold in the
+              completed state (matches the seal + sparkles), silver
+              otherwise. Two layers stacked so the thread reads on
+              both bright and dim covers. */}
           <div
             className="absolute inset-[10px] rounded-[12px] pointer-events-none z-30"
             style={{
@@ -700,7 +751,14 @@ function CoverPage({
           />
           <div
             className="absolute inset-[10px] rounded-[12px] pointer-events-none z-30"
-            style={{ border: "2px dashed rgba(255,255,255,0.55)" }}
+            style={{
+              border: isCompleted
+                ? "2px dashed rgba(252, 211, 77, 0.85)"
+                : "2px dashed rgba(255,255,255,0.55)",
+              boxShadow: isCompleted
+                ? "0 0 12px rgba(250, 204, 21, 0.35)"
+                : undefined,
+            }}
             aria-hidden
           />
 

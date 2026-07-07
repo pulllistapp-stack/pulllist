@@ -160,6 +160,7 @@ export default function PublicBinderPage() {
           gridSize={view.master_set.binder_size}
           setName={view.master_set.set_name}
           coverImageUrl={view.master_set.cover_image_url}
+          isCompleted={!!view.master_set.completed_at}
         />
       )}
     </main>

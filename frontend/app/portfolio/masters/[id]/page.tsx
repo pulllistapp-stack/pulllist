@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
 import { BinderSpread } from "@/components/portfolio/BinderSpread";
+import { CompletionCelebration } from "@/components/portfolio/CompletionCelebration";
 import { MasterSetShareModal } from "@/components/portfolio/MasterSetShareModal";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
 import {
@@ -36,6 +37,7 @@ export default function BinderDetailPage() {
   const [busy, setBusy] = useState(false);
   const [coverBusy, setCoverBusy] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
 
   const reload = useCallback(
     async (m: MasterSetDisplayMode | null, s: MasterSetSortMode | null) => {
@@ -48,6 +50,10 @@ export default function BinderDetailPage() {
           token,
         );
         setView(next);
+        // Backend flags just_completed=true on the response that FIRST
+        // stamps completed_at. Fire the celebration one-shot then let
+        // it timeout naturally.
+        if (next.master_set.just_completed) setCelebrating(true);
         if (m === null) setMode(next.master_set.display_mode);
         if (s === null) setSort(next.master_set.sort_mode);
       } catch (e) {
@@ -307,9 +313,17 @@ export default function BinderDetailPage() {
           gridSize={view.master_set.binder_size}
           setName={view.master_set.set_name}
           coverImageUrl={view.master_set.cover_image_url}
+          isCompleted={!!view.master_set.completed_at}
           onUploadCover={handleUploadCover}
           onClearCover={handleClearCover}
           uploadBusy={coverBusy}
+        />
+      )}
+
+      {celebrating && view && (
+        <CompletionCelebration
+          setName={view.master_set.set_name}
+          onDismiss={() => setCelebrating(false)}
         />
       )}
 
