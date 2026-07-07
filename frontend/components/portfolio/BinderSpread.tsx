@@ -28,6 +28,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronLeft,
@@ -93,13 +94,43 @@ export function BinderSpread({
   const slotsPerSpread = slotsPerPage * 2;
   const totalSpreads = Math.max(1, Math.ceil(slots.length / slotsPerSpread));
 
-  const [coverOpen, setCoverOpen] = useState(false);
-  const [spreadIndex, setSpreadIndex] = useState(initialSpreadIndex);
+  // Persist open/spread state in the URL so hitting Back from a card
+  // detail page returns the user to the same open spread instead of
+  // resetting to the closed cover. router.replace (not push) so we
+  // don't pollute history — every intermediate flip would otherwise
+  // stack up its own history entry.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlOpen = searchParams.get("open") === "1";
+  const urlSpread = Number(searchParams.get("spread") ?? "");
+  const urlSpreadClamped = Number.isFinite(urlSpread)
+    ? Math.max(0, Math.min(totalSpreads - 1, urlSpread))
+    : initialSpreadIndex;
+
+  const [coverOpen, setCoverOpen] = useState(urlOpen);
+  const [spreadIndex, setSpreadIndex] = useState(urlSpreadClamped);
   const [destIndex, setDestIndex] = useState<number | null>(null);
   const [flipping, setFlipping] = useState(false);
   const [direction, setDirection] = useState<Direction>(0);
   const [query, setQuery] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Keep URL in sync with the visible state. Uses router.replace so
+  // the back button leaves this page entirely (returning wherever the
+  // user came from) instead of unwinding a chain of intermediate flips.
+  const syncUrl = useCallback(
+    (nextOpen: boolean, nextSpread: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (nextOpen) params.set("open", "1");
+      else params.delete("open");
+      if (nextSpread > 0) params.set("spread", String(nextSpread));
+      else params.delete("spread");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
 
   // Snapshot the OUTGOING pages at the moment a flip starts. Without
   // this, once the midpoint swap fires and `current` re-derives against
@@ -159,6 +190,7 @@ export function BinderSpread({
       // half of the flip animation lands over the correct next content.
       window.setTimeout(() => {
         setSpreadIndex(clamped);
+        syncUrl(true, clamped);
         onSpreadChange?.(clamped);
       }, 450);
       window.setTimeout(() => {
@@ -169,8 +201,18 @@ export function BinderSpread({
         outgoingPageRef.current = null;
       }, 900);
     },
-    [spreadIndex, flipping, totalSpreads, onSpreadChange, slots, slotsPerPage, slotsPerSpread],
+    [spreadIndex, flipping, totalSpreads, onSpreadChange, slots, slotsPerPage, slotsPerSpread, syncUrl],
   );
+
+  const openCover = useCallback(() => {
+    setCoverOpen(true);
+    syncUrl(true, spreadIndex);
+  }, [spreadIndex, syncUrl]);
+
+  const closeCover = useCallback(() => {
+    setCoverOpen(false);
+    syncUrl(false, spreadIndex);
+  }, [spreadIndex, syncUrl]);
 
   const handleNext = useCallback(() => {
     if (spreadIndex < totalSpreads - 1) goToSpread(spreadIndex + 1);
@@ -187,7 +229,7 @@ export function BinderSpread({
         return;
       if (!coverOpen) {
         // While the cover is showing, Enter / → opens it.
-        if (e.key === "Enter" || e.key === "ArrowRight") setCoverOpen(true);
+        if (e.key === "Enter" || e.key === "ArrowRight") openCover();
         return;
       }
       if (e.key === "ArrowRight") handleNext();
@@ -225,7 +267,7 @@ export function BinderSpread({
           setName={setName}
           coverImageUrl={coverImageUrl}
           gridSize={gridSize}
-          onOpen={() => setCoverOpen(true)}
+          onOpen={() => openCover()}
           onPickImage={() => fileRef.current?.click()}
           onClearCover={onClearCover}
           uploadBusy={uploadBusy}
@@ -238,7 +280,7 @@ export function BinderSpread({
           <div className="mb-8 md:mb-10 flex w-full max-w-5xl items-center justify-between gap-3 flex-wrap">
             <button
               type="button"
-              onClick={() => setCoverOpen(false)}
+              onClick={() => closeCover()}
               className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary hover:border-text-tertiary"
             >
               <X className="h-3.5 w-3.5" />
