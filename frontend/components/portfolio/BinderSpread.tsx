@@ -680,6 +680,51 @@ function CoverPage({
             }}
           />
 
+          {/* Spine — the thick, rounded left edge of a physical binder.
+              Three cues stacked to sell the depth:
+                (1) A darker vertical band along the outer ~18% of the
+                    left edge, gradient fading right so it reads as
+                    the fabric wrapping the spine ridge.
+                (2) A thin darker crease line right at the spine/front
+                    boundary — where the material folds around the
+                    rings.
+                (3) A subtle highlight just to the right of the crease
+                    so the front cover edge catches light against the
+                    recessed spine.
+              All sit at z-[22]: above the quilted material (z-20) so
+              the depth cue reads as physical, below the mascot / logo
+              / stitching so the foreground content stays clean. */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 z-[22] rounded-l-[18px]"
+            style={{
+              width: "18%",
+              background:
+                "linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.35) 25%, rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 100%)",
+            }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-y-[3%] z-[22]"
+            style={{
+              left: "17.5%",
+              width: "1.5px",
+              background:
+                "linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 8%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.55) 92%, transparent 100%)",
+              borderRadius: "1px",
+            }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-y-[3%] z-[22]"
+            style={{
+              left: "19%",
+              width: "2px",
+              background:
+                "linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.08) 15%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.08) 85%, transparent 100%)",
+            }}
+            aria-hidden
+          />
+
           {/* Default-cover foreground — mascot + set name. Renders
               ONLY when there's no uploaded image. Placed above the
               quilted texture (z-25 > z-20) so the material stitching
