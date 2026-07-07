@@ -224,6 +224,7 @@ export function BinderSpread({
         <CoverPage
           setName={setName}
           coverImageUrl={coverImageUrl}
+          gridSize={gridSize}
           onOpen={() => setCoverOpen(true)}
           onPickImage={() => fileRef.current?.click()}
           onClearCover={onClearCover}
@@ -481,9 +482,18 @@ export function BinderSpread({
   );
 }
 
+const COVER_MAX_WIDTH: Record<BinderSize, string> = {
+  // Bigger grid = physically bigger binder → wider closed cover, matches
+  // what the user is about to see when they open it.
+  "3x3": "28rem", // ~448px  (Tailwind max-w-md)
+  "4x3": "34rem", // ~544px
+  "4x4": "40rem", // ~640px  (Tailwind max-w-2xl)
+};
+
 function CoverPage({
   setName,
   coverImageUrl,
+  gridSize,
   onOpen,
   onPickImage,
   onClearCover,
@@ -491,6 +501,7 @@ function CoverPage({
 }: {
   setName: string;
   coverImageUrl: string | null;
+  gridSize: BinderSize;
   onOpen: () => void;
   onPickImage: () => void;
   onClearCover?: () => Promise<void>;
@@ -500,8 +511,8 @@ function CoverPage({
   return (
     <div className="w-full flex flex-col items-center">
       <div
-        className="relative w-full max-w-lg cursor-pointer group"
-        style={{ perspective: "1600px" }}
+        className="relative w-full cursor-pointer group"
+        style={{ perspective: "1600px", maxWidth: COVER_MAX_WIDTH[gridSize] }}
         onClick={onOpen}
         role="button"
         tabIndex={0}
@@ -544,14 +555,31 @@ function CoverPage({
               and takes the quilt. For the default state, we leave the
               dark nylon shell showing through (no background image
               here) and render the mascot + title on TOP of the quilt
-              layer further down so it doesn't get patterned over. */}
+              layer further down so it doesn't get patterned over.
+
+              Two-layer image treatment for uploads:
+                (1) Blurred, oversized `object-cover` fill so the shell
+                    behind the letterbox reads as an extension of the
+                    photo instead of a plain black gap.
+                (2) Sharp `object-contain` foreground shows the FULL
+                    uploaded photo without cropping — LO's fix for the
+                    "some parts get cut off" complaint. */}
           {coverImageUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={coverImageUrl}
-              alt="Binder cover"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={coverImageUrl}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 h-full w-full object-cover scale-110 blur-lg opacity-60"
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={coverImageUrl}
+                alt="Binder cover"
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+            </>
           )}
 
           {/* Diamond-quilted PU-leather texture overlay — sits above
