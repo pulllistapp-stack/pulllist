@@ -312,6 +312,7 @@ export default function BinderDetailPage() {
           slots={view.slots}
           gridSize={view.master_set.binder_size}
           setName={view.master_set.set_name}
+          setLogoUrl={view.master_set.set_logo_url}
           coverImageUrl={view.master_set.cover_image_url}
           isCompleted={!!view.master_set.completed_at}
           onUploadCover={handleUploadCover}

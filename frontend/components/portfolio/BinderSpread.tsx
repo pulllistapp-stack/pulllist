@@ -72,6 +72,7 @@ export function BinderSpread({
   slots,
   gridSize,
   setName,
+  setLogoUrl = null,
   coverImageUrl,
   isCompleted = false,
   initialSpreadIndex = 0,
@@ -83,6 +84,9 @@ export function BinderSpread({
   slots: BinderSlot[];
   gridSize: BinderSize;
   setName: string;
+  /** Set expansion logo — rendered small on the bottom-right of the
+   *  cover as a subtle badge regardless of custom cover art. */
+  setLogoUrl?: string | null;
   coverImageUrl: string | null;
   /** true → gold stitching, fly mascot, sparkles on the closed cover. */
   isCompleted?: boolean;
@@ -268,6 +272,7 @@ export function BinderSpread({
       {!coverOpen ? (
         <CoverPage
           setName={setName}
+          setLogoUrl={setLogoUrl}
           coverImageUrl={coverImageUrl}
           gridSize={gridSize}
           isCompleted={isCompleted}
@@ -554,6 +559,7 @@ const COVER_MAX_WIDTH: Record<BinderSize, string> = {
 
 function CoverPage({
   setName,
+  setLogoUrl,
   coverImageUrl,
   gridSize,
   isCompleted,
@@ -563,6 +569,7 @@ function CoverPage({
   uploadBusy,
 }: {
   setName: string;
+  setLogoUrl: string | null;
   coverImageUrl: string | null;
   gridSize: BinderSize;
   isCompleted?: boolean;
@@ -734,6 +741,30 @@ function CoverPage({
                   }}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Set-logo badge — bottom-right corner of the cover. Small
+              enough not to fight the cover art for attention, sized in
+              % so it scales with binder-size (3x3 covers get a
+              smaller badge, 4x4 a proportionally larger one). Wrapped
+              in a subtle dark chip so it stays legible on both bright
+              uploaded photos and the default dark shell. */}
+          {setLogoUrl && (
+            <div
+              className="absolute bottom-4 right-4 z-[27] pointer-events-none flex items-center justify-center rounded-md bg-black/45 backdrop-blur-[2px] px-2 py-1"
+              style={{
+                width: "22%",
+                height: "10%",
+              }}
+              aria-hidden
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={setLogoUrl}
+                alt=""
+                className="max-h-full max-w-full object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
+              />
             </div>
           )}
 
