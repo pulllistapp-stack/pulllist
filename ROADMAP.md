@@ -84,6 +84,12 @@
 - **왜**: 컬렉터의 grading 결정 핵심 데이터. Collectory의 가장 강한 기능.
 - **레이어**: 백엔드 (eBay listing title regex로 grade 추출 → tier별 aggregate) + 프론트 (디테일 페이지 새 섹션)
 - **출처**: Collectory 파쿠리 Tier B.
+- **UX 참조 (LO 2026-07-07 스샷)**:
+  - `Price History` 카드 상단에 grade + currency 드롭다운 — 옵션: `Raw Market (USD)`, `Raw Market (EUR)`, `PSA 10 (USD)`, `PSA 10 (EUR)`, `PSA 9 (USD)`, `PSA 9 (EUR)`, `CGC 10 (USD)`, `CGC 10 (EUR)`, `CGC 9 (USD)`, `CGC 9 (EUR)`.
+  - 히스토리 라인 차트: 45일 정도 스팬 (May 24 → Jul 6), y축 $0 → $240+ 자동 스케일. 밑에 "Latest: 231.65 USD / Tcgplayer / Holofoil" 서브라인.
+  - **`Graded Prices` 섹션** — 4장의 컴팩트 카드 그리드 (PSA 10 / PSA 9 / CGC 10 / CGC 9). 각 카드: grade 헤더 + 대형 가격 (초록) + 서브텍스트 (variant / source / updated date).
+  - 하단에 Previous / Next 페이지네이션 (다른 variant / 카드 넘김용?).
+- **EUR 커버리지**: eBay .de / .fr / .co.uk 리스팅 crawl 필요. USD 우선 배포 → EUR 은 phase 2.
 
 ### #10. v0/Variant 디자인 결과 받기 → React 구현
 - **무엇**: LO가 v0/Variant에서 5-6 컨셉 받은 메인페이지 디자인 결과 → 픽한 컨셉 React로 구현
