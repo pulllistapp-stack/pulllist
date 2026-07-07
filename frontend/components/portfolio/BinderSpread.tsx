@@ -483,11 +483,15 @@ export function BinderSpread({
 }
 
 const COVER_MAX_WIDTH: Record<BinderSize, string> = {
-  // Bigger grid = physically bigger binder → wider closed cover, matches
-  // what the user is about to see when they open it.
-  "3x3": "28rem", // ~448px  (Tailwind max-w-md)
-  "4x3": "34rem", // ~544px
-  "4x4": "40rem", // ~640px  (Tailwind max-w-2xl)
+  // Closed cover sized to feel like the same physical binder that will
+  // open into the spread. Open scenes cap at max-w-5xl (~1024px) with
+  // landscape aspect ~3/2.1, so the closed portrait (aspect 3/4) that
+  // lines up in height sits around 34-42rem depending on grid density.
+  // Bumped from the previous 28/34/40rem set — LO called the cover way
+  // too small vs the open binder.
+  "3x3": "36rem", // ~576px
+  "4x3": "42rem", // ~672px
+  "4x4": "48rem", // ~768px
 };
 
 function CoverPage({
@@ -566,13 +570,24 @@ function CoverPage({
                     "some parts get cut off" complaint. */}
           {coverImageUrl && (
             <>
+              {/* Blurred, oversized fill so the letterbox doesn't read
+                  as a plain black gap. Opacity kept low + a dark tint
+                  overlaid so it doesn't compete with the sharp
+                  foreground for attention — LO's fix for "the image
+                  looks cropped." */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={coverImageUrl}
                 alt=""
                 aria-hidden
-                className="absolute inset-0 h-full w-full object-cover scale-110 blur-lg opacity-60"
+                className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-40"
               />
+              <div
+                className="absolute inset-0 bg-black/50 pointer-events-none"
+                aria-hidden
+              />
+              {/* Sharp full image — the user sees exactly what they
+                  uploaded, edge to edge, no crop. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={coverImageUrl}
