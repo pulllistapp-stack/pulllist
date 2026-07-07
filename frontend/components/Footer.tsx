@@ -159,28 +159,39 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Compact bottom bar. Full affiliate disclosure, attributions,
-            and trademark notice live on /legal — linking them from
-            here satisfies FTC "clear and conspicuous" + CC attribution
-            requirements while keeping the footer clean. */}
-        <div className="mt-10 border-t border-border pt-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center text-xs text-text-tertiary">
-          <p className="leading-relaxed">
-            © {new Date().getFullYear()} PullList · Fan-built, unaffiliated with
-            Nintendo / The Pokémon Company ·{" "}
-            <Link
-              href="/legal"
-              className="underline decoration-dotted hover:text-text-secondary"
-            >
-              Affiliate &amp; attributions
-            </Link>
-          </p>
-          <span className="inline-flex shrink-0 items-center gap-1.5 font-medium uppercase tracking-wider">
-            <span className="relative inline-flex h-2 w-2">
-              <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+        {/* Compact bottom bar. Full affiliate disclosure, data
+            attributions, and legal notice live on /legal — linking
+            them satisfies FTC "clear and conspicuous" + CC attribution
+            requirements. The Nintendo / Pokémon trademark disclaimer is
+            kept inline (rather than link-only) because IP-owner fan-
+            project etiquette expects an unmissable "not affiliated /
+            not endorsed / not sponsored" notice on every page. */}
+        <div className="mt-10 border-t border-border pt-6 text-xs text-text-tertiary">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <p className="leading-relaxed">
+              © {new Date().getFullYear()} PullList · Fan-built ·{" "}
+              <Link
+                href="/legal"
+                className="underline decoration-dotted hover:text-text-secondary"
+              >
+                Affiliate &amp; attributions
+              </Link>
+            </p>
+            <span className="inline-flex shrink-0 items-center gap-1.5 font-medium uppercase tracking-wider">
+              <span className="relative inline-flex h-2 w-2">
+                <span className="absolute inset-0 inline-flex animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Systems operational
             </span>
-            Systems operational
-          </span>
+          </div>
+          <p className="mt-3 max-w-4xl leading-relaxed">
+            Pokémon and all related characters, names, and logos are trademarks
+            of Nintendo, Creatures Inc., GAME FREAK inc., and The Pokémon
+            Company International. PullList is a fan-built collection tracker —
+            not affiliated with, endorsed by, or sponsored by any of these
+            companies.
+          </p>
         </div>
       </div>
     </footer>
