@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-07 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-07",
+    emoji: "🎴",
+    kr: "30th Celebration (me30) 세트에 Classic Collection 리프린트 11장 추가 (38 → 49장) — Charizard (Base Set), Pikachu (Base Set), Palkia LV.X (Great Encounters), Uxie (Legends Awakened), Lugia (Aquapolis), Darkrai & Cresselia LEGEND top/bottom (Triumphant), Pikachu & Zekrom-GX (Team Up), Zacian V (SS Base), Raikou Amazing Rare (Vivid Voltage), Arceus VSTAR (Brilliant Stars). 번호 CC01-CC11 (정확한 프린트 번호는 확정되면 갱신), rarity=Classic Collection, 이미지는 리프린트 아트 공개될 때까지 null",
+    en: "30th Celebration (me30): added 11 Classic Collection reprints (38 → 49 cards) — Charizard (Base Set), Pikachu (Base Set), Palkia LV.X (Great Encounters), Uxie (Legends Awakened), Lugia (Aquapolis), Darkrai & Cresselia LEGEND top/bottom (Triumphant), Pikachu & Zekrom-GX (Team Up), Zacian V (SS Base), Raikou Amazing Rare (Vivid Voltage), Arceus VSTAR (Brilliant Stars). Placeholder CC01-CC11 numbering until real print numbers land; rarity=Classic Collection; images null until anniversary reprint art is public",
+  },
   // ── 2026-07-06 ─────────────────────────────────────────────────
   {
     date: "2026-07-06",
