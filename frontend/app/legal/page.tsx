@@ -138,6 +138,55 @@ export default function LegalPage() {
         </p>
       </section>
 
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-2">User-uploaded content</h2>
+        <p className="text-sm text-text-secondary leading-relaxed mb-3">
+          Some PullList features (currently: master-set binder covers) let you
+          upload images. By uploading, you represent that you own or have
+          permission to use the image, and you grant PullList a limited right
+          to display it back to you and to anyone with whom you share a link
+          to your master set.
+        </p>
+        <p className="text-sm text-text-secondary leading-relaxed">
+          Please don&apos;t upload copyrighted artwork you don&apos;t have
+          rights to. If you&apos;re unsure, use one of your own photos or the
+          default mascot cover.
+        </p>
+      </section>
+
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-2">DMCA / takedown</h2>
+        <p className="text-sm text-text-secondary leading-relaxed mb-3">
+          If you believe content on PullList (including a user-uploaded binder
+          cover) infringes your copyright, send a takedown notice to{" "}
+          <a
+            href="mailto:takedown@pulllist.app"
+            className="text-text-primary underline decoration-dotted"
+          >
+            takedown@pulllist.app
+          </a>{" "}
+          with:
+        </p>
+        <ul className="text-sm text-text-secondary leading-relaxed space-y-1 list-disc pl-5">
+          <li>Your contact information (name, email, phone).</li>
+          <li>A description of the copyrighted work.</li>
+          <li>
+            The URL(s) on PullList where the infringing content appears.
+          </li>
+          <li>
+            A statement, under penalty of perjury, that you have a good-faith
+            belief the use is unauthorized and that the information in the
+            notice is accurate.
+          </li>
+          <li>Your physical or electronic signature.</li>
+        </ul>
+        <p className="mt-3 text-sm text-text-secondary leading-relaxed">
+          We remove or disable access to reported content promptly on receipt
+          of a complete notice and, where appropriate, forward the notice to
+          the user who uploaded it.
+        </p>
+      </section>
+
       <section>
         <h2 className="text-lg font-bold mb-2">Copyright</h2>
         <p className="text-sm text-text-secondary leading-relaxed">

@@ -322,7 +322,7 @@ export function BinderSpread({
             <div className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
               Spread {spreadIndex + 1} of {totalSpreads}
             </div>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <span
                 aria-hidden
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-sm"
@@ -334,7 +334,7 @@ export function BinderSpread({
                 value={query}
                 onChange={handleSearch}
                 placeholder="Jump to card…"
-                className="bg-bg-surface border border-border rounded-full py-2 pl-9 pr-4 text-sm w-56 focus:outline-none focus:border-accent-yellow/50"
+                className="bg-bg-surface border border-border rounded-full py-2 pl-9 pr-4 text-sm w-full sm:w-56 focus:outline-none focus:border-accent-yellow/50"
               />
             </div>
           </div>
@@ -928,6 +928,13 @@ function CoverPage({
       </div>
       <p className="mt-2 text-[10px] uppercase tracking-wider text-text-tertiary">
         Tap the binder to open · custom cover resized locally
+      </p>
+      <p className="mt-1 text-[10px] text-text-tertiary/70 max-w-xs text-center">
+        Only upload images you own or have permission to use. See{" "}
+        <Link href="/legal" className="underline decoration-dotted hover:text-text-secondary">
+          Legal
+        </Link>{" "}
+        for details.
       </p>
     </div>
   );
