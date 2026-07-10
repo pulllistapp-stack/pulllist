@@ -29,8 +29,9 @@ class CardPriceSnapshot(Base):
             "card_id",
             "source",
             "variant",
+            "grade",
             "snapshot_date",
-            name="uq_card_source_variant_day",
+            name="uq_card_source_variant_grade_day",
         ),
         Index("ix_snapshot_card_date", "card_id", "snapshot_date"),
         Index("ix_snapshot_date", "snapshot_date"),
@@ -47,6 +48,17 @@ class CardPriceSnapshot(Base):
 
     variant: Mapped[str] = mapped_column(String(64))
     """`normal` / `holofoil` / `reverseHolofoil` / `psa10` / `ungraded` etc."""
+
+    grade: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="raw", default="raw"
+    )
+    """Grade tier for the price row. Values follow a canonical vocabulary:
+    'raw' (ungraded) / 'psa10' / 'psa9' / 'psa8' / 'cgc10' / 'cgc9.5' /
+    'cgc9' / 'bgs10' / 'bgs9.5' / 'bgs9' / 'other'. Sources that don't
+    distinguish graded prices (TCGplayer, Cardmarket) always write 'raw';
+    eBay pipes each listing through `services.grade_classifier` so the
+    same (card, source, variant, snapshot_date) can carry separate
+    median rows per grade tier."""
 
     market_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     low_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -1,0 +1,133 @@
+"""eBay listing title → grade tier classifier.
+
+Feeds the Multi-Grade price chart (ROADMAP #9). Every eBay listing we
+snapshot passes through here to get bucketed into a canonical grade tag
+so `card_price_snapshots.grade` carries something comparable across
+sources.
+
+Vocabulary (matches `CardPriceSnapshot.grade`):
+    raw      — ungraded / no grade mentioned
+    psa10    — PSA 10 Gem Mint
+    psa9     — PSA 9 Mint
+    psa8     — PSA 8 NM-Mint
+    cgc10    — CGC 10 Pristine / Gem Mint
+    cgc9.5   — CGC 9.5 Mint+
+    cgc9     — CGC 9 Mint
+    bgs10    — BGS 10 Pristine / Black Label
+    bgs9.5   — BGS 9.5 Gem Mint
+    bgs9     — BGS 9 Mint
+    other    — grade mentioned but not in the canonical tier list
+               (PSA 7, ACE, SGC, GMA, ISA, etc.)
+
+Design notes:
+* Case-insensitive.
+* Grade token must sit next to the grader abbreviation (within ~5 chars)
+  to avoid false hits on card titles like "Zacian V PSA 10 GEM MINT"
+  vs "Zacian V-Union Set of 4" where PSA / 10 appear unrelated.
+* Titles claiming multiple graders ("PSA 10 CGC 9.5 pair") — the first
+  hit wins, since eBay listings are almost always a single graded slab.
+* Purely numeric mentions like "grade 10" without a grader → 'other'.
+"""
+
+from __future__ import annotations
+
+import re
+
+
+GRADE_CANONICAL = {
+    "raw",
+    "psa10", "psa9", "psa8",
+    "cgc10", "cgc9.5", "cgc9",
+    "bgs10", "bgs9.5", "bgs9",
+    "other",
+}
+
+
+# Compact spelling covers "PSA10", "PSA 10", "PSA-10", "P.S.A. 10".
+# Number is captured so we can bucket it.
+_PSA_RE = re.compile(
+    r"\bP\.?\s*S\.?\s*A\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
+    re.IGNORECASE,
+)
+_CGC_RE = re.compile(
+    r"\bC\.?\s*G\.?\s*C\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
+    re.IGNORECASE,
+)
+_BGS_RE = re.compile(
+    r"\bB\.?\s*G\.?\s*S\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
+    re.IGNORECASE,
+)
+# Other graders — SGC / GMA / ACE / ISA. Grouped so we can shortcut
+# to 'other' when they appear.
+_OTHER_GRADER_RE = re.compile(
+    r"\b(?:S\.?G\.?C\.?|G\.?M\.?A\.?|A\.?C\.?E\.?|I\.?S\.?A\.?)\b\s*[-:# ]?\s*\d",
+    re.IGNORECASE,
+)
+# Fuzzy "grade N" without any grader abbreviation.
+_BARE_GRADE_RE = re.compile(r"\bgrade\s*\d", re.IGNORECASE)
+
+
+def _bucket(prefix: str, num_str: str) -> str:
+    """Map a grader + numeric grade to the canonical tier vocab."""
+    try:
+        num = float(num_str)
+    except ValueError:
+        return "other"
+    # PSA uses integer grades only (10, 9, 8...); everything else is 'other'.
+    if prefix == "psa":
+        if num == 10:
+            return "psa10"
+        if num == 9:
+            return "psa9"
+        if num == 8:
+            return "psa8"
+        return "other"
+    # CGC / BGS carry .5 half-grades.
+    if prefix == "cgc":
+        if num == 10:
+            return "cgc10"
+        if num == 9.5:
+            return "cgc9.5"
+        if num == 9:
+            return "cgc9"
+        return "other"
+    if prefix == "bgs":
+        if num == 10:
+            return "bgs10"
+        if num == 9.5:
+            return "bgs9.5"
+        if num == 9:
+            return "bgs9"
+        return "other"
+    return "other"
+
+
+def classify_grade(title: str) -> str:
+    """Return the canonical grade tag for an eBay listing title.
+
+    Precedence: PSA > CGC > BGS (arbitrary but stable — nearly no listings
+    carry more than one grader). Other graders / off-vocab grades collapse
+    to 'other'. No grader mention at all → 'raw'.
+    """
+    if not title:
+        return "raw"
+
+    m = _PSA_RE.search(title)
+    if m:
+        return _bucket("psa", m.group(1))
+
+    m = _CGC_RE.search(title)
+    if m:
+        return _bucket("cgc", m.group(1))
+
+    m = _BGS_RE.search(title)
+    if m:
+        return _bucket("bgs", m.group(1))
+
+    if _OTHER_GRADER_RE.search(title):
+        return "other"
+
+    if _BARE_GRADE_RE.search(title):
+        return "other"
+
+    return "raw"

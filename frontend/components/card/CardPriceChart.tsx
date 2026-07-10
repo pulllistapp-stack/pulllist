@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getCardHistory, type CardHistory, type CardHistoryPoint } from "@/lib/api";
 
+import { GradedPricesGrid } from "./GradedPricesGrid";
 import { MascotMark } from "./Mascot";
 
 type TabKey = "tcg" | "ebay" | "combined";
@@ -467,6 +468,14 @@ export function CardPriceChart({ cardId, isOnFire = false }: Props) {
     : false;
   const tooltipFlipY = mousePos ? mousePos.y < 120 : false;
 
+  // Latest data point sub-line — mirrors the "Latest: 231.65 USD /
+  // Tcgplayer / Holofoil" line on collector-focused pricing tools so
+  // users can read the freshest number without scanning the chart.
+  const latestPoint = data.length > 0 ? data[data.length - 1] : null;
+  const latestLabel = latestPoint
+    ? `Latest: ${fmtMoney(latestPoint.mid)} USD · ${tab === "tcg" ? "TCGplayer" : tab === "ebay" ? "eBay" : "Combined"} · Raw`
+    : null;
+
   return (
     <div className="rounded-card border border-border bg-bg-surface p-4 md:p-5">
       {/* Controls */}
@@ -748,6 +757,22 @@ export function CardPriceChart({ cardId, isOnFire = false }: Props) {
           </span>
         </p>
       )}
+
+      {/* Latest data-point sub-line — matches the "Latest: XX / source /
+          variant" convention on collector pricing tools. Renders below
+          the chart so the raw + source + freshness lands in one glance
+          without competing with the chart's tooltips. */}
+      {latestLabel && (
+        <p className="mt-3 text-xs font-mono text-text-tertiary">
+          {latestLabel}
+        </p>
+      )}
+
+      {/* Graded prices grid — ROADMAP #9 prep. Fed by
+          services.grade_classifier once eBay ingest starts writing
+          `grade`-tagged snapshots. Every tile falls back to "no data
+          yet" gracefully so the section can ship immediately. */}
+      <GradedPricesGrid cardId={cardId} />
     </div>
   );
 }
