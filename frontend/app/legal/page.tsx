@@ -160,10 +160,10 @@ export default function LegalPage() {
           If you believe content on PullList (including a user-uploaded binder
           cover) infringes your copyright, send a takedown notice to{" "}
           <a
-            href="mailto:takedown@pulllist.app"
+            href="mailto:takedown@pulllist.org"
             className="text-text-primary underline decoration-dotted"
           >
-            takedown@pulllist.app
+            takedown@pulllist.org
           </a>{" "}
           with:
         </p>
