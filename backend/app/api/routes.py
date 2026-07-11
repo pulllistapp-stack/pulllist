@@ -1251,7 +1251,7 @@ async def refresh_card_price(
                 insert_cls(CardPriceSnapshot)
                 .values(**row)
                 .on_conflict_do_update(
-                    index_elements=["card_id", "source", "variant", "snapshot_date"],
+                    index_elements=["card_id", "source", "variant", "grade", "snapshot_date"],
                     set_={
                         "market_price_usd": row["market_price_usd"],
                         "low_price_usd": row["low_price_usd"],

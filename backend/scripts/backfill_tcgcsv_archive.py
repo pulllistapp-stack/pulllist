@@ -222,7 +222,7 @@ async def _insert_for_date(
             insert(CardPriceSnapshot)
             .values(chunk)
             .on_conflict_do_nothing(
-                index_elements=["card_id", "source", "variant", "snapshot_date"]
+                index_elements=["card_id", "source", "variant", "grade", "snapshot_date"]
             )
         )
         result = await session.execute(stmt)

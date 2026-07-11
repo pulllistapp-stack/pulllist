@@ -336,7 +336,7 @@ async def _flush_snapshots(db: AsyncSession, batch: list[dict]) -> int:
         return 0
     dialect_name = db.bind.dialect.name
     stmt = _conflict_insert(dialect_name).values(batch).on_conflict_do_nothing(
-        index_elements=["card_id", "source", "variant", "snapshot_date"]
+        index_elements=["card_id", "source", "variant", "grade", "snapshot_date"]
     )
     result = await db.execute(stmt)
     await db.commit()
