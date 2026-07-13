@@ -26,6 +26,14 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-13 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-13",
+    emoji: "📦",
+    kr: "Sealed 상품 카탈로그 신설 — /products 페이지에서 Booster Box / Elite Trainer Box / Booster Bundle / Premium Collection / Tin / Blister / Build&Battle 다 브라우징 가능. 7개 EN 세트 (ME01~ME05, Ascended Heroes, 30th Celebration) 총 200+ sealed 상품 TCGCSV 에서 자동 인제스트. 상품 상세페이지엔 이미지, 가격, TCGplayer affiliate 링크, 그리고 EV (Expected Value) 계산기 위젯 포함 — 세트 안 카드들 시세 기반으로 '박스 뜯으면 대충 얼마 값어치' 표시 + sealed premium/discount % 도. 세트 상세 페이지 하단에도 그 세트의 sealed 상품 그리드 붙음",
+    en: "Sealed products catalog is live — /products lets you browse Booster Boxes, ETBs, Bundles, Premium Collections, Tins, Blisters, Build & Battle boxes. Auto-ingested 200+ SKUs from TCGCSV across the 7 recent EN sets (ME01–ME05, Ascended Heroes, 30th Celebration). Detail pages carry image, market price, TCGplayer buy link, plus an Estimated Value widget — modelled from the set's rarity-weighted card prices so you can see \"crack for value\" vs \"sealed premium\" at a glance. Set detail pages also grow a sealed-products row at the top",
+  },
+
   // ── 2026-07-07 ─────────────────────────────────────────────────
   {
     date: "2026-07-07",

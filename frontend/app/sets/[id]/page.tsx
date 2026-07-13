@@ -14,6 +14,7 @@ import {
   PageSizeSelector,
 } from "@/components/PageSizeSelector";
 import { SetCompletion } from "@/components/SetCompletion";
+import { SetSealedProducts } from "@/components/SetSealedProducts";
 import { SetReportModal } from "@/components/SetReportModal";
 import {
   browseCards,
@@ -252,6 +253,8 @@ function SetDetailContent() {
           <SetCompletion setId={set.id} totalCards={set.card_count} />
         </div>
       )}
+
+      {set && <SetSealedProducts setId={set.id} />}
 
       <div className="flex flex-col md:flex-row gap-6">
         <div className="md:w-60 flex-shrink-0">

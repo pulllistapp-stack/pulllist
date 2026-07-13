@@ -56,6 +56,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/products" className="text-text-secondary hover:text-text-primary">
+                  Sealed products
+                </Link>
+              </li>
+              <li>
                 <Link href="/trending" className="text-text-secondary hover:text-text-primary">
                   Trending
                 </Link>

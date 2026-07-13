@@ -10,6 +10,7 @@ from app.api.collection import router as collection_router
 from app.api.filters import router as filters_router
 from app.api.master_sets import router as master_sets_router
 from app.api.news import router as news_router
+from app.api.products import router as products_router
 from app.api.routes import router as api_router
 from app.api.scan import router as scan_router
 from app.api.set_reports import router as set_reports_router
@@ -50,6 +51,7 @@ app.include_router(wishlist_router, prefix="/api/v1")
 app.include_router(scan_router, prefix="/api/v1")
 app.include_router(sharing_router, prefix="/api/v1")
 app.include_router(news_router, prefix="/api/v1")
+app.include_router(products_router, prefix="/api/v1")
 app.include_router(card_reports_router, prefix="/api/v1")
 app.include_router(set_reports_router, prefix="/api/v1")
 app.include_router(visits_router, prefix="/api/v1")

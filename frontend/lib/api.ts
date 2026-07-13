@@ -684,6 +684,81 @@ export function getPublicBinderView(publicToken: string): Promise<BinderView> {
   });
 }
 
+// ── Sealed products ────────────────────────────────────────────────
+
+export type ProductType =
+  | "booster_box"
+  | "etb"
+  | "booster_bundle"
+  | "premium_collection"
+  | "tin"
+  | "blister"
+  | "build_battle"
+  | "sleeved_booster"
+  | "other";
+
+export type Product = {
+  id: string;
+  name: string;
+  set_id: string | null;
+  set_name: string | null;
+  product_type: ProductType;
+  packs_per_box: number | null;
+  tcgplayer_product_id: number | null;
+  market_price_usd: number | null;
+  low_price_usd: number | null;
+  high_price_usd: number | null;
+  msrp_usd: number | null;
+  image_url: string | null;
+  tcgplayer_url: string | null;
+};
+
+export type ProductEV = {
+  pack_ev_usd: number | null;
+  box_ev_usd: number | null;
+  packs_used: number | null;
+  market_price_usd: number | null;
+  premium_pct: number | null;
+};
+
+export type ProductDetail = Product & {
+  ev: ProductEV | null;
+  description: string | null;
+};
+
+export type ProductList = {
+  items: Product[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type ProductBrowseParams = {
+  set_id?: string;
+  product_type?: ProductType;
+  sort?: "newest" | "price_desc" | "price_asc" | "name";
+  page?: number;
+  page_size?: number;
+};
+
+export function listProducts(params: ProductBrowseParams = {}): Promise<ProductList> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    qs.set(k, String(v));
+  }
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return apiFetch<ProductList>(`/products${suffix}`);
+}
+
+export function getProduct(id: string): Promise<ProductDetail> {
+  return apiFetch<ProductDetail>(`/products/${id}`);
+}
+
+export function listProductsForSet(setId: string): Promise<Product[]> {
+  return apiFetch<Product[]>(`/products/set/${setId}/list`);
+}
+
 export function listMasterSetsForCard(
   cardId: string,
   token: string,
