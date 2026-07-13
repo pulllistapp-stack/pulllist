@@ -43,18 +43,40 @@ function writeCache(setId: string, rows: Product[]) {
 }
 
 /**
- * Sealed-products carousel row on the set detail page. Fetches
- * client-side (parent is a client page too) so the SSR of the set page
- * stays cheap. Renders nothing when the set has no sealed rows —
- * cleaner than a "no sealed products" empty state that would clutter
- * older sets that never had TCGCSV product data.
+ * Sealed-products grid on the set detail page. Two use modes:
+ *
+ *   - default (`expanded=false`): compact carousel row surfaced above
+ *     the card grid — how the component originally shipped. Renders
+ *     nothing when there are no sealed rows so older sets don't get a
+ *     hollow section.
+ *
+ *   - expanded (`expanded=true`): full-width panel body used inside
+ *     the Cards / Sealed tab layout — larger grid, empty state kept.
+ *
+ * Fetches client-side by default so SSR stays cheap. When the parent
+ * already has the products list (e.g. it needed the count for a tab
+ * badge), it can pass `products` and skip the fetch entirely.
  */
-export function SetSealedProducts({ setId }: { setId: string }) {
-  const [products, setProducts] = useState<Product[] | null>(() =>
-    readCache(setId),
-  );
+export function SetSealedProducts({
+  setId,
+  products: injectedProducts,
+  expanded = false,
+}: {
+  setId: string;
+  products?: Product[] | null;
+  expanded?: boolean;
+}) {
+  const parentProvided = injectedProducts !== undefined;
+  const [products, setProducts] = useState<Product[] | null>(() => {
+    if (parentProvided) return injectedProducts ?? null;
+    return readCache(setId);
+  });
 
   useEffect(() => {
+    if (parentProvided) {
+      setProducts(injectedProducts ?? null);
+      return;
+    }
     let cancelled = false;
     const cached = readCache(setId);
     if (cached) {
@@ -74,9 +96,50 @@ export function SetSealedProducts({ setId }: { setId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [setId]);
+  }, [setId, parentProvided, injectedProducts]);
 
-  if (!products || products.length === 0) return null;
+  // Compact mode collapses to nothing when there's no data — that's
+  // deliberate. Expanded mode keeps a proper empty state because the
+  // sealed tab exists precisely to answer "does this set have sealed
+  // product data" and silently disappearing would be confusing.
+  if (!products || products.length === 0) {
+    if (!expanded) return null;
+    return (
+      <div className="rounded-card border border-dashed border-border/60 bg-bg-surface/40 p-8 text-center">
+        <div className="mb-1 text-sm font-semibold text-text-secondary">
+          No sealed products indexed for this set yet
+        </div>
+        <div className="text-xs text-text-tertiary">
+          Older sets sometimes don&apos;t show up in TCGCSV&apos;s sealed
+          catalog. Newer releases (Mega Evolution era, Ascended Heroes,
+          30th Celebration…) carry the full sealed lineup.
+        </div>
+      </div>
+    );
+  }
+
+  if (expanded) {
+    return (
+      <div>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <div className="text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">
+              {products.length.toLocaleString()}
+            </span>{" "}
+            sealed SKU{products.length === 1 ? "" : "s"}
+          </div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+            Booster Box · ETB · Bundle · Premium · Tin · Blister
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {products.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="mb-6">

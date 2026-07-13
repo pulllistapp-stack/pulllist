@@ -21,6 +21,8 @@ import {
   BrowseParams,
   CardList,
   getSet,
+  listProductsForSet,
+  Product,
   SetWithCardCount,
 } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -55,10 +57,47 @@ function SetDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
+  const [sealedProducts, setSealedProducts] = useState<Product[] | null>(null);
+
+  // Cards ↔ Sealed tab state, persisted in URL so back navigation +
+  // link sharing land on the same view. ?tab=sealed opens the sealed
+  // panel; anything else falls back to cards (default).
+  const activeTab: "cards" | "sealed" =
+    searchParams.get("tab") === "sealed" ? "sealed" : "cards";
+
+  const switchTab = (t: "cards" | "sealed") => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (t === "cards") next.delete("tab");
+    else next.set("tab", t);
+    // Reset paging state when switching tabs — the two panels have
+    // independent list layouts and holding page=N from cards makes no
+    // sense on sealed.
+    next.delete("page");
+    router.replace(`/sets/${setId}?${next.toString()}`, { scroll: false });
+  };
 
   const pageSize =
     Number(searchParams.get("page_size") ?? String(DEFAULT_PAGE_SIZE)) ||
     DEFAULT_PAGE_SIZE;
+
+  // Fetch sealed products once per setId — needed for tab count badge
+  // even when the sealed panel isn't active. Shape-mirrors what
+  // SetSealedProducts used to do internally; centralized here so both
+  // the tab badge and the sealed panel read the same source.
+  useEffect(() => {
+    if (!setId) return;
+    let cancelled = false;
+    listProductsForSet(setId)
+      .then((rows) => {
+        if (!cancelled) setSealedProducts(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setSealedProducts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -254,74 +293,102 @@ function SetDetailContent() {
         </div>
       )}
 
-      {set && <SetSealedProducts setId={set.id} />}
+      {/* Cards / Sealed tab bar. Cards is the default; sealed only
+          appears if the set has at least one sealed product indexed
+          (older sets pre-TCGCSV era return empty). */}
+      {set && (
+        <div className="mb-6 flex items-center gap-1 border-b border-border">
+          <TabButton
+            active={activeTab === "cards"}
+            onClick={() => switchTab("cards")}
+            count={set.card_count}
+          >
+            Cards
+          </TabButton>
+          {sealedProducts && sealedProducts.length > 0 && (
+            <TabButton
+              active={activeTab === "sealed"}
+              onClick={() => switchTab("sealed")}
+              count={sealedProducts.length}
+            >
+              Sealed
+            </TabButton>
+          )}
+        </div>
+      )}
 
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="md:w-60 flex-shrink-0">
-          {/* Same sidebar scroll fix as /cards — see the comment there
-              for why 100dvh + pb-16 replaces 100vh-5.5rem. */}
-          <div className="md:sticky md:top-20 md:max-h-[calc(100dvh-5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 md:pb-16 filter-scroll">
-            <FilterSidebar
-              basePath={`/sets/${setId}`}
-              lockedSetId={setId}
-              language={set?.language}
-            />
+      {activeTab === "cards" && (
+        <div className="flex flex-col md:flex-row gap-6">
+          <div className="md:w-60 flex-shrink-0">
+            {/* Same sidebar scroll fix as /cards — see the comment there
+                for why 100dvh + pb-16 replaces 100vh-5.5rem. */}
+            <div className="md:sticky md:top-20 md:max-h-[calc(100dvh-5rem)] md:overflow-y-auto md:overscroll-contain md:pr-2 md:pb-16 filter-scroll">
+              <FilterSidebar
+                basePath={`/sets/${setId}`}
+                lockedSetId={setId}
+                language={set?.language}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {data && (
+              <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+                <div className="text-sm text-text-secondary">
+                  <span className="text-text-primary font-medium">
+                    {data.total.toLocaleString()}
+                  </span>{" "}
+                  {hasActiveFilters ? "matching" : "cards"}
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  {totalPages > 1 && (
+                    <span className="font-mono text-text-tertiary">
+                      page {currentPage} / {totalPages}
+                    </span>
+                  )}
+                  <PageSizeSelector value={pageSize} onChange={changePageSize} />
+                </div>
+              </div>
+            )}
+
+            {loading && (
+              <div className="text-text-tertiary py-12 text-center">Loading…</div>
+            )}
+
+            {!loading && data && data.items.length === 0 && (
+              <div className="rounded-card border border-border bg-bg-surface p-8 text-center">
+                <h2 className="font-semibold mb-2">
+                  {hasActiveFilters
+                    ? "No cards match these filters"
+                    : "No cards seeded yet"}
+                </h2>
+              </div>
+            )}
+
+            {!loading && data && data.items.length > 0 && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
+                  {data.items.map((c, idx) => (
+                    <CardThumb key={c.id} card={c} priority={idx < 8} />
+                  ))}
+                </div>
+
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  total={data.total}
+                  pageSize={pageSize}
+                  onPageChange={goToPage}
+                />
+              </>
+            )}
           </div>
         </div>
+      )}
 
-        <div className="flex-1 min-w-0">
-          {data && (
-            <div className="flex flex-wrap items-baseline justify-between gap-3 mb-4">
-              <div className="text-sm text-text-secondary">
-                <span className="text-text-primary font-medium">
-                  {data.total.toLocaleString()}
-                </span>{" "}
-                {hasActiveFilters ? "matching" : "cards"}
-              </div>
-              <div className="flex items-center gap-3 text-xs">
-                {totalPages > 1 && (
-                  <span className="font-mono text-text-tertiary">
-                    page {currentPage} / {totalPages}
-                  </span>
-                )}
-                <PageSizeSelector value={pageSize} onChange={changePageSize} />
-              </div>
-            </div>
-          )}
-
-          {loading && (
-            <div className="text-text-tertiary py-12 text-center">Loading…</div>
-          )}
-
-          {!loading && data && data.items.length === 0 && (
-            <div className="rounded-card border border-border bg-bg-surface p-8 text-center">
-              <h2 className="font-semibold mb-2">
-                {hasActiveFilters
-                  ? "No cards match these filters"
-                  : "No cards seeded yet"}
-              </h2>
-            </div>
-          )}
-
-          {!loading && data && data.items.length > 0 && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
-                {data.items.map((c, idx) => (
-                  <CardThumb key={c.id} card={c} priority={idx < 8} />
-                ))}
-              </div>
-
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                total={data.total}
-                pageSize={pageSize}
-                onPageChange={goToPage}
-              />
-            </>
-          )}
-        </div>
-      </div>
+      {activeTab === "sealed" && set && (
+        <SetSealedProducts setId={set.id} products={sealedProducts} expanded />
+      )}
 
       {showReport && set && (
         <SetReportModal
@@ -331,5 +398,44 @@ function SetDetailContent() {
         />
       )}
     </main>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  count,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "-mb-px flex items-center gap-2 rounded-t-md border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors " +
+        (active
+          ? "border-accent-yellow text-text-primary"
+          : "border-transparent text-text-tertiary hover:text-text-secondary")
+      }
+    >
+      <span>{children}</span>
+      {count != null && (
+        <span
+          className={
+            "rounded-full px-2 py-0.5 text-[10px] font-mono " +
+            (active
+              ? "bg-accent-yellow/15 text-accent-yellow"
+              : "bg-bg-surface text-text-tertiary")
+          }
+        >
+          {count}
+        </span>
+      )}
+    </button>
   );
 }

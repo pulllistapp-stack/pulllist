@@ -222,6 +222,55 @@
   - **E2-E5** (361장) → nazonobasho.com httpx native JP scans
   - **PMCG2-6** (354장) → **open §10.6.3** (모든 public source dead end)
 
+### #10.8 Products 메뉴 확장 — 2026-07-13 논의
+
+Sealed 카탈로그 (#8) 이후 후속 개선 리스트. LO 픽 순서대로 진행. 목적: `/products` 를 "catalog page" 에서 "sealed inventory + trading dashboard" 로 승격.
+
+**A. Cards / Sealed 탭 분리** — 30-60분 ⚡ *(진행 중, 2026-07-13)*
+- `/sets/[id]` 를 Cards | Sealed 두 탭으로 재구성 (URL `?tab=cards|sealed`)
+- Cards 탭 = 기존 카드 그리드 + 필터 (default)
+- Sealed 탭 = SetSealedProducts 그리드 + 타입 필터 + 정렬 + MSRP 대비 배지
+- 각 탭 count 배지 (`Cards 214 | Sealed 12`)
+
+**B. Sealed 컬렉션/위시리스트 통합** — 반나절
+- `collection_items` 에 `product_id` 컬럼 polymorphic 확장 (or 새 `sealed_collection_items` 테이블)
+- `wishlist_items` 도 마찬가지
+- `/portfolio` 에 "Sealed" 탭 추가
+- 상품 상세에 "＋ I own" / "❤ Wishlist" 버튼
+- 마스터셋 대비 sealed 개인 인벤 트래킹 가능
+
+**C. Sealed 가격 히스토리 + 차트** — 반나절-하루
+- `product_price_snapshots` 테이블 신설 (카드 스냅샷 미러)
+- Daily cron `sync_products_daily.py` — TCGCSV product 가격 매일 저장
+- Products 상세에 30d/90d 차트 (카드 차트 컴포넌트 재사용)
+
+**D. 딜 알람 (킬러 기능)** — 하루
+- `product_alerts` 테이블 (user_id, product_id, target_price, notify_email)
+- Daily cron 스캔 → 조건 맞으면 이메일 발송
+- 상품 상세에 "🔔 Alert me at $X" 버튼
+- 유저 재방문 유도, 이메일 마케팅 접점
+
+**E. 커버리지 확장** — 30분
+- `ingest_products.py` 로 SV / SWSH / Sword & Shield 전체 백필
+- 예상 30+ 세트 × 5-15 SKU = **500-1000 상품 추가**
+- 지금 7세트 → 40+ 세트
+
+**F. UI/UX 재정비** — 반나절
+- TopNav "Products" 를 카테고리 dropdown 으로 (Booster Boxes / ETBs / Bundles ...)
+- 랜딩에 hero + featured products
+- "Best EV" / "Trending" / "Just Added" 섹션
+- 필터 사이드바 (rarity 별, 가격대 별)
+
+**G. Series landing 페이지 (신설)** — 하루
+- 새 라우트 `/series/[series-name]` — Mega Evolution, Scarlet & Violet 등
+- 시리즈 안 모든 세트/카드/sealed 집계
+- 페이지 자체가 Cards | Sealed | Sets 세 탭
+- LO 아이디어 (2026-07-13): 시리즈 → 세트 → 카드/sealed 계층 자연스러움
+
+**LO 픽 순서 (2026-07-13 현재)**: A (진행 중) → 후속 픽 대기.
+
+---
+
 ### #10.7 JP 가격 데이터 소스 붙이기 ⏸️ (open, 다음 세션 대상)
 
 **문제**: JP 카드 14,362장 다 있는데 `market_price_usd / mid / low / high` 전부 NULL. TCGCSV/TCGplayer는 EN 카탈로그 전용, pokemontcg.io는 Cardmarket EU/EN 위주. Cross-Market 가격 갭 배너 (§1 #5) 프리미엄 기능이 이 데이터 없이는 unblock 안 됨.
