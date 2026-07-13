@@ -160,22 +160,34 @@ async def list_source_urls(
 async def list_processed_urls(
     admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
     db: AsyncSession = Depends(get_db),
-) -> dict[str, str]:
+) -> dict[str, dict]:
     """Admin-only persistent dedupe log for the newsbot — every URL
     the bot has touched, regardless of whether the resulting post
-    still exists. Returns {source_url: outcome}. Used together with
+    still exists. Returns {source_url: {outcome, title_tokens}} so
+    the newsbot can dedupe both by URL AND by title-token similarity
+    across runs (same-story-different-URL case). Used together with
     /posts/source-urls so dedupe survives post deletion."""
     rows = (
         await db.execute(
-            select(ProcessedUrl.source_url, ProcessedUrl.outcome)
+            select(
+                ProcessedUrl.source_url,
+                ProcessedUrl.outcome,
+                ProcessedUrl.title_tokens,
+            )
         )
     ).all()
-    return {url: outcome for url, outcome in rows}
+    return {
+        url: {"outcome": outcome, "title_tokens": tokens or ""}
+        for url, outcome, tokens in rows
+    }
 
 
 class ProcessedUrlIn(BaseModel):
     source_url: str = Field(min_length=1, max_length=512)
     outcome: str = Field(min_length=1, max_length=32)
+    # Optional so older newsbot builds still work. New builds pass
+    # space-separated normalized content-word tokens for the title.
+    title_tokens: str | None = Field(default=None, max_length=2048)
 
 
 @router.post("/posts/processed-urls", status_code=204)
@@ -189,14 +201,17 @@ async def mark_processed_url(
     the original outcome and timestamp). Used for cost-safe dedupe
     that survives admin post deletion."""
     dialect = db.bind.dialect.name
+    values = {"source_url": payload.source_url, "outcome": payload.outcome}
+    if payload.title_tokens is not None:
+        values["title_tokens"] = payload.title_tokens
     if dialect == "postgresql":
-        stmt = insert(ProcessedUrl).values(
-            source_url=payload.source_url, outcome=payload.outcome,
-        ).on_conflict_do_nothing(index_elements=["source_url"])
+        stmt = insert(ProcessedUrl).values(**values).on_conflict_do_nothing(
+            index_elements=["source_url"]
+        )
     else:
-        stmt = sqlite_insert(ProcessedUrl).values(
-            source_url=payload.source_url, outcome=payload.outcome,
-        ).on_conflict_do_nothing(index_elements=["source_url"])
+        stmt = sqlite_insert(ProcessedUrl).values(**values).on_conflict_do_nothing(
+            index_elements=["source_url"]
+        )
     await db.execute(stmt)
     await db.commit()
 

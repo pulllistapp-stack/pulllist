@@ -329,7 +329,9 @@ def _titles_look_alike(a: set[str], b: set[str]) -> bool:
 
 
 def _select_for_publishing(
-    fresh: list[NewsItem], limit: int
+    fresh: list[NewsItem],
+    limit: int,
+    historical_title_tokens: list[set[str]] | None = None,
 ) -> list[NewsItem]:
     """Pick `limit` items from `fresh` favoring TCG card content and
     source diversity, and skipping cross-source duplicates.
@@ -340,12 +342,21 @@ def _select_for_publishing(
     it the highest-default-bonus source would still monopolize the
     slate.
 
-    Title dedupe: after taking the round leader, drop any remaining
-    pool item whose title tokens overlap the leader by >=60%. Same
-    story from a second source (e.g. Jirachi ex reveal on PokeBeach
-    + Pokemon.com + gamespress) collapses to a single publish."""
+    Title dedupe fires in two directions:
+      - vs. historical_title_tokens (posts the bot has already
+        published or attempted on prior runs, fetched from
+        processed_urls). Prevents same-story-different-URL rediscovery
+        on later cron runs.
+      - vs. everything already picked this round. Same story from
+        two sources in one batch collapses to a single publish.
+
+    historical_title_tokens=None disables the cross-run check (used
+    by tests and by degraded runs where the backend is older)."""
     selected: list[NewsItem] = []
-    picked_tokens: list[set[str]] = []
+    # Seed picked_tokens with history so both dedupe directions run
+    # through the same code path. Copy to avoid mutating caller's list.
+    picked_tokens: list[set[str]] = list(historical_title_tokens or [])
+    history_count = len(picked_tokens)
     pool = list(fresh)
     while pool and len(selected) < limit:
         source_counts: dict[str, int] = {}
@@ -355,13 +366,18 @@ def _select_for_publishing(
         pool.sort(key=lambda i: _score_item(i, source_counts), reverse=True)
         winner = pool.pop(0)
         winner_tokens = _title_tokens(winner.title)
-        if any(_titles_look_alike(winner_tokens, prev) for prev in picked_tokens):
-            # Winner duplicates something we already picked this
-            # round — skip it AND don't count it against the source
-            # (its scoring diversity slot goes to whoever's next).
+        # Match against both historical AND this-round tokens in one
+        # loop — cheaper than two passes and produces the same result.
+        match_index = next(
+            (i for i, prev in enumerate(picked_tokens)
+             if _titles_look_alike(winner_tokens, prev)),
+            None,
+        )
+        if match_index is not None:
+            kind = "cross-run" if match_index < history_count else "cross-source"
             log.info(
-                "select: dropping cross-source dupe %r (matches earlier pick)",
-                winner.title[:80],
+                "select: dropping %s dupe %r",
+                kind, winner.title[:80],
             )
             continue
         selected.append(winner)
@@ -428,7 +444,10 @@ async def _process_item(
             item.url, (item.hero_image_url or "")[:80],
         )
         if token:
-            await mark_processed(api_base, token, item.url, "thumbnail_failed")
+            await mark_processed(
+                api_base, token, item.url, "thumbnail_failed",
+                title_tokens=" ".join(sorted(_title_tokens(item.title))),
+            )
         return None
 
     try:
@@ -436,7 +455,10 @@ async def _process_item(
     except Exception as exc:
         log.exception("generator failed for %s: %s", item.url, exc)
         if token:
-            await mark_processed(api_base, token, item.url, "generator_error")
+            await mark_processed(
+                api_base, token, item.url, "generator_error",
+                title_tokens=" ".join(sorted(_title_tokens(item.title))),
+            )
         return None
 
     verdict = await verify_claims(article.claims)
@@ -447,7 +469,10 @@ async def _process_item(
             len(article.claims),
         )
         if token:
-            await mark_processed(api_base, token, item.url, "factcheck_failed")
+            await mark_processed(
+                api_base, token, item.url, "factcheck_failed",
+                title_tokens=" ".join(sorted(_title_tokens(item.title))),
+            )
         return None
 
     payload = _build_post_payload(item, article, category)
@@ -467,14 +492,21 @@ async def _process_item(
     except PublisherError as exc:
         log.error("publish failed for %s: %s", payload["slug"], exc)
         if token:
-            await mark_processed(api_base, token, item.url, "publish_error")
+            await mark_processed(
+                api_base, token, item.url, "publish_error",
+                title_tokens=" ".join(sorted(_title_tokens(item.title))),
+            )
         return None
 
     log.info("published draft slug=%s", resp.get("slug"))
     # The post row already records the source_url, but we mirror it
     # to processed_urls so the dedupe set stays consistent even after
-    # LO deletes the draft from the admin UI.
-    await mark_processed(api_base, token, item.url, "published")
+    # LO deletes the draft from the admin UI. Include title tokens
+    # so cross-run title dedupe can also skip same-story reruns.
+    await mark_processed(
+        api_base, token, item.url, "published",
+        title_tokens=" ".join(sorted(_title_tokens(article.title))),
+    )
     return {"slug": resp.get("slug"), "title": resp.get("title"), "dry_run": False}
 
 
@@ -508,12 +540,16 @@ async def _run_body() -> int:
         return 1
     log.info("logged in as %s", settings.newsbot_admin_email)
 
-    fresh = await filter_unseen(items, settings.pulllist_api_base, token)
+    fresh, historical_titles = await filter_unseen(
+        items, settings.pulllist_api_base, token
+    )
     if not fresh:
         log.info("nothing new today — exiting cleanly")
         return 0
 
-    selected = _select_for_publishing(fresh, settings.daily_post_limit)
+    selected = _select_for_publishing(
+        fresh, settings.daily_post_limit, historical_titles
+    )
     log.info(
         "processing %d / %d fresh items (selection: %s)",
         len(selected),

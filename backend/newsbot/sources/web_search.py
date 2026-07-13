@@ -38,6 +38,32 @@ GENERIC_KEY = "__generic__"
 SERPER_NEWS_URL = "https://google.serper.dev/news"
 SERPER_TIMEOUT = 30.0
 
+# News-signal keywords — untrusted-domain results must have at least
+# one of these in title or snippet to be treated as news vs. stale
+# product page. Prevents 'Pokemon Center listed X' posts about a
+# product that shipped 4 months ago showing up as fresh news.
+# Trusted Pokemon publishers (PokeBeach, Bulbapedia, Pokemon.com news)
+# bypass this — their whole site is news, so any title is fair game.
+_NEWS_SIGNAL_KEYWORDS = (
+    "coming soon", "preorder", "pre-order", "revealed", "reveal",
+    "release", "released", "releases", "launch", "launches",
+    "announce", "announced", "announcement", "confirmed", "confirms",
+    "leaked", "leak", "spoiler", "drops", "dropping",
+    "in stock", "restock", "back in stock", "now available",
+    "now listed", "just listed", "hits shelves", "hits",
+    "unveiled", "debut", "debuts", "showcase", "reveal",
+    "new set", "new expansion", "coming to", "arrives",
+)
+
+# Serper /news 'date' field. Absolute like "Jul 5, 2026" or relative
+# like "2 days ago" / "3 hours ago" / "1 month ago" / "2 years ago".
+# We only need a coarse "is this within the past month" gate — anything
+# with 'month', 'months', 'year', 'years' in the date string is old
+# enough to skip. Relative-time strings without those words are recent.
+_STALE_DATE_RE = re.compile(
+    r"\b(month|months|year|years)\s+ago\b", re.IGNORECASE
+)
+
 
 # Regex og:* extraction — avoids pulling an extra HTML parser dep
 # for what is, mechanically, three tag lookups. Robust enough for
@@ -258,6 +284,18 @@ async def crawl() -> list[NewsItem]:
                 snippet = (hit.get("snippet") or "").strip()
                 if not title:
                     continue
+                # Freshness gate — Serper /news returns some results
+                # whose date reads "2 months ago" / "1 year ago". Those
+                # are old product pages Google re-indexed, not news.
+                # Skip anything with month/year granularity in the
+                # date string; relative day/week/hour strings pass.
+                date_str = (hit.get("date") or "").strip()
+                if date_str and _STALE_DATE_RE.search(date_str):
+                    log.info(
+                        "web_search: skip stale %r (date=%r)",
+                        title[:80], date_str,
+                    )
+                    continue
                 # Topic gate — Pokemon-only publisher domains bypass
                 # the keyword filter (set names + character names are
                 # already topical). Generic retailers (Target, BestBuy,
@@ -270,6 +308,21 @@ async def crawl() -> list[NewsItem]:
                     if not any(kw in haystack for kw in required_kws):
                         log.info(
                             "web_search: skip off-topic %r (untrusted domain + no keyword)",
+                            title[:80],
+                        )
+                        continue
+                # News-signal gate — untrusted domains (retailers)
+                # also need at least one news-verb ("revealed",
+                # "preorder", "launches", etc.) in title+snippet.
+                # A raw product page URL that Google surfaces as
+                # "news" without any news framing is almost always
+                # a restock / re-index of an old product — skipping
+                # here saves the Claude call.
+                if not is_trusted:
+                    haystack = (title + " " + snippet).lower()
+                    if not any(kw in haystack for kw in _NEWS_SIGNAL_KEYWORDS):
+                        log.info(
+                            "web_search: skip no-news-signal %r",
                             title[:80],
                         )
                         continue

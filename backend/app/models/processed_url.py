@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -45,3 +45,11 @@ class ProcessedUrl(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime, default=func.now(), nullable=False
     )
+
+    # Space-separated normalized title tokens (lowercased content
+    # words, stopwords + calendar filler dropped). Used for cross-run
+    # dedupe — same story from a second source on a later day matches
+    # via Jaccard >= 0.6 and gets skipped. Nullable so rows from
+    # before this column existed still work; those just don't
+    # contribute to title dedupe (URL dedupe still fires).
+    title_tokens: Mapped[str | None] = mapped_column(Text, nullable=True)

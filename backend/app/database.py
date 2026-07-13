@@ -46,3 +46,14 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # metadata.create_all only creates missing tables — it never
+        # ALTER TABLEs existing ones. Any new column on a pre-existing
+        # table has to be added by hand. Postgres 9.6+ 'IF NOT EXISTS'
+        # makes each ALTER idempotent so we can call it on every boot.
+        # Add new lines here as models grow columns; grouping them in
+        # one block keeps the migration story readable in one place.
+        from sqlalchemy import text
+        await conn.execute(text(
+            "ALTER TABLE newsbot_processed_urls "
+            "ADD COLUMN IF NOT EXISTS title_tokens TEXT"
+        ))
