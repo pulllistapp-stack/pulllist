@@ -5,8 +5,17 @@ import { Activity, Globe, Loader2, ShieldAlert } from "lucide-react";
 
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import {
+  getVisitsAnonSessions,
   getVisitsByUser,
+  getVisitsRecent,
   getVisitsSummary,
+  getVisitsTopPaths,
+  getVisitsTopReferrers,
+  type AnonSessionItem,
+  type TopPathItem,
+  type TopReferrerItem,
+  type VisitRecentItem,
+  type VisitScope,
   type VisitsByUserItem,
   type VisitsSummary,
 } from "@/lib/auth";
@@ -23,24 +32,37 @@ export default function AdminVisitsPage() {
 function AdminVisitsContent() {
   const [summary, setSummary] = useState<VisitsSummary | null>(null);
   const [byUser, setByUser] = useState<VisitsByUserItem[]>([]);
+  const [topPaths, setTopPaths] = useState<TopPathItem[]>([]);
+  const [topReferrers, setTopReferrers] = useState<TopReferrerItem[]>([]);
+  const [recent, setRecent] = useState<VisitRecentItem[]>([]);
+  const [anonSessions, setAnonSessions] = useState<AnonSessionItem[]>([]);
   const [windowDays, setWindowDays] = useState<number>(1);
+  const [scope, setScope] = useState<VisitScope>("all");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, b] = await Promise.all([
+      const [s, b, tp, tr, rec, anon] = await Promise.all([
         getVisitsSummary(),
         getVisitsByUser(windowDays),
+        getVisitsTopPaths(windowDays, 15),
+        getVisitsTopReferrers(windowDays, 15),
+        getVisitsRecent({ limit: 60, scope }),
+        getVisitsAnonSessions(windowDays, 30),
       ]);
       setSummary(s);
       setByUser(b.items);
+      setTopPaths(tp.items);
+      setTopReferrers(tr.items);
+      setRecent(rec.items);
+      setAnonSessions(anon.items);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [windowDays]);
+  }, [windowDays, scope]);
 
   useEffect(() => {
     load();
@@ -230,10 +252,276 @@ function AdminVisitsContent() {
               </div>
             )}
           </section>
+
+          {/* Top pages + Top referrers side by side */}
+          <section className="grid gap-4 md:grid-cols-2 mt-8">
+            <TrafficCard title="Top pages" hint={`Last ${windowDays}d`}>
+              {topPaths.length === 0 ? (
+                <EmptyRow />
+              ) : (
+                <ul className="text-xs divide-y divide-border">
+                  {topPaths.map((p) => (
+                    <li
+                      key={p.path}
+                      className="py-1.5 flex items-baseline gap-3"
+                    >
+                      <span className="font-mono text-text-primary truncate flex-1 min-w-0">
+                        {p.path}
+                      </span>
+                      <span className="font-mono tabular-nums text-text-secondary shrink-0">
+                        {p.views.toLocaleString()} v
+                      </span>
+                      <span className="font-mono tabular-nums text-text-tertiary shrink-0">
+                        {p.uniques.toLocaleString()} u
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TrafficCard>
+
+            <TrafficCard title="Top referrers" hint={`Last ${windowDays}d`}>
+              {topReferrers.length === 0 ? (
+                <EmptyRow />
+              ) : (
+                <ul className="text-xs divide-y divide-border">
+                  {topReferrers.map((r) => (
+                    <li
+                      key={r.domain}
+                      className="py-1.5 flex items-baseline gap-3"
+                    >
+                      <span
+                        className={cn(
+                          "font-mono truncate flex-1 min-w-0",
+                          r.domain === "direct"
+                            ? "text-text-tertiary italic"
+                            : "text-text-primary",
+                        )}
+                      >
+                        {r.domain}
+                      </span>
+                      <span className="font-mono tabular-nums text-text-secondary shrink-0">
+                        {r.views.toLocaleString()} v
+                      </span>
+                      <span className="font-mono tabular-nums text-text-tertiary shrink-0">
+                        {r.uniques.toLocaleString()} u
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TrafficCard>
+          </section>
+
+          {/* Anonymous sessions — who's been on the site not signed in */}
+          <section className="mt-8">
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="text-lg font-bold text-text-primary">
+                Anonymous sessions
+              </h2>
+              <span className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider">
+                Last {windowDays}d · latest 30
+              </span>
+            </div>
+            {anonSessions.length === 0 ? (
+              <div className="rounded-card border border-border bg-bg-surface p-6 text-center text-sm text-text-tertiary">
+                No anonymous sessions in this window.
+              </div>
+            ) : (
+              <div className="rounded-card border border-border bg-bg-surface overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-bg-elevated text-text-tertiary uppercase tracking-wider">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-mono">Session</th>
+                        <th className="text-left px-3 py-2 font-mono">
+                          Entry path
+                        </th>
+                        <th className="text-left px-3 py-2 font-mono">
+                          Referrer
+                        </th>
+                        <th className="text-left px-3 py-2 font-mono">Where</th>
+                        <th className="text-left px-3 py-2 font-mono">Device</th>
+                        <th className="text-right px-3 py-2 font-mono">Views</th>
+                        <th className="text-right px-3 py-2 font-mono">
+                          Last seen
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {anonSessions.map((s) => (
+                        <tr key={s.session_id} className="hover:bg-bg/40">
+                          <td className="px-3 py-2 font-mono text-text-tertiary">
+                            {s.session_id.slice(0, 8)}…
+                          </td>
+                          <td className="px-3 py-2 font-mono text-text-primary max-w-[240px] truncate">
+                            {s.entry_path ?? "—"}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-text-secondary max-w-[160px] truncate">
+                            {s.entry_referrer ?? "direct"}
+                          </td>
+                          <td className="px-3 py-2 text-text-secondary">
+                            {countryFlag(s.country ?? null)} {s.country ?? "??"}
+                            {s.city ? ` · ${s.city}` : ""}
+                          </td>
+                          <td className="px-3 py-2 text-text-secondary">
+                            {s.device ?? "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums">
+                            {s.views}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-text-tertiary">
+                            {s.last_seen ? relativeTime(s.last_seen) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Recent stream — mixed feed with scope toggle */}
+          <section className="mt-8">
+            <div className="mb-3 flex items-baseline justify-between gap-2 flex-wrap">
+              <h2 className="text-lg font-bold text-text-primary">
+                Recent activity
+              </h2>
+              <div className="inline-flex gap-1 rounded-full border border-border bg-bg-surface p-1">
+                {(["all", "user", "anon"] as VisitScope[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setScope(s)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider transition-colors",
+                      scope === s
+                        ? "bg-accent-yellow text-gray-900"
+                        : "text-text-secondary hover:text-text-primary",
+                    )}
+                  >
+                    {s === "all" ? "All" : s === "user" ? "Signed-in" : "Anonymous"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-card border border-border bg-bg-surface overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-bg-elevated text-text-tertiary uppercase tracking-wider">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-mono">Time</th>
+                      <th className="text-left px-3 py-2 font-mono">Who</th>
+                      <th className="text-left px-3 py-2 font-mono">Path</th>
+                      <th className="text-left px-3 py-2 font-mono">Referrer</th>
+                      <th className="text-left px-3 py-2 font-mono">Where</th>
+                      <th className="text-left px-3 py-2 font-mono">Device</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {recent.length === 0 ? (
+                      <tr>
+                        <td
+                          className="px-3 py-6 text-center text-text-tertiary"
+                          colSpan={6}
+                        >
+                          No visits match this filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      recent.map((v) => (
+                        <tr key={v.id} className="hover:bg-bg/40">
+                          <td className="px-3 py-2 font-mono text-text-tertiary whitespace-nowrap">
+                            {relativeTime(v.created_at)}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {v.is_anonymous ? (
+                              <span className="text-text-tertiary italic">
+                                anon
+                              </span>
+                            ) : (
+                              <span className="text-text-primary">
+                                {v.user?.name ?? v.user?.email ?? "user"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-text-primary max-w-[280px] truncate">
+                            {v.path}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-text-secondary max-w-[200px] truncate">
+                            {v.referrer ? shortHost(v.referrer) : "direct"}
+                          </td>
+                          <td className="px-3 py-2 text-text-secondary whitespace-nowrap">
+                            {countryFlag(v.country ?? null)} {v.country ?? "??"}
+                          </td>
+                          <td className="px-3 py-2 text-text-secondary">
+                            {v.device ?? "—"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         </>
       )}
     </main>
   );
+}
+
+function TrafficCard({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-card border border-border bg-bg-surface p-4">
+      <div className="mb-2 flex items-baseline justify-between">
+        <h2 className="text-sm font-bold text-text-primary">{title}</h2>
+        {hint && (
+          <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+            {hint}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyRow() {
+  return (
+    <div className="py-6 text-center text-sm text-text-tertiary">No data.</div>
+  );
+}
+
+function shortHost(referrer: string): string {
+  try {
+    const u = referrer.startsWith("http") ? new URL(referrer) : null;
+    return u ? u.hostname : referrer;
+  } catch {
+    return referrer;
+  }
+}
+
+function relativeTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  const diff = Date.now() - t;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
 }
 
 function StatCard({

@@ -608,3 +608,244 @@ async def visits_by_user(
             if uid in users
         ],
     }
+
+
+# ────────── Visit tracking: extended views (2026-07) ──────────
+# Recent stream, top pages, top referrers, anon session breakdown —
+# the pieces the top-level summary doesn't cover. All accept a `days`
+# window so the admin can pivot between "last 24h" and "last week".
+
+
+def _serialize_visit(row: VisitLog, user: User | None) -> dict:
+    return {
+        "id": row.id,
+        "created_at": row.created_at.isoformat(),
+        "path": row.path,
+        "referrer": row.referrer,
+        "country": row.country,
+        "region": row.region,
+        "city": row.city,
+        "device": row.device,
+        "session_id": row.session_id,
+        "is_anonymous": row.user_id is None,
+        "user": (
+            {"id": user.id, "email": user.email, "name": user.name}
+            if user
+            else None
+        ),
+    }
+
+
+def _referrer_domain(raw: str | None) -> str:
+    """Group referrers by hostname so top-referrers aggregates every
+    google.com/search? deep link into one 'google.com' bucket.
+    Missing / empty / literal 'direct' → 'direct'."""
+    if not raw:
+        return "direct"
+    lower = raw.strip().lower()
+    if not lower or lower == "direct":
+        return "direct"
+    for prefix in ("https://", "http://", "//"):
+        if lower.startswith(prefix):
+            lower = lower[len(prefix):]
+            break
+    for sep in ("/", "?", "#"):
+        idx = lower.find(sep)
+        if idx >= 0:
+            lower = lower[:idx]
+    if ":" in lower:
+        lower = lower.split(":", 1)[0]
+    return lower or "direct"
+
+
+@router.get("/visits/recent")
+async def visits_recent(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    limit: int = Query(100, ge=1, le=500),
+    scope: str = Query(
+        "all",
+        description="all / anon / user",
+        pattern="^(all|anon|user)$",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Raw stream of most recent visits — logged-in and anonymous mixed
+    (or filtered via scope). Near-real-time activity scan."""
+    stmt = select(VisitLog).order_by(VisitLog.created_at.desc()).limit(limit)
+    if scope == "anon":
+        stmt = stmt.where(VisitLog.user_id.is_(None))
+    elif scope == "user":
+        stmt = stmt.where(VisitLog.user_id.is_not(None))
+
+    rows = (await db.execute(stmt)).scalars().all()
+
+    user_ids = {r.user_id for r in rows if r.user_id}
+    users: dict[str, User] = {}
+    if user_ids:
+        for u in (
+            await db.execute(select(User).where(User.id.in_(user_ids)))
+        ).scalars():
+            users[u.id] = u
+
+    return {
+        "items": [
+            _serialize_visit(r, users.get(r.user_id) if r.user_id else None)
+            for r in rows
+        ],
+        "limit": limit,
+        "scope": scope,
+    }
+
+
+@router.get("/visits/top-paths")
+async def visits_top_paths(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Most-viewed paths in the last N days. Views + unique-session
+    counts side by side so the admin sees both raw hits and reach."""
+    window_start = _datetime.utcnow() - timedelta(days=days)
+    stmt = (
+        select(
+            VisitLog.path,
+            func.count(VisitLog.id).label("views"),
+            func.count(func.distinct(VisitLog.session_id)).label("uniques"),
+        )
+        .where(VisitLog.created_at >= window_start)
+        .group_by(VisitLog.path)
+        .order_by(func.count(VisitLog.id).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return {
+        "days": days,
+        "items": [
+            {"path": path, "views": int(views), "uniques": int(uniques)}
+            for path, views, uniques in rows
+        ],
+    }
+
+
+@router.get("/visits/top-referrers")
+async def visits_top_referrers(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Aggregated by referrer HOSTNAME so google.com/... deep links
+    collapse into one row. Sorted by unique-visitor count so a single
+    scraper hammering doesn't dominate the list."""
+    window_start = _datetime.utcnow() - timedelta(days=days)
+    stmt = (
+        select(VisitLog.referrer, VisitLog.session_id)
+        .where(VisitLog.created_at >= window_start)
+    )
+    rows = (await db.execute(stmt)).all()
+
+    from collections import defaultdict
+
+    view_counts: dict[str, int] = defaultdict(int)
+    unique_sessions: dict[str, set[str]] = defaultdict(set)
+    for ref, sess in rows:
+        bucket = _referrer_domain(ref)
+        view_counts[bucket] += 1
+        unique_sessions[bucket].add(sess)
+
+    ordered = sorted(
+        view_counts.items(),
+        key=lambda kv: (-len(unique_sessions[kv[0]]), -kv[1]),
+    )[:limit]
+
+    return {
+        "days": days,
+        "items": [
+            {
+                "domain": domain,
+                "views": views,
+                "uniques": len(unique_sessions[domain]),
+            }
+            for domain, views in ordered
+        ],
+    }
+
+
+@router.get("/visits/anon-sessions")
+async def visits_anon_sessions(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    days: int = Query(7, ge=1, le=90),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Per-anonymous-session breakdown: view count, first + last hit
+    timestamps, entry path (earliest hit), country, device, entry
+    referrer. Ordered by most recent activity so live sessions bubble
+    to the top."""
+    window_start = _datetime.utcnow() - timedelta(days=days)
+
+    agg_stmt = (
+        select(
+            VisitLog.session_id,
+            func.count(VisitLog.id).label("views"),
+            func.min(VisitLog.created_at).label("first_seen"),
+            func.max(VisitLog.created_at).label("last_seen"),
+        )
+        .where(
+            VisitLog.created_at >= window_start,
+            VisitLog.user_id.is_(None),
+        )
+        .group_by(VisitLog.session_id)
+        .order_by(func.max(VisitLog.created_at).desc())
+        .limit(limit)
+    )
+    agg_rows = (await db.execute(agg_stmt)).all()
+    if not agg_rows:
+        return {"days": days, "items": []}
+
+    session_ids = [s for s, _, _, _ in agg_rows]
+
+    # First hit per session — carries entry path / country / device /
+    # entry referrer.
+    entry_stmt = (
+        select(
+            VisitLog.session_id,
+            VisitLog.path,
+            VisitLog.country,
+            VisitLog.city,
+            VisitLog.device,
+            VisitLog.referrer,
+        )
+        .where(
+            VisitLog.session_id.in_(session_ids),
+            VisitLog.user_id.is_(None),
+        )
+        .order_by(VisitLog.session_id, VisitLog.created_at.asc())
+    )
+    entry: dict[str, dict] = {}
+    for sess, path, country, city, device, referrer in (
+        await db.execute(entry_stmt)
+    ).all():
+        if sess not in entry:
+            entry[sess] = {
+                "entry_path": path,
+                "country": country,
+                "city": city,
+                "device": device,
+                "entry_referrer": _referrer_domain(referrer),
+            }
+
+    return {
+        "days": days,
+        "items": [
+            {
+                "session_id": sess,
+                "views": int(views),
+                "first_seen": first_seen.isoformat() if first_seen else None,
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                **entry.get(sess, {}),
+            }
+            for sess, views, first_seen, last_seen in agg_rows
+        ],
+    }

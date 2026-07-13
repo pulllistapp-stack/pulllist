@@ -477,6 +477,70 @@ export async function getVisitsByUser(
   return authFetch(`/admin/visits/by-user?days=${days}`);
 }
 
+// ─── Extended visit tracking (2026-07) ─────────────────────────────
+
+export type VisitScope = "all" | "anon" | "user";
+
+export type VisitRecentItem = {
+  id: number;
+  created_at: string;
+  path: string;
+  referrer: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  device: string | null;
+  session_id: string;
+  is_anonymous: boolean;
+  user: { id: string; email: string; name: string | null } | null;
+};
+
+export type TopPathItem = { path: string; views: number; uniques: number };
+export type TopReferrerItem = { domain: string; views: number; uniques: number };
+export type AnonSessionItem = {
+  session_id: string;
+  views: number;
+  first_seen: string | null;
+  last_seen: string | null;
+  entry_path?: string;
+  entry_referrer?: string;
+  country?: string | null;
+  city?: string | null;
+  device?: string | null;
+};
+
+export async function getVisitsRecent(opts: {
+  limit?: number;
+  scope?: VisitScope;
+} = {}): Promise<{ items: VisitRecentItem[]; limit: number; scope: VisitScope }> {
+  const qs = new URLSearchParams();
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  if (opts.scope) qs.set("scope", opts.scope);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return authFetch(`/admin/visits/recent${suffix}`);
+}
+
+export async function getVisitsTopPaths(
+  days = 7,
+  limit = 20,
+): Promise<{ days: number; items: TopPathItem[] }> {
+  return authFetch(`/admin/visits/top-paths?days=${days}&limit=${limit}`);
+}
+
+export async function getVisitsTopReferrers(
+  days = 7,
+  limit = 20,
+): Promise<{ days: number; items: TopReferrerItem[] }> {
+  return authFetch(`/admin/visits/top-referrers?days=${days}&limit=${limit}`);
+}
+
+export async function getVisitsAnonSessions(
+  days = 7,
+  limit = 50,
+): Promise<{ days: number; items: AnonSessionItem[] }> {
+  return authFetch(`/admin/visits/anon-sessions?days=${days}&limit=${limit}`);
+}
+
 // ────────── Single-card price refresh ──────────
 
 export type CardRefreshResult = {
