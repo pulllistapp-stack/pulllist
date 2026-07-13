@@ -673,6 +673,71 @@ async def get_card_history(
     }
 
 
+@router.get("/cards/{card_id}/graded-prices")
+async def get_card_graded_prices(
+    card_id: str,
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(90, ge=7, le=365),
+) -> dict:
+    """Latest median-per-grade for the graded tiles under the price
+    chart. Reads `card_price_snapshots` where source='ebay' and
+    aggregates by grade tier.
+
+    Response shape (matches `frontend/components/card/GradedPricesGrid.tsx`):
+        {
+          "psa10": {latest_price_usd, variant, source, updated_at} | null,
+          "psa9":  {...} | null,
+          "cgc10": {...} | null,
+          "cgc9":  {...} | null,
+        }
+
+    Missing tiers omitted (frontend treats absent keys as null). Falls
+    back to no rows when the card has no graded eBay snapshots yet —
+    normal until the classifier accumulates enough grade-tagged
+    listings.
+    """
+    card = await db.get(Card, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    ui_tiers = ("psa10", "psa9", "cgc10", "cgc9")
+
+    stmt = (
+        select(
+            CardPriceSnapshot.grade,
+            CardPriceSnapshot.market_price_usd,
+            CardPriceSnapshot.variant,
+            CardPriceSnapshot.source,
+            CardPriceSnapshot.snapshot_date,
+        )
+        .where(
+            CardPriceSnapshot.card_id == card_id,
+            CardPriceSnapshot.source == "ebay",
+            CardPriceSnapshot.snapshot_date >= cutoff,
+            CardPriceSnapshot.grade.in_(ui_tiers),
+            CardPriceSnapshot.market_price_usd.is_not(None),
+        )
+        .order_by(CardPriceSnapshot.snapshot_date.desc())
+    )
+    rows = (await db.execute(stmt)).all()
+
+    # Keep only the most recent snapshot per grade (first hit wins
+    # because we ordered by date desc).
+    latest: dict[str, dict] = {}
+    for grade, price, variant, source, snap_date in rows:
+        if grade in latest:
+            continue
+        latest[grade] = {
+            "latest_price_usd": float(price),
+            "variant": variant,
+            "source": source,
+            "updated_at": snap_date,
+        }
+
+    return {tier: latest.get(tier) for tier in ui_tiers}
+
+
 @router.get("/cards/trending")
 async def get_trending(
     db: AsyncSession = Depends(get_db),

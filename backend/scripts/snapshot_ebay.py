@@ -40,6 +40,7 @@ from sqlalchemy.orm import selectinload
 from app.database import SessionLocal, init_db
 from app.models import Card, CardPriceSnapshot, Set
 from app.services.ebay_client import EbayClient, EbayClientError, build_card_query
+from app.services.grade_classifier import classify_grade
 
 log = logging.getLogger("snapshot_ebay")
 
@@ -64,15 +65,26 @@ async def already_snapshotted_today(
     return res.scalar() is not None
 
 
+MIN_LISTINGS_PER_GRADE = 2
+"""Minimum kept listings needed to compute a stable median for a grade
+bucket. Below this the bucket is dropped rather than surface a single
+outlier as "the graded price". Raw bucket usually clears easily;
+psa10/psa9/cgc10 buckets appear on chase cards where the listing volume
+is enough. Small-population buckets (psa8, bgs9, other) may not surface
+until the classifier accumulates more listings."""
+
+
 async def collect_from_ebay(
     ebay: EbayClient,
     card: Card,
     set_: Set | None,
     snapshot_date: str,
-) -> dict | None:
-    """Fetch eBay price summary for one card and return a snapshot row dict.
+) -> list[dict]:
+    """Fetch eBay listings for one card, bucket them by grade tier via
+    the title classifier, and return one snapshot row per grade bucket
+    with at least MIN_LISTINGS_PER_GRADE kept listings.
 
-    Returns None if no listings found (no row written). On a miss we log a
+    Returns [] if no listings survived filtering. On a miss we log a
     compact drop-reason summary so workflow logs are debuggable without
     re-running the inspect script.
     """
@@ -94,12 +106,19 @@ async def collect_from_ebay(
         card_number=card.number,
         rarity=card.rarity,
     )
-    summary = detail["summary"]
-    if summary is None:
-        # Tally drop reasons across every pass so the workflow log explains
-        # the miss in one line: "fetched=N kept=K drops={...}".
+
+    # Collect every kept listing (title + price) from all passes.
+    kept = [
+        c
+        for p in detail["passes"]
+        for c in p["classifications"]
+        if c.kept and c.price_usd is not None
+    ]
+
+    if not kept:
+        # Log the miss with a drop-reason breakdown so the workflow log
+        # explains it in one line: "fetched=N kept=K drops={...}".
         cls = [c for p in detail["passes"] for c in p["classifications"]]
-        kept = sum(1 for c in cls if c.kept)
         drops: dict[str, int] = {}
         for c in cls:
             if not c.kept and c.drop_reason:
@@ -107,23 +126,47 @@ async def collect_from_ebay(
                 drops[key] = drops.get(key, 0) + 1
         log.info(
             f"{card.id} ({card.name[:30]}) — no usable listings  "
-            f"fetched={len(cls)} kept={kept} min_required={detail['min_required']} "
+            f"fetched={len(cls)} kept=0 min_required={detail['min_required']} "
             f"drops={drops}"
         )
-        return None
+        return []
 
-    return {
-        "card_id": card.id,
-        "source": SOURCE,
-        "variant": VARIANT_ACTIVE,
-        "market_price_usd": float(summary["median"]),
-        "low_price_usd": float(summary["low"]),
-        "mid_price_usd": float(summary["median"]),
-        "high_price_usd": float(summary["high"]),
-        "sales_count": None,  # Browse API gives active listings only — sold count needs Marketplace Insights
-        "snapshot_at": datetime.utcnow(),
-        "snapshot_date": snapshot_date,
-    }
+    # Bucket kept listings by classified grade tag.
+    buckets: dict[str, list[float]] = {}
+    for c in kept:
+        grade = classify_grade(c.title)
+        buckets.setdefault(grade, []).append(float(c.price_usd))
+
+    rows: list[dict] = []
+    now = datetime.utcnow()
+    for grade, prices in buckets.items():
+        if len(prices) < MIN_LISTINGS_PER_GRADE:
+            continue
+        prices.sort()
+        n = len(prices)
+        # Same median definition as the pre-multi-grade summary.
+        if n % 2 == 1:
+            median_v = prices[n // 2]
+        else:
+            median_v = (prices[n // 2 - 1] + prices[n // 2]) / 2.0
+        rows.append(
+            {
+                "card_id": card.id,
+                "source": SOURCE,
+                "variant": VARIANT_ACTIVE,
+                "grade": grade,
+                "market_price_usd": float(median_v),
+                "low_price_usd": float(prices[0]),
+                "mid_price_usd": float(median_v),
+                "high_price_usd": float(prices[-1]),
+                # Browse API returns active listings only — this is the
+                # kept-listings count in the grade bucket, not sold count.
+                "sales_count": n,
+                "snapshot_at": now,
+                "snapshot_date": snapshot_date,
+            }
+        )
+    return rows
 
 
 async def run_snapshot(
@@ -191,7 +234,7 @@ async def run_snapshot(
                     continue
 
                 try:
-                    row = await collect_from_ebay(ebay, card, card.set, snapshot_date)
+                    grade_rows = await collect_from_ebay(ebay, card, card.set, snapshot_date)
                     calls_made += 1
                     consecutive_429s = 0
                 except EbayClientError as e:
@@ -218,14 +261,24 @@ async def run_snapshot(
                     log.exception(f"{card.id} {card.name!r}: unexpected: {e}")
                     continue
 
-                if row is None:
+                if not grade_rows:
                     empty_listings += 1
                 else:
-                    rows_batch.append(row)
+                    rows_batch.extend(grade_rows)
+                    # Compact per-card log line: emit the raw bucket's numbers
+                    # (still the most useful one for the "eyeball a card" case)
+                    # + a badge showing which grade tiers were captured this
+                    # snapshot. Detailed price breakdowns land in the /admin
+                    # inspect view.
+                    by_grade = {r["grade"]: r for r in grade_rows}
+                    tiers = "|".join(sorted(by_grade.keys()))
+                    primary = by_grade.get("raw") or grade_rows[0]
                     log.info(
                         f"[{i}/{len(candidates)}] {card.id} {card.name[:40]:40s} "
-                        f"low={row['low_price_usd']:.2f} median={row['market_price_usd']:.2f} "
-                        f"high={row['high_price_usd']:.2f}"
+                        f"[{tiers}] "
+                        f"low={primary['low_price_usd']:.2f} "
+                        f"median={primary['market_price_usd']:.2f} "
+                        f"high={primary['high_price_usd']:.2f}"
                     )
 
                     # Backfill the denormalized Card.market_price_usd when it's NULL
@@ -238,21 +291,27 @@ async def run_snapshot(
                     # transactional clearing price to test the market; the median
                     # gets dragged up by those even after the multi-card / sealed
                     # noise filter passes. The low (post-IQR-trim) sits at the
-                    # real floor where copies actually clear. Snapshot rows still
-                    # record the median for the chart line — only the display
-                    # price diverges. Revisit per-set once these stabilise (~30
-                    # days post-release).
+                    # real floor where copies actually clear.
+                    #
+                    # For the display fallback, prefer the raw bucket — that's
+                    # what a browsing user cares about when the catalog is
+                    # missing a TCG number. Graded slabs are a different price
+                    # story that shouldn't leak into the catalog headline.
                     if card.market_price_usd is None and not dry_run:
-                        is_fpic = bool(card.set_id and card.set_id.startswith("fpic-"))
-                        display_price = (
-                            row["low_price_usd"] if is_fpic else row["market_price_usd"]
-                        )
-                        await db.execute(
-                            update(Card)
-                            .where(Card.id == card.id)
-                            .where(Card.market_price_usd.is_(None))
-                            .values(market_price_usd=display_price)
-                        )
+                        raw_row = by_grade.get("raw")
+                        if raw_row is not None:
+                            is_fpic = bool(card.set_id and card.set_id.startswith("fpic-"))
+                            display_price = (
+                                raw_row["low_price_usd"]
+                                if is_fpic
+                                else raw_row["market_price_usd"]
+                            )
+                            await db.execute(
+                                update(Card)
+                                .where(Card.id == card.id)
+                                .where(Card.market_price_usd.is_(None))
+                                .values(market_price_usd=display_price)
+                            )
 
                 if len(rows_batch) >= batch_size:
                     if not dry_run:
