@@ -1,21 +1,32 @@
-name: eBay price snapshot (Mon + Thu)
+name: eBay price snapshot (Mon-Fri graded rotation)
 
 on:
   schedule:
-    # PRE-LAUNCH SCHEDULE — Mon + Thu only (was daily).
-    # Reason: friends-beta is not yet officially open, and the daily
-    # cron was eating the bulk of our 5,000/day Browse API quota,
-    # starving manual experiments + future notification polling.
-    # Mon + Thu = 2 fresh snapshots/week, which still satisfies the
-    # 7d trending window's "need 2+ snapshots per card" requirement,
-    # AND leaves roughly 4 untouched days of quota for ad-hoc work.
-    # Bump back to daily once we go live (revert to "0 7 * * *").
+    # Multi-Grade rotation schedule — Mon/Tue/Thu/Fri. Each weekday runs
+    # a raw pass + ONE graded-tier pass (see "Compute today's graded
+    # tier" step below), so the full 4-tier cycle (PSA 10 / CGC 10 /
+    # PSA 9 / CGC 9) finishes weekly without doubling per-day quota
+    # cost. Slabbed prices are sticky enough that a weekly cadence per
+    # tier isn't a downgrade — grading is expensive, so sellers hold
+    # slab listings for weeks.
+    #
+    # Weekly quota use: 4 runs × ~1750 cards × 2 calls/card ≈ 14k
+    # (before rotation: 2 runs × ~3500 cards × 1 call/card = 7k, but
+    # only raw). We spend more total quota to fill 4x the tiers.
+    #
+    # Wednesday + weekend skipped so quota still leaves headroom for
+    # live-listings panel + notification polling + ad-hoc backfills.
     #
     # 07:00 UTC = 03:00 EDT / 02:00 EST. GitHub commonly delays
     # scheduled runs 30-90 min, so expect actual start 07:30-08:30 UTC.
     # GitHub Actions cron is always UTC and does not honor DST.
-    - cron: "0 7 * * 1,4"
+    - cron: "0 7 * * 1,2,4,5"
   workflow_dispatch: # also runnable manually from the Actions tab
+    inputs:
+      graded_tiers:
+        description: "Override graded tier(s) for manual runs (e.g. 'PSA 10' or 'PSA 10,CGC 10' or 'none'). Blank = day-of-week rotation."
+        required: false
+        default: ""
 
 jobs:
   snapshot:
@@ -39,6 +50,29 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Compute today's graded tier
+        # Day-of-week rotation across the 4-tier Multi-Grade catalogue.
+        # Manual workflow_dispatch runs can override via `graded_tiers`
+        # input; blank input falls through to the DOW map.
+        id: tier
+        run: |
+          override='${{ github.event.inputs.graded_tiers }}'
+          if [ -n "$override" ]; then
+            echo "suffix=$override" >> "$GITHUB_OUTPUT"
+            echo "source=manual" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          dow=$(date -u +%u)   # 1=Mon .. 7=Sun
+          case "$dow" in
+            1) suffix='PSA 10' ;;
+            2) suffix='CGC 10' ;;
+            4) suffix='PSA 9' ;;
+            5) suffix='CGC 9' ;;
+            *) suffix='PSA 10' ;;   # workflow_dispatch on off-days
+          esac
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
+          echo "source=rotation-dow$dow" >> "$GITHUB_OUTPUT"
+
       - name: Run eBay snapshot
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -60,10 +94,14 @@ jobs:
         #                     in TCGCSV, the next cron picks it up
         #                     automatically (market_price_usd is refreshed
         #                     daily by sync_tcgcsv_daily.py).
-        #   --max-calls 3500: leaves ~1,500 colls/day for browsing +
+        #   --max-calls 3500: leaves ~1,500 calls/day for browsing +
         #                     wishlist alert polling (planned).
+        #   --graded-tiers  : today's slot in the DOW rotation. Each card
+        #                     costs 2 calls (raw + this tier); with the
+        #                     3500 cap that's ~1,750 chase cards.
         run: |
           python -m scripts.snapshot_ebay \
             --max-calls 3500 \
             --min-price 10 \
-            --throttle-ms 150
+            --throttle-ms 150 \
+            --graded-tiers "${{ steps.tier.outputs.suffix }}"

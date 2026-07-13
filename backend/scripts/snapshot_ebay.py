@@ -416,6 +416,7 @@ async def _flush(db: AsyncSession, batch: list[dict]) -> int:
 
 
 def main() -> None:
+    global _GRADED_QUERY_SUFFIXES
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", dest="snapshot_date", help="YYYY-MM-DD (defaults to today UTC)")
     parser.add_argument("--limit", type=int, default=None, help="Cap candidate cards")
@@ -424,11 +425,37 @@ def main() -> None:
     parser.add_argument("--throttle-ms", type=int, default=150, help="Sleep between calls in ms (default 150 = ~6 calls/sec)")
     parser.add_argument("--dry-run", action="store_true", help="Print what would be saved, don't write to DB")
     parser.add_argument("--set-ids", default=None, help="Comma-separated set IDs to backfill (overrides --min-price; includes NULL-priced cards)")
+    parser.add_argument(
+        "--graded-tiers",
+        default=None,
+        help=(
+            "Comma-separated graded-query suffixes to run alongside the raw "
+            "pass this run. Each suffix is appended to the card query and "
+            "sent as a second eBay call with sanity ceilings disabled. "
+            "Special value 'none' skips the graded pass entirely. If omitted, "
+            f"defaults to {list(_GRADED_QUERY_SUFFIXES)}. Examples: "
+            "'PSA 10' | 'PSA 10,CGC 10' | 'none'"
+        ),
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    # --graded-tiers overrides the module-level default. Rotation-mode
+    # workflows pass a single tier per day (e.g. Monday='PSA 10', Tuesday=
+    # 'CGC 10') so the full 4-tier cycle finishes weekly without doubling
+    # per-day quota. 'none' turns the graded pass off entirely.
+    if args.graded_tiers is not None:
+        raw = args.graded_tiers.strip()
+        if raw.lower() == "none" or raw == "":
+            _GRADED_QUERY_SUFFIXES = []
+        else:
+            _GRADED_QUERY_SUFFIXES = [
+                t.strip() for t in raw.split(",") if t.strip()
+            ]
+        log.info(f"graded-tier override: {_GRADED_QUERY_SUFFIXES}")
 
     snapshot_date = args.snapshot_date or date.today().isoformat()
     set_ids = [s.strip() for s in args.set_ids.split(",")] if args.set_ids else None
