@@ -5,6 +5,43 @@ import { useEffect, useState } from "react";
 import { listProductsForSet, type Product } from "@/lib/api";
 import { ProductCard } from "./ProductCard";
 
+// sessionStorage TTL for sealed-product responses. Products are
+// catalog data that changes ~daily at most, so a 5-min in-tab cache
+// dramatically cuts /products/set/{id}/list hits when a user hops
+// between /sets pages during a browsing session — the biggest driver
+// of surplus Neon compute this month. Cleared automatically when
+// the tab closes; no cross-tab persistence needed.
+const CACHE_KEY_PREFIX = "pl:sealed:";
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CacheEntry = { at: number; rows: Product[] };
+
+function readCache(setId: string): Product[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(CACHE_KEY_PREFIX + setId);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CacheEntry;
+    if (Date.now() - parsed.at > CACHE_TTL_MS) return null;
+    return parsed.rows;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(setId: string, rows: Product[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(
+      CACHE_KEY_PREFIX + setId,
+      JSON.stringify({ at: Date.now(), rows } satisfies CacheEntry),
+    );
+  } catch {
+    // storage full / disabled — silently skip cache write; the fetch
+    // path still works.
+  }
+}
+
 /**
  * Sealed-products carousel row on the set detail page. Fetches
  * client-side (parent is a client page too) so the SSR of the set page
@@ -13,13 +50,23 @@ import { ProductCard } from "./ProductCard";
  * older sets that never had TCGCSV product data.
  */
 export function SetSealedProducts({ setId }: { setId: string }) {
-  const [products, setProducts] = useState<Product[] | null>(null);
+  const [products, setProducts] = useState<Product[] | null>(() =>
+    readCache(setId),
+  );
 
   useEffect(() => {
     let cancelled = false;
+    const cached = readCache(setId);
+    if (cached) {
+      setProducts(cached);
+      return;
+    }
     listProductsForSet(setId)
       .then((rows) => {
-        if (!cancelled) setProducts(rows);
+        if (!cancelled) {
+          setProducts(rows);
+          writeCache(setId, rows);
+        }
       })
       .catch(() => {
         if (!cancelled) setProducts([]);

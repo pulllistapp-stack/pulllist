@@ -362,6 +362,7 @@ async def sync(
         "groups_seen": 0,
         "products_seen": 0,
         "cards_refreshed": 0,
+        "cards_unchanged": 0,
         "cards_missing": 0,
         "snapshots_inserted": 0,
         "group_errors": 0,
@@ -393,12 +394,27 @@ async def sync(
 
             snapshot_batch: list[dict] = []
             async with SessionLocal() as db:
+                # Batch-load every card this group touches in ONE round-trip
+                # instead of N `db.get()` calls. 20k+ cards × ~25 groups was
+                # 500k+ SELECTs per day — the biggest Neon CU sink on this
+                # cron.
+                wanted_ids = [
+                    cid for pid in by_product
+                    if (cid := product_to_card.get(pid))
+                ]
+                card_map: dict[str, Card] = {}
+                if wanted_ids:
+                    result = await db.execute(
+                        select(Card).where(Card.id.in_(wanted_ids))
+                    )
+                    card_map = {c.id: c for c in result.scalars()}
+
                 for product_id, prices in by_product.items():
                     card_id = product_to_card.get(product_id)
                     if not card_id:
                         stats["cards_missing"] += 1
                         continue
-                    existing = await db.get(Card, card_id)
+                    existing = card_map.get(card_id)
                     if existing is None:
                         stats["cards_missing"] += 1
                         continue
@@ -421,19 +437,42 @@ async def sync(
                     lo, hi = _low_high_from_prices(
                         prices, existing.rarity, _rarity_ceiling
                     )
-                    if not dry_run:
-                        existing.tcgplayer_prices = prices
-                        if market is not None:
-                            existing.market_price_usd = market
-                        # low/high refresh every sync regardless of market
-                        # cap — they feed the set price-range banner,
-                        # which is interesting even when the headline
-                        # market field is gated.
-                        existing.low_price_usd = lo
-                        existing.high_price_usd = hi
-                        existing.mid_price_usd = _mid_from_prices(prices)
+                    new_mid = _mid_from_prices(prices)
 
-                    stats["cards_refreshed"] += 1
+                    # Skip the UPDATE entirely when nothing moved — a
+                    # bulk floor of the catalog (commons at $0.05, older
+                    # cards untouched) sits still for weeks. Prices are
+                    # compared with 3-decimal rounding so 0.001 float
+                    # noise in the JSON doesn't force a rewrite.
+                    def _r(v: float | None) -> float | None:
+                        return round(v, 3) if v is not None else None
+
+                    if not dry_run:
+                        changed = (
+                            existing.tcgplayer_prices != prices
+                            or (market is not None
+                                and _r(existing.market_price_usd) != _r(market))
+                            or _r(existing.low_price_usd) != _r(lo)
+                            or _r(existing.high_price_usd) != _r(hi)
+                            or _r(existing.mid_price_usd) != _r(new_mid)
+                        )
+                        if changed:
+                            existing.tcgplayer_prices = prices
+                            if market is not None:
+                                existing.market_price_usd = market
+                            # low/high refresh regardless of market cap —
+                            # they feed the set price-range banner, which
+                            # is interesting even when the headline market
+                            # field is gated.
+                            existing.low_price_usd = lo
+                            existing.high_price_usd = hi
+                            existing.mid_price_usd = new_mid
+                            stats["cards_refreshed"] += 1
+                        else:
+                            stats["cards_unchanged"] += 1
+                    else:
+                        stats["cards_refreshed"] += 1
+
                     snapshot_batch.extend(
                         _snapshot_rows(card_id, prices, snapshot_date, existing.rarity)
                     )

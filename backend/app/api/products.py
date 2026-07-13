@@ -25,7 +25,7 @@ gospel.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,13 @@ from app.models import Card, Product, Set
 
 
 router = APIRouter(prefix="/products", tags=["products"])
+
+
+# Sealed products change ~daily at most (TCGCSV cron). 5-min shared
+# cache with 10-min stale-while-revalidate cuts Neon compute + egress
+# without meaningfully aging the data. Vercel + Render both honor
+# s-maxage on their edge, so this survives even a cold backend.
+_CATALOG_CACHE = "public, s-maxage=300, stale-while-revalidate=600"
 
 
 VALID_TYPES = {
@@ -192,6 +199,7 @@ async def _compute_ev(
 
 @router.get("", response_model=dict)
 async def list_products(
+    response: Response,
     set_id: str | None = Query(None),
     product_type: str | None = Query(None),
     sort: str = Query("newest", pattern="^(newest|price_desc|price_asc|name)$"),
@@ -231,6 +239,7 @@ async def list_products(
     base = base.offset((page - 1) * page_size).limit(page_size)
     rows = (await db.execute(base)).all()
 
+    response.headers["Cache-Control"] = _CATALOG_CACHE
     return {
         "items": [_row_to_read(p, sn).model_dump() for p, sn, _ in rows],
         "total": total,
@@ -242,6 +251,7 @@ async def list_products(
 @router.get("/{product_id}", response_model=ProductDetail)
 async def get_product(
     product_id: str,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> ProductDetail:
     row = await db.get(Product, product_id)
@@ -249,6 +259,7 @@ async def get_product(
         raise HTTPException(404, "Product not found")
     set_row = await db.get(Set, row.set_id) if row.set_id else None
     ev = await _compute_ev(db, row)
+    response.headers["Cache-Control"] = _CATALOG_CACHE
     return ProductDetail(
         **_row_to_read(row, set_row.name if set_row else None).model_dump(),
         ev=ev,
@@ -259,6 +270,7 @@ async def get_product(
 @router.get("/set/{set_id}/list", response_model=list[ProductRead])
 async def list_products_for_set(
     set_id: str,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> list[ProductRead]:
     """All sealed products for a set — used by /sets/[id] page's
@@ -274,4 +286,5 @@ async def list_products_for_set(
             .order_by(Product.market_price_usd.desc().nullslast())
         )
     ).scalars().all()
+    response.headers["Cache-Control"] = _CATALOG_CACHE
     return [_row_to_read(p, s.name) for p in rows]

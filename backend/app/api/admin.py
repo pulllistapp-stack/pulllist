@@ -12,7 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from datetime import datetime as _datetime, timedelta
@@ -737,37 +737,60 @@ async def visits_top_referrers(
 ) -> dict:
     """Aggregated by referrer HOSTNAME so google.com/... deep links
     collapse into one row. Sorted by unique-visitor count so a single
-    scraper hammering doesn't dominate the list."""
+    scraper hammering doesn't dominate the list.
+
+    Hostname normalization happens IN SQL — regexp_replace strips the
+    scheme (https?:// or //), then trims everything from the first
+    /?#: onward, then lower(). Matches _referrer_domain() behavior.
+    Doing this in Python required pulling every visit row for the
+    window (tens of thousands) into memory just to bucket them. SQL
+    GROUP BY sends back only the top-N rows."""
     window_start = _datetime.utcnow() - timedelta(days=days)
+
+    normalized = func.lower(
+        func.regexp_replace(
+            func.regexp_replace(VisitLog.referrer, r"^(https?://|//)", ""),
+            r"[/?#:].*$",
+            "",
+        )
+    )
+    domain_expr = case(
+        (
+            or_(
+                VisitLog.referrer.is_(None),
+                func.trim(func.lower(VisitLog.referrer)) == "",
+                func.trim(func.lower(VisitLog.referrer)) == "direct",
+            ),
+            literal("direct"),
+        ),
+        else_=normalized,
+    ).label("domain")
+
     stmt = (
-        select(VisitLog.referrer, VisitLog.session_id)
+        select(
+            domain_expr,
+            func.count(VisitLog.id).label("views"),
+            func.count(func.distinct(VisitLog.session_id)).label("uniques"),
+        )
         .where(VisitLog.created_at >= window_start)
+        .group_by(domain_expr)
+        .order_by(
+            func.count(func.distinct(VisitLog.session_id)).desc(),
+            func.count(VisitLog.id).desc(),
+        )
+        .limit(limit)
     )
     rows = (await db.execute(stmt)).all()
-
-    from collections import defaultdict
-
-    view_counts: dict[str, int] = defaultdict(int)
-    unique_sessions: dict[str, set[str]] = defaultdict(set)
-    for ref, sess in rows:
-        bucket = _referrer_domain(ref)
-        view_counts[bucket] += 1
-        unique_sessions[bucket].add(sess)
-
-    ordered = sorted(
-        view_counts.items(),
-        key=lambda kv: (-len(unique_sessions[kv[0]]), -kv[1]),
-    )[:limit]
 
     return {
         "days": days,
         "items": [
             {
-                "domain": domain,
-                "views": views,
-                "uniques": len(unique_sessions[domain]),
+                "domain": (domain or "direct"),
+                "views": int(views),
+                "uniques": int(uniques),
             }
-            for domain, views in ordered
+            for domain, views, uniques in rows
         ],
     }
 
