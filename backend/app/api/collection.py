@@ -372,9 +372,23 @@ async def set_completion(
         await db.execute(select(func.count(Card.id)).where(Card.set_id == set_id))
     ).scalar_one()
 
+    # Full Set vs Master split. Master = every card in the set. Full Set
+    # = the base numbered run — cards whose printed number sits within
+    # printed_total. When printed_total is missing (some promo sets),
+    # the two collapse and Full Set mirrors Master.
+    printed_total = set_row.printed_total or total
+    full_set_total_stmt = select(func.count(Card.id)).where(Card.set_id == set_id)
+    if set_row.printed_total is not None:
+        full_set_total_stmt = full_set_total_stmt.where(
+            Card.number_int <= set_row.printed_total
+        )
+    full_set_total = (await db.execute(full_set_total_stmt)).scalar_one()
+
     # Variant-aware value: walk items in Python and look up each one's
     # per-variant price from card.tcgplayer_prices. SQL can't easily
-    # index into the JSON for the right variant.
+    # index into the JSON for the right variant. Also carries number_int
+    # so we can split the owned tally into full-set vs master along the
+    # same printed_total boundary.
     rows = (
         await db.execute(
             select(
@@ -383,6 +397,7 @@ async def set_completion(
                 Card.tcgplayer_prices,
                 Card.market_price_usd,
                 CollectionItem.card_id,
+                Card.number_int,
             )
             .join(Card, CollectionItem.card_id == Card.id)
             .where(CollectionItem.user_id == user.id, Card.set_id == set_id)
@@ -390,10 +405,16 @@ async def set_completion(
     ).all()
 
     unique_ids: set[str] = set()
+    full_set_unique_ids: set[str] = set()
     total_qty = 0
     value = 0.0
-    for qty, variant, prices, fallback, card_id in rows:
+    for qty, variant, prices, fallback, card_id, number_int in rows:
         unique_ids.add(card_id)
+        if (
+            set_row.printed_total is None
+            or (number_int is not None and number_int <= set_row.printed_total)
+        ):
+            full_set_unique_ids.add(card_id)
         total_qty += qty or 0
         p = price_for_variant(prices, variant, fallback)
         if p is not None:
@@ -407,6 +428,10 @@ async def set_completion(
         owned_total_qty=total_qty,
         completion_pct=round(len(unique_ids) / total * 100, 1) if total else 0.0,
         estimated_value_usd=round(value, 2),
+        full_set_total=full_set_total or printed_total,
+        full_set_owned=len(full_set_unique_ids),
+        master_total=total,
+        master_owned=len(unique_ids),
     )
 
 

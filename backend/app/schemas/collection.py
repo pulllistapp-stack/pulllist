@@ -73,3 +73,14 @@ class SetCompletion(BaseModel):
     owned_total_qty: int
     completion_pct: float
     estimated_value_usd: float
+    # Full Set vs Master split — the base numbered run vs the whole set
+    # including secrets / SIRs / hyper rares. `full_set_total` mirrors
+    # Set.printed_total when available; falls back to `total_cards` when
+    # the set doesn't declare a printed_total (rare — mostly promo sets).
+    # `master_*` fields are aliases of the legacy `total_cards` /
+    # `owned_unique` fields, kept alongside for consumers that want the
+    # explicit naming without having to know the historical shape.
+    full_set_total: int
+    full_set_owned: int
+    master_total: int
+    master_owned: int

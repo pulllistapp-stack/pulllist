@@ -227,6 +227,16 @@ export type SetCompletion = {
   owned_total_qty: number;
   completion_pct: number;
   estimated_value_usd: number;
+  /** Base numbered run — Set.printed_total. When printed_total is null
+   *  (some promo sets), this collapses to `master_total`. */
+  full_set_total: number;
+  /** Unique cards owned within the base numbered run. */
+  full_set_owned: number;
+  /** Every card in the set incl. secrets / SIRs / hyper rares. Mirrors
+   *  the legacy `total_cards` field with explicit naming. */
+  master_total: number;
+  /** Unique cards owned across the entire set. Mirrors `owned_unique`. */
+  master_owned: number;
 };
 
 /** Print variants matching TCGplayer's keys. 'normal' is the standard

@@ -289,7 +289,11 @@ function SetDetailContent() {
 
       {set && (
         <div className="mb-6">
-          <SetCompletion setId={set.id} totalCards={set.card_count} />
+          <SetCompletion
+            setId={set.id}
+            masterTotal={set.card_count}
+            fullSetTotal={set.printed_total ?? set.card_count}
+          />
         </div>
       )}
 
