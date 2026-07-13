@@ -39,12 +39,18 @@ export type NewsPost = {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000/api/v1";
 
+export const NEWS_PAGE_SIZE = 12;
+
 export async function fetchPosts(
   category?: NewsCategory | "all",
+  page: number = 1,
 ): Promise<NewsPost[]> {
-  const qs = category && category !== "all" ? `?category=${category}` : "";
+  const params = new URLSearchParams();
+  if (category && category !== "all") params.set("category", category);
+  params.set("limit", String(NEWS_PAGE_SIZE));
+  params.set("offset", String((Math.max(1, page) - 1) * NEWS_PAGE_SIZE));
   try {
-    const r = await fetch(`${API_BASE}/news/posts${qs}`, {
+    const r = await fetch(`${API_BASE}/news/posts?${params}`, {
       cache: "no-store",
     });
     if (!r.ok) return [];

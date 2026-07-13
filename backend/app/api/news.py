@@ -105,6 +105,14 @@ def _post_to_dict(p: NewsPost) -> dict:
 async def list_posts(
     category: str | None = None,
     region: str | None = None,
+    limit: int = Query(
+        default=100, ge=1, le=100,
+        description="Max posts per page. Response shape stays a bare list so old clients keep working.",
+    ),
+    offset: int = Query(
+        default=0, ge=0,
+        description="Rows to skip. Pair with limit for pagination.",
+    ),
     include_drafts: bool = Query(
         default=False,
         description="Admin-only. When true and caller is admin, returns drafts too.",
@@ -134,6 +142,7 @@ async def list_posts(
     # silent no-op (don't 403 — keeps the public endpoint forgiving).
     if not (admin and include_drafts):
         stmt = stmt.where(NewsPost.status == "published")
+    stmt = stmt.limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()
     return [_post_to_dict(p) for p in rows]
 

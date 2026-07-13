@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Metadata } from "next";
-import { Calendar, Eye } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 
 import {
   CATEGORIES,
   categoryLabel,
   fetchPosts,
+  NEWS_PAGE_SIZE,
   NewsCategory,
   NewsPost,
 } from "@/lib/news";
@@ -39,17 +40,33 @@ function isCategory(v: string | undefined): v is NewsCategory | "all" {
 export default async function NewsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const category: NewsCategory | "all" = isCategory(params.category)
     ? (params.category as NewsCategory | "all")
     : "all";
+  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
   const [posts, views] = await Promise.all([
-    fetchPosts(category),
+    fetchPosts(category, page),
     fetchViewCounts(),
   ]);
+
+  // Backend caps at NEWS_PAGE_SIZE per request — if we got exactly
+  // that many rows there's probably another page. If we got fewer,
+  // we're on the last page. Cheap heuristic that avoids a second
+  // count() query on every listing render.
+  const hasNextPage = posts.length === NEWS_PAGE_SIZE;
+  const hasPrevPage = page > 1;
+
+  const buildHref = (p: number) => {
+    const sp = new URLSearchParams();
+    if (category !== "all") sp.set("category", category);
+    if (p > 1) sp.set("page", String(p));
+    const qs = sp.toString();
+    return qs ? `/news?${qs}` : "/news";
+  };
 
   // Group by date for the listing — newest day at the top, posts inside
   // grouped under their YYYY-MM-DD heading.
@@ -91,7 +108,7 @@ export default async function NewsPage({
       </div>
 
       {posts.length === 0 ? (
-        <EmptyState />
+        page > 1 ? <EmptyPageState prevHref={buildHref(page - 1)} /> : <EmptyState />
       ) : (
         <div className="space-y-10">
           {Object.entries(groups).map(([date, dayPosts]) => (
@@ -112,7 +129,53 @@ export default async function NewsPage({
           ))}
         </div>
       )}
+
+      {(hasPrevPage || hasNextPage) && (
+        <nav className="mt-10 flex items-center justify-between border-t border-border pt-6 text-sm">
+          {hasPrevPage ? (
+            <Link
+              href={buildHref(page - 1)}
+              className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-bg-surface px-4 py-2 font-semibold text-text-secondary hover:text-text-primary"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Newer
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="font-mono text-xs text-text-tertiary">Page {page}</span>
+          {hasNextPage ? (
+            <Link
+              href={buildHref(page + 1)}
+              className="inline-flex items-center gap-1.5 rounded-btn border border-border bg-bg-surface px-4 py-2 font-semibold text-text-secondary hover:text-text-primary"
+            >
+              Older
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
+      )}
     </main>
+  );
+}
+
+function EmptyPageState({ prevHref }: { prevHref: string }) {
+  return (
+    <div className="rounded-2xl border-2 border-dashed border-border bg-bg-surface/50 p-12 text-center">
+      <p className="text-lg font-bold text-text-primary">No more posts</p>
+      <p className="mt-2 text-sm text-text-secondary">
+        You've reached the end.
+      </p>
+      <Link
+        href={prevHref}
+        className="mt-4 inline-flex items-center gap-1.5 rounded-btn border border-border bg-bg-surface px-4 py-2 text-sm font-semibold text-text-secondary hover:text-text-primary"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back
+      </Link>
+    </div>
   );
 }
 
