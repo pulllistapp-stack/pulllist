@@ -73,6 +73,17 @@ psa10/psa9/cgc10 buckets appear on chase cards where the listing volume
 is enough. Small-population buckets (psa8, bgs9, other) may not surface
 until the classifier accumulates more listings."""
 
+# Extra queries to run alongside the raw search, one per graded tier.
+# eBay's Browse API sorts by relevance to the query, and a bare "card
+# name + number" query returns almost exclusively raw listings — slab
+# titles don't rank against raw ones without an explicit grader token.
+# So we fan out into (raw query + " PSA 10") style variants to surface
+# slabs the raw query wouldn't. Each entry doubles the eBay quota cost
+# for chase cards, so keep this list short.
+_GRADED_QUERY_SUFFIXES: list[str] = [
+    "PSA 10",
+]
+
 
 async def collect_from_ebay(
     ebay: EbayClient,
@@ -87,8 +98,15 @@ async def collect_from_ebay(
     Returns [] if no listings survived filtering. On a miss we log a
     compact drop-reason summary so workflow logs are debuggable without
     re-running the inspect script.
+
+    Runs multiple eBay queries per card: one raw-optimized (normal
+    sanity ceilings) plus one per entry in `_GRADED_QUERY_SUFFIXES`
+    with sanity ceilings disabled (raw ceilings would filter every
+    slab as "above_ceiling"). The classifier buckets listings from
+    every pass; dedup by URL keeps a cross-query hit from
+    double-counting.
     """
-    query = build_card_query(
+    base_query = build_card_query(
         card_name=card.name,
         card_number=card.number,
         printed_total=set_.printed_total if set_ else None,
@@ -99,26 +117,58 @@ async def collect_from_ebay(
     reference_price = (
         float(card.market_price_usd) if card.market_price_usd is not None else None
     )
-    detail = await ebay.price_summary_with_trace(
-        query,
+
+    # Raw query: normal sanity ceilings clipping graded slabs.
+    detail_raw = await ebay.price_summary_with_trace(
+        base_query,
         max_results=50,
         reference_price_usd=reference_price,
         card_number=card.number,
         rarity=card.rarity,
     )
 
-    # Collect every kept listing (title + price) from all passes.
-    kept = [
-        c
-        for p in detail["passes"]
-        for c in p["classifications"]
-        if c.kept and c.price_usd is not None
-    ]
+    all_passes = list(detail_raw["passes"])
+
+    # Graded-tier queries: append a grader token so eBay surfaces slab
+    # listings, and disable the sanity ceiling so the classifier gets
+    # to see them (raw ceilings intentionally clip slab prices).
+    for suffix in _GRADED_QUERY_SUFFIXES:
+        graded_query = f"{base_query} {suffix}"
+        try:
+            detail_g = await ebay.price_summary_with_trace(
+                graded_query,
+                max_results=50,
+                reference_price_usd=reference_price,
+                card_number=card.number,
+                rarity=card.rarity,
+                disable_sanity_ceiling=True,
+            )
+        except Exception as e:
+            # Never fail the whole card because a graded pass errored
+            # — the raw bucket is the primary product; grade tiles are
+            # value-add.
+            log.warning(f"{card.id} graded pass ({suffix}) failed: {e}")
+            continue
+        all_passes.extend(detail_g["passes"])
+
+    # Collect every kept listing (title + price) from all passes; dedup
+    # by URL so a slab that surfaces in both raw + graded queries only
+    # counts once toward its bucket's median.
+    kept: list = []
+    seen_urls: set[str] = set()
+    for pass_ in all_passes:
+        for c in pass_["classifications"]:
+            if not c.kept or c.price_usd is None:
+                continue
+            if c.url:
+                if c.url in seen_urls:
+                    continue
+                seen_urls.add(c.url)
+            kept.append(c)
 
     if not kept:
-        # Log the miss with a drop-reason breakdown so the workflow log
-        # explains it in one line: "fetched=N kept=K drops={...}".
-        cls = [c for p in detail["passes"] for c in p["classifications"]]
+        # Log the miss with a drop-reason breakdown across ALL passes.
+        cls = [c for p in all_passes for c in p["classifications"]]
         drops: dict[str, int] = {}
         for c in cls:
             if not c.kept and c.drop_reason:
@@ -126,7 +176,7 @@ async def collect_from_ebay(
                 drops[key] = drops.get(key, 0) + 1
         log.info(
             f"{card.id} ({card.name[:30]}) — no usable listings  "
-            f"fetched={len(cls)} kept=0 min_required={detail['min_required']} "
+            f"fetched={len(cls)} kept=0 min_required={detail_raw['min_required']} "
             f"drops={drops}"
         )
         return []
@@ -235,7 +285,11 @@ async def run_snapshot(
 
                 try:
                     grade_rows = await collect_from_ebay(ebay, card, card.set, snapshot_date)
-                    calls_made += 1
+                    # collect_from_ebay hits eBay once for the raw pass +
+                    # once per _GRADED_QUERY_SUFFIXES entry, so the
+                    # per-card cost against --max-calls scales with the
+                    # graded-tier fan-out.
+                    calls_made += 1 + len(_GRADED_QUERY_SUFFIXES)
                     consecutive_429s = 0
                 except EbayClientError as e:
                     errors += 1

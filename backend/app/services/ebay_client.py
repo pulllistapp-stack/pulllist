@@ -107,6 +107,27 @@ _TITLE_NOISE_DEFAULT = (
     "unova set", "kalos set", "alola set", "galar set", "paldea set",
 )
 
+# Graded-query variant of the noise filter — same rules EXCEPT the
+# grader-token lines are removed. When we're intentionally searching
+# for slabs (append " PSA 10" to the query), the raw-mode filter drops
+# every result as `title_noise:psa 10` because that's literally what we
+# searched for. This list keeps the non-grade noise guards (sealed
+# products, code cards, multi-card bundles, parallel variants) and
+# only lifts the grader-name exclusions.
+_TITLE_NOISE_FOR_GRADED = tuple(
+    n for n in _TITLE_NOISE_DEFAULT
+    if not any(
+        marker in n
+        for marker in (
+            "psa", "bgs", "cgc", "beckett", "tag ", "ace ",
+            "graded", "slabbed", "slab", "gem mint", "gem-mint", "gem mt",
+            "pristine", "black label", "pop 1", "pop1", "population 1",
+            "perfect 10",
+        )
+    )
+)
+
+
 # Minimum eBay listings required before we trust the median. With fewer than
 # this many results, a single outlier (graded slab, sealed booster) can
 # dominate the snapshot. Without this guard, me2-125 (Mega Charizard X ex)
@@ -554,6 +575,7 @@ class EbayClient:
         reference_price_usd: float | None = None,
         card_number: str | None = None,
         rarity: str | None = None,
+        disable_sanity_ceiling: bool = False,
     ) -> dict[str, Any]:
         """Same as `price_summary` but also returns per-listing classification.
 
@@ -636,6 +658,17 @@ class EbayClient:
         elif not ref_above_cap:
             sanity_ceiling = min(sanity_ceiling, rarity_ceiling)
 
+        # Graded-query mode: raw sanity ceilings are tuned to CLIP graded
+        # slabs (SIR raw peaks at $5k → PSA 10 SIR at $8k gets rejected as
+        # "above_ceiling"). When we're intentionally searching for slabs,
+        # the ceiling would filter out exactly the listings we want. Wipe
+        # both floor + ceiling; a per-bucket sanity pass in the caller
+        # (bucket-level median with min-listings threshold) still guards
+        # against a single scam slab dominating the tier price.
+        if disable_sanity_ceiling:
+            sanity_floor = None
+            sanity_ceiling = None
+
         is_chase = bool(rarity and rarity in _CHASE_RARITIES)
         require_number_in_title = bool(is_chase and card_number)
         number_token = (card_number or "").split("/")[0].strip()
@@ -645,8 +678,17 @@ class EbayClient:
             else None
         )
 
+        # In graded-query mode swap the noise filter so grader tokens
+        # (which we deliberately included in the query) aren't rejected
+        # as noise — the raw-mode filter drops "psa 10" et al so a
+        # single slab can't dominate raw medians.
+        active_title_noise = (
+            _TITLE_NOISE_FOR_GRADED
+            if disable_sanity_ceiling
+            else _TITLE_NOISE_DEFAULT
+        )
         config = FilterConfig(
-            title_noise=_TITLE_NOISE_DEFAULT,
+            title_noise=active_title_noise,
             number_pattern=number_pattern,
             sanity_floor=sanity_floor,
             sanity_ceiling=sanity_ceiling,
