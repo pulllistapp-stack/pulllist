@@ -104,6 +104,48 @@ async def _flush(target_engine, table, rows: list[dict]) -> None:
         await tgt.execute(table.insert(), rows)
 
 
+async def _reset_sequences(target_engine) -> list[tuple[str, int]]:
+    """After a copy, every SERIAL/IDENTITY column on TARGET still has
+    its sequence at 1 — because we forced explicit id values on every
+    row instead of letting nextval() generate them. The FIRST live
+    INSERT would then try id=1, collide with existing rows, and 500.
+
+    Enumerate every table.column with an attached sequence and bump
+    it to MAX(col)+1. Idempotent — safe to re-run.
+    """
+    from sqlalchemy import text
+
+    fixed: list[tuple[str, int]] = []
+    async with target_engine.connect() as conn:
+        seq_rows = (
+            await conn.execute(
+                text(
+                    """
+                    SELECT c.table_name, c.column_name,
+                           pg_get_serial_sequence(c.table_name, c.column_name) AS seq
+                    FROM information_schema.columns c
+                    WHERE pg_get_serial_sequence(c.table_name, c.column_name) IS NOT NULL
+                      AND c.table_schema = 'public'
+                    ORDER BY c.table_name
+                    """
+                )
+            )
+        ).all()
+
+    for tbl, col, seq in seq_rows:
+        async with target_engine.begin() as conn:
+            max_id = (
+                await conn.execute(text(f"SELECT COALESCE(MAX({col}), 0) FROM {tbl}"))
+            ).scalar_one()
+            next_val = max_id + 1
+            # is_called=false so the NEXT nextval() returns next_val exactly.
+            await conn.execute(
+                text(f"SELECT setval('{seq}', {next_val}, false)")
+            )
+        fixed.append((tbl, next_val))
+    return fixed
+
+
 async def main(
     dry_run: bool, reset: bool, force_append: bool, only: list[str] | None
 ) -> None:
@@ -149,7 +191,21 @@ async def main(
             await conn.run_sync(Base.metadata.create_all)
 
     # ── safety: refuse to overlay onto populated tables ────────
-    tgt_counts = await _table_counts(target_engine, tables)
+    # On dry-run a brand-new TARGET has no tables yet, so counting
+    # would raise UndefinedTableError. Wrap in try/except and treat
+    # a missing-tables error as "target is empty" — which is exactly
+    # what we want to confirm.
+    try:
+        tgt_counts = await _table_counts(target_engine, tables)
+    except Exception as exc:
+        if dry_run and "does not exist" in str(exc):
+            log.info(
+                "TARGET has no tables yet (expected on a fresh DB). "
+                "The real run would `create_all` first."
+            )
+            tgt_counts = {t.name: 0 for t in tables}
+        else:
+            raise
     populated = {name: n for name, n in tgt_counts.items() if n > 0}
     if populated and not force_append:
         log.error(
@@ -183,6 +239,15 @@ async def main(
                 f"[{t.name}] copied {written} rows but source reported {n}"
             )
         grand_total += written
+
+    # ── reset SERIAL sequences ───────────────────────────────
+    # Copied rows carry their explicit id values, but the underlying
+    # sequences on TARGET are still at 1. Without this step the first
+    # live INSERT after cutover would trip the PK unique constraint.
+    log.info("resetting SERIAL sequences on TARGET")
+    fixed = await _reset_sequences(target_engine)
+    for tbl, nxt in fixed:
+        log.info(f"  {tbl}: next id will be {nxt}")
 
     # ── verify ────────────────────────────────────────────────
     log.info("=== verification ===")
