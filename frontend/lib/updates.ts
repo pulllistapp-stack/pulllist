@@ -29,6 +29,18 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-13 ─────────────────────────────────────────────────
   {
     date: "2026-07-13",
+    emoji: "🎖️",
+    kr: "Multi-Grade 가격 타일 활성화 — 카드 상세 페이지 가격 차트 아래 새 섹션 'Graded Prices' 추가 (PSA 10 / PSA 9 / CGC 10 / CGC 9 4개 타일). 앞으로 들어오는 eBay 리스팅이 title 기반으로 자동 분류돼서 각 등급별 median 가격이 별도 저장됨. 첫 크론 돌기 전엔 대부분 'No sold listings indexed yet' 상태 → 며칠 지나면 인기 카드부터 채워짐. 기존 raw 스냅샷은 title 정보가 없어서 재분류 불가라 grade='raw' 유지 (일부 슬랩 오염 포함, 새 파이프라인 돌면서 자연 감소)",
+    en: "Multi-Grade price tiles are live — a new 'Graded Prices' section under the price chart on card detail pages shows PSA 10 / PSA 9 / CGC 10 / CGC 9 medians. Every incoming eBay listing now runs through a title classifier and gets bucketed by grade before we compute the median, so slabbed prices no longer contaminate the raw sold-listings number. Most tiles will read 'No sold listings indexed yet' until the next few daily crons — chase cards populate first. Historical raw snapshots stay grade='raw' (their listing titles weren't stored, so retroactive reclassification isn't possible) and will phase out as the new pipeline runs",
+  },
+  {
+    date: "2026-07-13",
+    emoji: "⚡",
+    kr: "Database 인프라 이관 — Neon Free 티어에서 Render Postgres 로 옮김. 백엔드랑 동일 리전 (Ohio) 이라 DB 왕복 시간 5-15ms → <1ms. 페이지 로딩이 데이터 많은 곳 (세트 리스트, 카드 브라우저) 에서 약간 빨라짐. 유저 데이터 전량 이관 확인 (컬렉션, 위시리스트, 마스터셋, 가격 히스토리 51만 개 스냅샷 다 그대로). 백엔드 성능 최적화 4개도 같이 배포됨 — Products 페이지 CDN 캐시, TCGCSV 크론 skip-if-unchanged (57% 스킵), Visit tracking SQL 집계, Set 페이지 sealed products 세션 캐시",
+    en: "Database infrastructure moved — migrated from Neon Free tier to Render Postgres in the same Ohio region as the backend, dropping DB round-trip latency from 5-15ms to <1ms. You'll see snappier loads on data-heavy screens (set list, card browser). All user data transferred verbatim: collections, wishlists, master sets, and 515k price snapshots. Four backend performance optimizations shipped alongside — CDN caching on /products, skip-if-unchanged on the daily TCGCSV sync (57% of cards skipped), SQL aggregation for visit tracking, and session cache for set-page sealed products",
+  },
+  {
+    date: "2026-07-13",
     emoji: "📦",
     kr: "Sealed 상품 카탈로그 신설 — /products 페이지에서 Booster Box / Elite Trainer Box / Booster Bundle / Premium Collection / Tin / Blister / Build&Battle 다 브라우징 가능. 7개 EN 세트 (ME01~ME05, Ascended Heroes, 30th Celebration) 총 200+ sealed 상품 TCGCSV 에서 자동 인제스트. 상품 상세페이지엔 이미지, 가격, TCGplayer affiliate 링크, 그리고 EV (Expected Value) 계산기 위젯 포함 — 세트 안 카드들 시세 기반으로 '박스 뜯으면 대충 얼마 값어치' 표시 + sealed premium/discount % 도. 세트 상세 페이지 하단에도 그 세트의 sealed 상품 그리드 붙음",
     en: "Sealed products catalog is live — /products lets you browse Booster Boxes, ETBs, Bundles, Premium Collections, Tins, Blisters, Build & Battle boxes. Auto-ingested 200+ SKUs from TCGCSV across the 7 recent EN sets (ME01–ME05, Ascended Heroes, 30th Celebration). Detail pages carry image, market price, TCGplayer buy link, plus an Estimated Value widget — modelled from the set's rarity-weighted card prices so you can see \"crack for value\" vs \"sealed premium\" at a glance. Set detail pages also grow a sealed-products row at the top",
