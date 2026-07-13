@@ -373,22 +373,38 @@ async def set_completion(
     ).scalar_one()
 
     # Full Set vs Master split. Master = every card in the set. Full Set
-    # = the base numbered run — cards whose printed number sits within
-    # printed_total. When printed_total is missing (some promo sets),
-    # the two collapse and Full Set mirrors Master.
-    printed_total = set_row.printed_total or total
-    full_set_total_stmt = select(func.count(Card.id)).where(Card.set_id == set_id)
-    if set_row.printed_total is not None:
-        full_set_total_stmt = full_set_total_stmt.where(
-            Card.number_int <= set_row.printed_total
-        )
-    full_set_total = (await db.execute(full_set_total_stmt)).scalar_one()
+    # = the base numbered run.
+    #
+    # Naive `number_int <= printed_total` breaks on sets that don't
+    # number from 1 — First Partner Illustration Series 2 declares
+    # printed_total=9 but its cards are numbered 46-54 (part of a
+    # cross-series continuous sequence). Rank-based approach:
+    #   * Sort by number_int (NULLs last).
+    #   * The first `printed_total` cards are the base run; anything
+    #     after is a secret / SIR / hyper-rare.
+    # This trivially handles the FPIC weirdness (top 9 by number_int
+    # ARE the whole set) and standard modern sets (top 131 of 182 for
+    # SV Prismatic Evolutions = the numbered base).
+    if set_row.printed_total is None or set_row.printed_total >= total:
+        # printed_total unset or the set has no secret tail — every
+        # card belongs to the Full Set.
+        base_card_ids: set[str] | None = None
+        full_set_total = total
+    else:
+        base_ids_rows = (
+            await db.execute(
+                select(Card.id)
+                .where(Card.set_id == set_id)
+                .order_by(Card.number_int.asc().nullslast())
+                .limit(set_row.printed_total)
+            )
+        ).scalars().all()
+        base_card_ids = set(base_ids_rows)
+        full_set_total = len(base_card_ids)
 
     # Variant-aware value: walk items in Python and look up each one's
     # per-variant price from card.tcgplayer_prices. SQL can't easily
-    # index into the JSON for the right variant. Also carries number_int
-    # so we can split the owned tally into full-set vs master along the
-    # same printed_total boundary.
+    # index into the JSON for the right variant.
     rows = (
         await db.execute(
             select(
@@ -397,7 +413,6 @@ async def set_completion(
                 Card.tcgplayer_prices,
                 Card.market_price_usd,
                 CollectionItem.card_id,
-                Card.number_int,
             )
             .join(Card, CollectionItem.card_id == Card.id)
             .where(CollectionItem.user_id == user.id, Card.set_id == set_id)
@@ -408,12 +423,11 @@ async def set_completion(
     full_set_unique_ids: set[str] = set()
     total_qty = 0
     value = 0.0
-    for qty, variant, prices, fallback, card_id, number_int in rows:
+    for qty, variant, prices, fallback, card_id in rows:
         unique_ids.add(card_id)
-        if (
-            set_row.printed_total is None
-            or (number_int is not None and number_int <= set_row.printed_total)
-        ):
+        # None sentinel = "all cards are base"; membership check
+        # otherwise.
+        if base_card_ids is None or card_id in base_card_ids:
             full_set_unique_ids.add(card_id)
         total_qty += qty or 0
         p = price_for_variant(prices, variant, fallback)
@@ -428,7 +442,7 @@ async def set_completion(
         owned_total_qty=total_qty,
         completion_pct=round(len(unique_ids) / total * 100, 1) if total else 0.0,
         estimated_value_usd=round(value, 2),
-        full_set_total=full_set_total or printed_total,
+        full_set_total=full_set_total,
         full_set_owned=len(full_set_unique_ids),
         master_total=total,
         master_owned=len(unique_ids),
