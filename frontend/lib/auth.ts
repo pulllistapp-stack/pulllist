@@ -92,7 +92,7 @@ function redirectToLogin() {
   window.location.href = "/login";
 }
 
-async function authFetch<T>(
+export async function authFetch<T>(
   path: string,
   init: RequestInit = {},
   isRetry = false,

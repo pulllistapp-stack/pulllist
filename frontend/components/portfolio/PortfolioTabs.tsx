@@ -11,9 +11,14 @@ type Tab = {
 const TABS: Tab[] = [
   { href: "/portfolio", label: "Collection", hint: "Every card you own" },
   { href: "/portfolio/masters", label: "Master Sets", hint: "Set-completion binders" },
+  { href: "/portfolio/sealed", label: "Sealed", hint: "Boxes, ETBs, bundles you own" },
 ];
 
-export function PortfolioTabs({ active }: { active: "collection" | "masters" }) {
+export function PortfolioTabs({
+  active,
+}: {
+  active: "collection" | "masters" | "sealed";
+}) {
   return (
     <div
       role="tablist"
@@ -23,7 +28,8 @@ export function PortfolioTabs({ active }: { active: "collection" | "masters" }) 
       {TABS.map((t) => {
         const isActive =
           (active === "collection" && t.href === "/portfolio") ||
-          (active === "masters" && t.href === "/portfolio/masters");
+          (active === "masters" && t.href === "/portfolio/masters") ||
+          (active === "sealed" && t.href === "/portfolio/sealed");
         return (
           <Link
             key={t.href}

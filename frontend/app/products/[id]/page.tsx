@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, Box, TrendingDown, TrendingUp } from "lucide-react";
 
+import { ProductOwnButtons } from "@/components/products/ProductOwnButtons";
 import { getProduct } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -121,6 +122,8 @@ export default async function ProductDetailPage({
               <ArrowUpRight className="h-4 w-4" />
             </a>
           )}
+
+          <ProductOwnButtons productId={product.id} productName={product.name} />
 
           {ev && ev.box_ev_usd != null && (
             <div className="mt-6 rounded-card border border-border bg-bg-surface p-4">

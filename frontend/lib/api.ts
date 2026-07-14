@@ -759,6 +759,124 @@ export function listProductsForSet(setId: string): Promise<Product[]> {
   return apiFetch<Product[]>(`/products/set/${setId}/list`);
 }
 
+// ── Sealed collection / wishlist (Products roadmap §10.8 B) ──────
+
+export type SealedCollectionItem = {
+  id: number;
+  product_id: string;
+  qty: number;
+  purchase_price_usd: number | null;
+  acquisition_type: string | null;
+  acquired_at: string | null;
+  notes: string | null;
+};
+
+export type SealedCollectionEntry = {
+  item: SealedCollectionItem;
+  product: {
+    id: string;
+    name: string;
+    product_type: ProductType;
+    set_id: string | null;
+    market_price_usd: number | null;
+    image_url: string | null;
+    tcgplayer_url: string | null;
+  };
+};
+
+export type SealedCollectionList = {
+  items: SealedCollectionEntry[];
+  total_owned: number;
+  unique_products: number;
+  estimated_value_usd: number;
+};
+
+export type SealedWishlistItem = {
+  id: number;
+  product_id: string;
+  target_price_usd: number | null;
+  notes: string | null;
+};
+
+export type SealedWishlistEntry = {
+  item: SealedWishlistItem;
+  product: SealedCollectionEntry["product"];
+};
+
+export type SealedWishlistList = {
+  items: SealedWishlistEntry[];
+  count: number;
+};
+
+export type SealedState = {
+  owned: string[];
+  wishlisted: string[];
+};
+
+export type SealedCollectionWrite = {
+  qty?: number;
+  purchase_price_usd?: number | null;
+  acquisition_type?: string | null;
+  acquired_at?: string | null;
+  notes?: string | null;
+};
+
+async function authJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const { authFetch } = await import("./auth");
+  return authFetch<T>(path, init);
+}
+
+export function listSealedCollection(): Promise<SealedCollectionList> {
+  return authJson<SealedCollectionList>("/sealed/collection");
+}
+
+export function getSealedOwnership(productId: string) {
+  return authJson<SealedCollectionItem | null>(
+    `/sealed/collection/product/${productId}`,
+  );
+}
+
+export function upsertSealedOwnership(
+  productId: string,
+  payload: SealedCollectionWrite,
+): Promise<SealedCollectionItem> {
+  return authJson<SealedCollectionItem>(
+    `/sealed/collection/product/${productId}`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
+export function deleteSealedOwnership(productId: string): Promise<{ ok: true }> {
+  return authJson<{ ok: true }>(
+    `/sealed/collection/product/${productId}`,
+    { method: "DELETE" },
+  );
+}
+
+export function listSealedWishlist(): Promise<SealedWishlistList> {
+  return authJson<SealedWishlistList>("/sealed/wishlist");
+}
+
+export function toggleSealedWishlist(
+  productId: string,
+): Promise<{ wishlisted: boolean }> {
+  return authJson<{ wishlisted: boolean }>(
+    `/sealed/wishlist/product/${productId}/toggle`,
+    { method: "POST" },
+  );
+}
+
+export function getSealedState(
+  productIds: string[],
+): Promise<SealedState> {
+  const qs = new URLSearchParams({ product_ids: productIds.join(",") });
+  return authJson<SealedState>(`/sealed/state?${qs.toString()}`);
+}
+
 export function listMasterSetsForCard(
   cardId: string,
   token: string,
