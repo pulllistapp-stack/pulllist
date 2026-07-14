@@ -1,16 +1,15 @@
-name: eBay sold-listing scrape — full 4-tier rotation (manual)
+name: eBay sold-listing scrape — full 4-tier rotation (parallel)
 
-# Fires all 4 grade tiers (PSA 10, PSA 9, CGC 10, CGC 9) in a single
-# job, one after the other. Intended for overnight/on-demand runs so
-# a full coverage sweep lands in one queue click. The scheduled per-
-# day rotation in `ebay-sold-scrape.yml` handles the ongoing
-# maintenance cadence; this one exists for catch-up passes and
-# initial backfill.
+# Matrix-parallel version: each grade tier runs on its own hosted
+# runner (its own IP) simultaneously. Wall clock ~= single-tier time
+# instead of sum-of-tiers, and 4 different runner IPs mean DataDome
+# spreads the load across independent fingerprints.
 #
 # Budget note (GH Actions free tier 2000 min/mo for private repos):
-# with defaults limit=120, min-price=30, one full rotation ~= 150-
-# 210 minutes on a hosted runner. Two overnight runs per week is
-# safely inside budget.
+# with defaults limit=300, min-price=30, throttle=2000ms, each tier
+# runs ~= 110 min. Four parallel tiers bill ~440 min per full sweep
+# but wall time is ~= 110 min (~2 hours). Four full sweeps/mo fits
+# well inside 2000 min.
 
 on:
   workflow_dispatch:
@@ -18,7 +17,7 @@ on:
       limit:
         description: "Max chase cards PER TIER"
         required: false
-        default: "120"
+        default: "300"
       min_price:
         description: "Skip cards below this market_price_usd"
         required: false
@@ -29,9 +28,24 @@ on:
         default: "2000"
 
 jobs:
-  rotate:
+  scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 350   # ~5h50 hard cap; single-tier ~= 40-50 min
+    # ~110 min at 300 cards × 22s/card. 200 gives safety margin for
+    # DataDome retries + occasional slow queries.
+    timeout-minutes: 200
+    strategy:
+      # Never cancel siblings — one tier's bad night should not
+      # blow away the other three's data.
+      fail-fast: false
+      matrix:
+        # Named pairs so the runner-facing log line is human-readable
+        # ("Scrape PSA 10") without shell-escape headaches.
+        tier:
+          - { label: "PSA 10", slug: "psa10" }
+          - { label: "PSA 9",  slug: "psa9"  }
+          - { label: "CGC 10", slug: "cgc10" }
+          - { label: "CGC 9",  slug: "cgc9"  }
+    name: Scrape ${{ matrix.tier.label }}
     defaults:
       run:
         working-directory: backend
@@ -55,52 +69,13 @@ jobs:
       - name: Install Xvfb
         run: sudo apt-get install -y xvfb
 
-      - name: Scrape PSA 10
+      - name: Scrape ${{ matrix.tier.label }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           xvfb-run --auto-servernum \
             python -m scripts.scrape_ebay_sold \
-              --graded-tier "PSA 10" \
-              --limit "${{ github.event.inputs.limit || '120' }}" \
-              --min-price "${{ github.event.inputs.min_price || '30' }}" \
-              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
-
-      - name: Scrape PSA 9
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        # Continue even if a tier partly fails — one tier's bad night
-        # shouldn't blow away the other three's data. Individual
-        # failures still surface in the log.
-        if: always()
-        run: |
-          xvfb-run --auto-servernum \
-            python -m scripts.scrape_ebay_sold \
-              --graded-tier "PSA 9" \
-              --limit "${{ github.event.inputs.limit || '120' }}" \
-              --min-price "${{ github.event.inputs.min_price || '30' }}" \
-              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
-
-      - name: Scrape CGC 10
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        if: always()
-        run: |
-          xvfb-run --auto-servernum \
-            python -m scripts.scrape_ebay_sold \
-              --graded-tier "CGC 10" \
-              --limit "${{ github.event.inputs.limit || '120' }}" \
-              --min-price "${{ github.event.inputs.min_price || '30' }}" \
-              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
-
-      - name: Scrape CGC 9
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        if: always()
-        run: |
-          xvfb-run --auto-servernum \
-            python -m scripts.scrape_ebay_sold \
-              --graded-tier "CGC 9" \
-              --limit "${{ github.event.inputs.limit || '120' }}" \
+              --graded-tier "${{ matrix.tier.label }}" \
+              --limit "${{ github.event.inputs.limit || '300' }}" \
               --min-price "${{ github.event.inputs.min_price || '30' }}" \
               --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
