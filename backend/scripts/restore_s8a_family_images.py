@@ -149,8 +149,30 @@ def _extract_anchors(html: str, anchor_slug: str) -> dict[int, str]:
     return out
 
 
+# Rarities that identify a secret/hyper printing. On a Bulbapedia card
+# page these variants usually sit LATER in the image list (base scan
+# first, secret rare scan after) or carry a higher trailing set-index
+# in the filename ("MewCelebrations25.jpg" for the UR Mew vs
+# "MewCelebrations11.jpg" for the base holo). So for these rarities we
+# invert the picker's preference: prefer the LAST card-name match with
+# the HIGHEST trailing integer instead of the first.
+_SECRET_RARITIES = {"SR", "SAR", "HR", "UR", "SSR"}
+
+# Trailing-integer extractor from a Bulbapedia filename stub. Used to
+# rank same-Pokemon variants when the card is a secret rare — the
+# higher trailing number is virtually always the higher-rarity print
+# on Bulbapedia's card wiki pages.
+_TRAILING_INT_RE = re.compile(r"(\d+)$")
+
+
+def _trailing_int(filename: str) -> int:
+    m = _TRAILING_INT_RE.search(filename)
+    return int(m.group(1)) if m else -1
+
+
 async def _extract_card_image(
-    client: httpx.AsyncClient, href: str, anchor_slug: str
+    client: httpx.AsyncClient, href: str, anchor_slug: str,
+    rarity: str | None = None,
 ) -> str | None:
     """Fetch card wiki page, return the best full-scan URL.
 
@@ -201,9 +223,21 @@ async def _extract_card_image(
     # e.g. serving MewCrownZenithGG10.jpg for Mew #30 when the wiki
     # cross-links other Mew cards).
     if card_name_stripped:
-        for filename, src in non_generic:
-            if card_name_stripped in filename.lower():
-                return _THUMB_STRIP_RE.sub(r"/\1", src)
+        name_matches = [
+            (f, s) for f, s in non_generic
+            if card_name_stripped in f.lower()
+        ]
+        if name_matches:
+            # For secret/hyper rare cards, prefer the variant with the
+            # HIGHEST trailing integer — Bulbapedia orders the base
+            # holo first and the secret print later on the same card
+            # page, and encodes the print position in the filename
+            # (MewCelebrations11 = base, MewCelebrations25 = UR).
+            # For everything else, the first name match is correct.
+            if rarity and rarity.upper() in _SECRET_RARITIES:
+                pick = max(name_matches, key=lambda fs: _trailing_int(fs[0]))
+                return _THUMB_STRIP_RE.sub(r"/\1", pick[1])
+            return _THUMB_STRIP_RE.sub(r"/\1", name_matches[0][1])
 
     # Tier 3: first surviving non-generic candidate. Better than
     # nothing when Bulbapedia only hosts a parallel-set image.
@@ -227,11 +261,30 @@ async def restore_subset(
     stats["anchors_found"] = len(anchors)
     log.info(f"[{label}] anchors matching '{cfg['anchor_slug']}_N': {len(anchors)}")
 
+    # Preload the current rarity per S8a-{N|PN|GN} so the picker can
+    # choose the secret-rare variant when needed (Mew UR should get
+    # MewCelebrations25 not MewCelebrations11).
+    prefix = cfg["number_prefix"]
+    ids_to_rarity: dict[int, str | None] = {}
+    async with SessionLocal() as db:
+        rows = (await db.execute(
+            text("""
+                SELECT number_int, rarity FROM cards
+                WHERE set_id = 'S8a' AND number_int BETWEEN :lo AND :hi
+            """),
+            {"lo": cfg["id_range"][0], "hi": cfg["id_range"][1]},
+        )).all()
+        for r in rows:
+            ids_to_rarity[r.number_int] = r.rarity
+
     sem = asyncio.Semaphore(SEM_LIMIT)
 
     async def resolve(num: int, href: str) -> tuple[int, str | None]:
+        rarity = ids_to_rarity.get(cfg["int_offset"] + num)
         async with sem:
-            img = await _extract_card_image(client, href, cfg["anchor_slug"])
+            img = await _extract_card_image(
+                client, href, cfg["anchor_slug"], rarity=rarity,
+            )
             return num, img
 
     results = await asyncio.gather(*[resolve(n, h) for n, h in anchors.items()])
