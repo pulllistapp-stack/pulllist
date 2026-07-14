@@ -85,6 +85,9 @@ export function TopNav() {
           <Link href="/sets" className="hover:text-text-primary">
             Sets
           </Link>
+          <Link href="/series" className="hover:text-text-primary">
+            Series
+          </Link>
           <Link href="/cards" className="hover:text-text-primary">
             Cards
           </Link>
@@ -200,6 +203,7 @@ export function TopNav() {
         <div className="md:hidden border-t border-border bg-bg">
           <nav className="mx-auto max-w-[100rem] px-4 sm:px-6 py-4 flex flex-col gap-1 text-sm">
             <MobileLink href="/sets">Browse sets</MobileLink>
+            <MobileLink href="/series">Browse series</MobileLink>
             <MobileLink href="/cards">Browse cards</MobileLink>
             <MobileLink href="/products">Sealed products</MobileLink>
             <MobileLink href="/trending">Trending</MobileLink>

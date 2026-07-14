@@ -252,7 +252,15 @@ function SetDetailContent() {
               {set.series && (
                 <span>
                   <span className="text-text-tertiary">Series ·</span>{" "}
-                  {seriesLabel(set.series)}
+                  <Link
+                    href={`/series/${set.series
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]+/g, "-")
+                      .replace(/^-|-$/g, "")}`}
+                    className="underline decoration-dotted hover:text-accent-yellow"
+                  >
+                    {seriesLabel(set.series)}
+                  </Link>
                 </span>
               )}
               {releaseDate && (

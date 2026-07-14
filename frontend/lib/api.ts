@@ -781,6 +781,56 @@ export function getProductHistory(
   return apiFetch<ProductHistory>(`/products/${id}/history?days=${days}`);
 }
 
+// ── Series (roadmap §10.8 G) ────────────────────────────────────
+
+export type SeriesSummary = {
+  series: string;
+  slug: string;
+  set_count: number;
+  card_count: number;
+  product_count: number;
+  latest_release: string | null;
+};
+
+export type SeriesSetPayload = {
+  id: string;
+  name: string;
+  release_date: string | null;
+  printed_total: number | null;
+  total: number | null;
+  logo_url: string | null;
+  symbol_url: string | null;
+  card_count: number;
+};
+
+export type SeriesProductPayload = {
+  id: string;
+  name: string;
+  set_id: string | null;
+  product_type: ProductType;
+  market_price_usd: number | null;
+  image_url: string | null;
+  tcgplayer_url: string | null;
+};
+
+export type SeriesDetail = {
+  series: string;
+  slug: string;
+  set_count: number;
+  card_count: number;
+  product_count: number;
+  sets: SeriesSetPayload[];
+  products: SeriesProductPayload[];
+};
+
+export function listSeries(): Promise<{ items: SeriesSummary[] }> {
+  return apiFetch<{ items: SeriesSummary[] }>("/series");
+}
+
+export function getSeries(slug: string): Promise<SeriesDetail> {
+  return apiFetch<SeriesDetail>(`/series/${slug}`);
+}
+
 // ── Sealed collection / wishlist (Products roadmap §10.8 B) ──────
 
 export type SealedCollectionItem = {
