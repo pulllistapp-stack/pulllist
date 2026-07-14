@@ -171,13 +171,55 @@ async def _fetch(client: httpx.AsyncClient, path: str) -> list[dict]:
     return payload or []
 
 
+# Hand-curated aliases for TCGCSV abbreviations that don't line up with
+# our PullList set IDs. Each entry maps TCGCSV abbr (lowercase) → the
+# PullList set id its sealed products should attach to.
+#
+# Discovered during the first prod ingest (2026-07-14): 103 TCGCSV
+# groups had abbreviations we didn't recognise, 18 of them held real
+# sealed SKUs. These aliases pick up 18 of those 28 sealed products.
+# The remaining 10 belong to groups whose parent set doesn't exist in
+# our DB yet (SBC / M-P / svL / CLL / NPF1 / Pt Arceus LV.X Decks),
+# so they need set-seeding work before their sealed can land.
+_TCGCSV_ALIASES: dict[str, str] = {
+    # SM-era High-Class packs — PullList uses "p" suffix instead of "+"
+    "sm1+": "SM1p",  # Sun and Moon plus (Enhanced Expansion)
+    "sm2+": "SM2p",  # Let's Face New Trials
+    "sm3+": "SM3p",  # Shining Legends
+    "sm4+": "SM4p",  # GX Battle Boost
+    "sm5+": "SM5p",  # Ultra Force
+    # 25th Anniversary sub-groups (Golden Box, Promo Card Pack) →
+    # rolled up under the base 25th Anniv Collection set S8a.
+    "s8a-g": "S8a",
+    "s8a-p": "S8a",
+    # Promo card sets — TCGCSV uses "{era}-P" naming, PullList uses
+    # "JPP-{era}" for the same concept.
+    "s-p":  "JPP-S",   # SW-era promos
+    "sv-p": "JPP-SV",  # SV-era promos
+    # XY5 half-decks — TCGCSV names them XY5-B{color}, PullList
+    # already has them as XY5g / XY5t (single-letter suffix).
+    "xy5-bg": "XY5g",  # Gaia Volcano
+    "xy5-bt": "XY5t",  # Tidal Storm
+}
+
+
 async def _build_set_map() -> dict[str, str]:
-    """Return {abbreviation.lower(): pullist_set_id}."""
+    """Return {abbreviation.lower(): pullist_set_id}, with hand-curated
+    aliases layered on top so TCGCSV groups whose abbreviation doesn't
+    literally match a PullList set id still route to the right set."""
     async with SessionLocal() as db:
         rows = (await db.execute(
             text("SELECT id FROM sets WHERE language = 'ja'")
         )).all()
-    return {r.id.lower(): r.id for r in rows}
+    base = {r.id.lower(): r.id for r in rows}
+    # Aliases only fire when their target set actually exists — silently
+    # drop stale mappings instead of shovelling products at a phantom
+    # set id (would violate the products.set_id FK on insert).
+    known = {sid.lower() for sid in base.values()}
+    for tcgcsv_abbr, our_id in _TCGCSV_ALIASES.items():
+        if our_id.lower() in known:
+            base[tcgcsv_abbr] = our_id
+    return base
 
 
 async def ingest(
