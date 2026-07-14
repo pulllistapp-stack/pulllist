@@ -682,14 +682,16 @@ async def get_card_graded_prices(
 ) -> dict:
     """Latest median-per-grade for the graded tiles under the price
     chart. Reads `card_price_snapshots` filtered to grade rows, then
-    prefers `ebay_sold` (Playwright-scraped sold data) over `ebay`
-    (Browse API asking data) when both exist for the same tier —
-    sold prices are the actual clearing rate, asking prices run
-    10-30% above.
+    walks a source-priority ladder when the same tier has multiple
+    sources on the same day:
+        ebay_sold   → actual clearing price (best)
+        ebay_asking → Playwright active-listing fallback (labels as
+                      "Asking" on the tile)
+        ebay        → Browse API asking (oldest baseline)
 
     Response shape (matches `frontend/components/card/GradedPricesGrid.tsx`):
         {
-          "psa10": {latest_price_usd, variant, source, updated_at} | null,
+          "psa10": {latest_price_usd, variant, source, updated_at, sales_count} | null,
           "psa9":  {...} | null,
           "cgc10": {...} | null,
           "cgc9":  {...} | null,
@@ -701,15 +703,13 @@ async def get_card_graded_prices(
 
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     ui_tiers = ("psa10", "psa9", "cgc10", "cgc9")
-    # Prefer sold over asking when picking the "latest" per grade —
-    # the CASE-based sort_priority lifts ebay_sold rows above ebay
-    # ones with the same snapshot_date.
     from sqlalchemy import case
 
     source_priority = case(
         (CardPriceSnapshot.source == "ebay_sold", 0),
-        (CardPriceSnapshot.source == "ebay", 1),
-        else_=2,
+        (CardPriceSnapshot.source == "ebay_asking", 1),
+        (CardPriceSnapshot.source == "ebay", 2),
+        else_=3,
     )
 
     stmt = (
@@ -719,10 +719,11 @@ async def get_card_graded_prices(
             CardPriceSnapshot.variant,
             CardPriceSnapshot.source,
             CardPriceSnapshot.snapshot_date,
+            CardPriceSnapshot.sales_count,
         )
         .where(
             CardPriceSnapshot.card_id == card_id,
-            CardPriceSnapshot.source.in_(("ebay", "ebay_sold")),
+            CardPriceSnapshot.source.in_(("ebay", "ebay_sold", "ebay_asking")),
             CardPriceSnapshot.snapshot_date >= cutoff,
             CardPriceSnapshot.grade.in_(ui_tiers),
             CardPriceSnapshot.market_price_usd.is_not(None),
@@ -736,9 +737,9 @@ async def get_card_graded_prices(
 
     # Keep only the most recent snapshot per grade (first hit wins
     # because we ordered by date desc + source priority so ebay_sold
-    # beats ebay on same-day ties).
+    # beats ebay_asking beats ebay on same-day ties).
     latest: dict[str, dict] = {}
-    for grade, price, variant, source, snap_date in rows:
+    for grade, price, variant, source, snap_date, sales_count in rows:
         if grade in latest:
             continue
         latest[grade] = {
@@ -746,6 +747,7 @@ async def get_card_graded_prices(
             "variant": variant,
             "source": source,
             "updated_at": snap_date,
+            "sales_count": sales_count,
         }
 
     return {tier: latest.get(tier) for tier in ui_tiers}

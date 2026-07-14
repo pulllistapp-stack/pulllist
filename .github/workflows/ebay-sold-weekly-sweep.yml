@@ -96,4 +96,5 @@ jobs:
               --throttle-ms 2000 \
               --ipg 120 \
               --max-attempts 3 \
-              --skip-if-recent-days "${{ github.event.inputs.skip_if_recent_days || '14' }}"
+              --skip-if-recent-days "${{ github.event.inputs.skip_if_recent_days || '14' }}" \
+              --include-asking-fallback

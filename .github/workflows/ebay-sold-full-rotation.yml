@@ -38,6 +38,12 @@ on:
         description: "Retry budget per query (2 default, 3 for gap-fill runs)"
         required: false
         default: "2"
+      include_asking_fallback:
+        description: "When sold n<5, retry same query for active listings (source=ebay_asking)"
+        required: false
+        default: "true"
+        type: choice
+        options: [ "true", "false" ]
 
 jobs:
   scrape:
@@ -85,6 +91,10 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          FALLBACK_FLAG=""
+          if [ "${{ github.event.inputs.include_asking_fallback }}" != "false" ]; then
+            FALLBACK_FLAG="--include-asking-fallback"
+          fi
           xvfb-run --auto-servernum \
             python -m scripts.scrape_ebay_sold \
               --graded-tier "${{ matrix.tier.label }}" \
@@ -93,4 +103,5 @@ jobs:
               --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}" \
               --ipg "${{ github.event.inputs.ipg || '60' }}" \
               --max-attempts "${{ github.event.inputs.max_attempts || '2' }}" \
-              --skip-if-recent-days "${{ github.event.inputs.skip_if_recent_days || '0' }}"
+              --skip-if-recent-days "${{ github.event.inputs.skip_if_recent_days || '0' }}" \
+              $FALLBACK_FLAG

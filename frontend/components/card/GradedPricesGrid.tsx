@@ -27,7 +27,21 @@ type GradedPoint = {
   variant: string | null;
   source: string | null;
   updated_at: string | null; // ISO date
+  sales_count?: number | null;
 };
+
+// Map raw source key → human label + tile accent class. Sold data is
+// the ground truth; asking (scraped active listings) is a fallback
+// for thin tiers, so we surface which one the tile is showing.
+function sourceMeta(source: string | null | undefined): {
+  label: string;
+  tone: "sold" | "asking" | "unknown";
+} {
+  if (source === "ebay_sold") return { label: "Sold", tone: "sold" };
+  if (source === "ebay_asking") return { label: "Asking", tone: "asking" };
+  if (source === "ebay") return { label: "Asking", tone: "asking" }; // legacy Browse-API asking
+  return { label: source ?? "—", tone: "unknown" };
+}
 
 type GradedResponse = Partial<Record<GradedTier, GradedPoint>>;
 
@@ -196,19 +210,42 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
                 )}
               </div>
               {hasData ? (
-                <>
-                  <div className="text-xl font-extrabold text-accent-green">
-                    {fmtMoney(row!.latest_price_usd)}
-                  </div>
-                  <div className="mt-1 text-[10px] text-text-tertiary leading-tight">
-                    {row!.variant ?? "—"}
-                    {row!.source ? ` / ${row!.source}` : ""}
-                    <br />
-                    <span className="opacity-70">
-                      updated {fmtRelative(row!.updated_at)}
-                    </span>
-                  </div>
-                </>
+                (() => {
+                  const meta = sourceMeta(row!.source);
+                  const priceClass =
+                    meta.tone === "sold"
+                      ? "text-accent-green"
+                      : "text-amber-400"; // Asking = amber so users see the softer signal
+                  const badgeClass =
+                    meta.tone === "sold"
+                      ? "bg-accent-green/15 text-accent-green"
+                      : "bg-amber-500/15 text-amber-400";
+                  return (
+                    <>
+                      <div className={"text-xl font-extrabold " + priceClass}>
+                        {fmtMoney(row!.latest_price_usd)}
+                      </div>
+                      <div className="mt-1 flex items-center gap-1.5 text-[10px] leading-tight">
+                        <span
+                          className={
+                            "px-1.5 py-[1px] rounded font-mono font-bold uppercase tracking-wider " +
+                            badgeClass
+                          }
+                        >
+                          {meta.label}
+                        </span>
+                        {row!.sales_count != null && (
+                          <span className="text-text-tertiary">
+                            n={row!.sales_count}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-[10px] text-text-tertiary/70 leading-tight">
+                        updated {fmtRelative(row!.updated_at)}
+                      </div>
+                    </>
+                  );
+                })()
               ) : (
                 <>
                   <div className="text-xl font-bold text-text-tertiary/60">

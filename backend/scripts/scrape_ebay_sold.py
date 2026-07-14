@@ -60,6 +60,12 @@ log = logging.getLogger("scrape_ebay_sold")
 
 
 SOURCE = "ebay_sold"
+# Fallback source: same Playwright pipeline but WITHOUT the LH_Sold
+# filter — pulls active-listing medians for tiers that don't clear
+# MIN_LISTINGS on sold alone (thin CGC vintage etc.). Kept as a
+# distinct source key so the frontend can label it "Asking" and the
+# graded-prices endpoint can prefer real sold data when both exist.
+SOURCE_ASKING = "ebay_asking"
 VARIANT = "active"  # sold snapshots share the variant-key space with asking rows
 # Bumped from 2 → 5 after the first prod run. n=3-4 buckets produced
 # unstable medians (Charizard δ n=3 → $3,737 with $19,500 hi). n≥5
@@ -218,6 +224,7 @@ async def _fetch_sold_html(
     query: str,
     max_attempts: int = 2,
     ipg: int = 60,
+    sold_only: bool = True,
 ) -> str | None:
     """One search. Returns the sold-listings HTML or None on failure.
 
@@ -250,10 +257,15 @@ async def _fetch_sold_html(
             # Longer warm-up on retries — DataDome's challenge takes
             # 2-4s to execute; being generous keeps our success rate up.
             await page.wait_for_timeout(3500 + (attempt - 1) * 2000)
+            # When sold_only=True (default), scope to actual sales.
+            # When False, drop LH_Sold/LH_Complete to include active
+            # asking listings — the fallback pool for tiers with too
+            # few sales to meet MIN_LISTINGS (vintage CGC especially).
+            base = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}"
             url = (
-                "https://www.ebay.com/sch/i.html?"
-                f"_nkw={query.replace(' ', '+')}"
-                f"&LH_Sold=1&LH_Complete=1&_ipg={ipg}"
+                f"{base}&LH_Sold=1&LH_Complete=1&_ipg={ipg}"
+                if sold_only
+                else f"{base}&_ipg={ipg}"
             )
             resp = await page.goto(
                 url, wait_until="domcontentloaded", timeout=45_000
@@ -389,6 +401,93 @@ async def _pick_cards(
     return [(c, c.set) for c in rows]
 
 
+async def _scrape_pass(
+    *,
+    browser: Browser,
+    query: str,
+    card: Card,
+    wanted_grade: str,
+    source_tag: str,
+    sold_only: bool,
+    snapshot_date: str,
+    dry_run: bool,
+    ipg: int,
+    max_attempts: int,
+    stats: dict,
+    idx: int,
+    total: int,
+    graded_tier: str,
+) -> int:
+    """Run one scrape pass for a card × tier at the given source tag
+    (sold or asking). Returns the count of kept prices — the caller
+    uses that to decide whether to trigger the asking fallback."""
+    html = await _fetch_sold_html(
+        browser, query, max_attempts=max_attempts, ipg=ipg, sold_only=sold_only
+    )
+    if not html:
+        stats["errors"] += 1
+        return 0
+    listings = _parse_sold(html)
+    stats["listings_parsed"] += len(listings)
+    label = "sold" if sold_only else "ask"
+    log.info(f"  [{label}] html len={len(html)}, parsed={len(listings)}")
+
+    prices: list[float] = []
+    rej = {"number": 0, "name": 0, "grade": 0}
+    for title, price in listings:
+        if not _card_number_match(title, card.number):
+            rej["number"] += 1
+            continue
+        if not _card_name_match(title, card.name):
+            rej["name"] += 1
+            continue
+        if classify_grade(title) != wanted_grade:
+            rej["grade"] += 1
+            continue
+        prices.append(price)
+
+    if len(prices) < MIN_LISTINGS_PER_GRADE:
+        stats["empty_pages"] += 1
+        log.info(
+            f"  [{idx}/{total}] {card.id} ({card.name[:30]}) "
+            f"{graded_tier} [{source_tag}]: n={len(prices)} (rej {rej}) — below MIN"
+        )
+        return len(prices)
+
+    stats["cards_with_data"] += 1
+    stats["listings_in_bucket"] += len(prices)
+    lo_raw, hi_raw = float(min(prices)), float(max(prices))
+    lo, med, hi, n_kept = _trim_median(prices)
+    log.info(
+        f"  [{idx}/{total}] {card.id} ({card.name[:30]}) "
+        f"{graded_tier} [{source_tag}]: n={len(prices)}→{n_kept} "
+        f"lo=${lo:.2f} med=${med:.2f} hi=${hi:.2f} "
+        f"(pre-trim ${lo_raw:.2f}-${hi_raw:.2f})"
+    )
+    if not dry_run:
+        async with SessionLocal() as db:
+            written = await _flush(
+                db,
+                [
+                    {
+                        "card_id": card.id,
+                        "source": source_tag,
+                        "variant": VARIANT,
+                        "grade": wanted_grade,
+                        "market_price_usd": med,
+                        "low_price_usd": lo,
+                        "mid_price_usd": med,
+                        "high_price_usd": hi,
+                        "sales_count": n_kept,
+                        "snapshot_at": datetime.utcnow(),
+                        "snapshot_date": snapshot_date,
+                    }
+                ],
+            )
+            stats["snapshots_written"] += written
+    return len(prices)
+
+
 # ── Main pipeline ─────────────────────────────────────────────────
 
 
@@ -404,6 +503,7 @@ async def run(
     skip_if_recent_days: int,
     ipg: int,
     max_attempts: int,
+    include_asking_fallback: bool,
 ) -> None:
     await init_db()
 
@@ -416,7 +516,8 @@ async def run(
     log.info(
         f"scraping {len(cards)} cards for tier {graded_tier!r} "
         f"(headless={headless}, ipg={ipg}, max_attempts={max_attempts}, "
-        f"skip_if_recent_days={skip_if_recent_days})"
+        f"skip_if_recent_days={skip_if_recent_days}, "
+        f"asking_fallback={include_asking_fallback})"
     )
 
     stats = {
@@ -456,79 +557,48 @@ async def run(
             query = " ".join(str(p).strip() for p in parts if p)
 
             log.info(f"query: {query!r}")
-            html = await _fetch_sold_html(
-                browser, query, max_attempts=max_attempts, ipg=ipg
-            )
-            if not html:
-                stats["errors"] += 1
-                continue
-            listings = _parse_sold(html)
-            stats["listings_parsed"] += len(listings)
-            log.info(f"  html len={len(html)}, parsed={len(listings)}")
-            if not listings and len(html) > 100:
-                # Diagnostic: count marker classes in what came back.
-                for marker in ("s-card", "captcha", "unusual", "shop on ebay"):
-                    log.info(f"  '{marker}' count: {html.lower().count(marker)}")
-
-            # Filter by card number + name + grade classifier. All three
-            # must pass for a listing to count. Rejected reasons are
-            # tallied so we can spot bad queries.
             wanted_grade = classify_grade(f"dummy {graded_tier}")
-            prices: list[float] = []
-            rej = {"number": 0, "name": 0, "grade": 0}
-            for title, price in listings:
-                if not _card_number_match(title, card.number):
-                    rej["number"] += 1
-                    continue
-                if not _card_name_match(title, card.name):
-                    rej["name"] += 1
-                    continue
-                if classify_grade(title) != wanted_grade:
-                    rej["grade"] += 1
-                    continue
-                prices.append(price)
 
-            if len(prices) < MIN_LISTINGS_PER_GRADE:
-                stats["empty_pages"] += 1
-                log.info(
-                    f"[{stats['cards_seen']}/{len(cards)}] {card.id} "
-                    f"({card.name[:30]}) {graded_tier}: n={len(prices)} "
-                    f"(rej {rej}) — below MIN, skipped"
-                )
-                continue
-            stats["cards_with_data"] += 1
-            stats["listings_in_bucket"] += len(prices)
-
-            lo_raw, hi_raw = float(min(prices)), float(max(prices))
-            lo, med, hi, n_kept = _trim_median(prices)
-            log.info(
-                f"[{stats['cards_seen']}/{len(cards)}] {card.id} "
-                f"({card.name[:30]}) {graded_tier}: n={len(prices)}→{n_kept} "
-                f"lo=${lo:.2f} med=${med:.2f} hi=${hi:.2f} "
-                f"(pre-trim ${lo_raw:.2f}-${hi_raw:.2f})"
+            # === Sold pass ===
+            n_sold = await _scrape_pass(
+                browser=browser,
+                query=query,
+                card=card,
+                wanted_grade=wanted_grade,
+                source_tag=SOURCE,
+                sold_only=True,
+                snapshot_date=snapshot_date,
+                dry_run=dry_run,
+                ipg=ipg,
+                max_attempts=max_attempts,
+                stats=stats,
+                idx=stats["cards_seen"],
+                total=len(cards),
+                graded_tier=graded_tier,
             )
 
-            if not dry_run:
-                async with SessionLocal() as db:
-                    written = await _flush(
-                        db,
-                        [
-                            {
-                                "card_id": card.id,
-                                "source": SOURCE,
-                                "variant": VARIANT,
-                                "grade": wanted_grade,
-                                "market_price_usd": med,
-                                "low_price_usd": lo,
-                                "mid_price_usd": med,
-                                "high_price_usd": hi,
-                                "sales_count": n_kept,
-                                "snapshot_at": datetime.utcnow(),
-                                "snapshot_date": snapshot_date,
-                            }
-                        ],
-                    )
-                    stats["snapshots_written"] += written
+            # === Asking fallback ===
+            # Only fires when sold data didn't clear MIN_LISTINGS and
+            # the flag is enabled. Same query but without LH_Sold=1 —
+            # broader pool for vintage / thin-liquidity tiers.
+            if include_asking_fallback and n_sold < MIN_LISTINGS_PER_GRADE:
+                log.info(f"  (fallback → asking pass)")
+                await _scrape_pass(
+                    browser=browser,
+                    query=query,
+                    card=card,
+                    wanted_grade=wanted_grade,
+                    source_tag=SOURCE_ASKING,
+                    sold_only=False,
+                    snapshot_date=snapshot_date,
+                    dry_run=dry_run,
+                    ipg=ipg,
+                    max_attempts=max_attempts,
+                    stats=stats,
+                    idx=stats["cards_seen"],
+                    total=len(cards),
+                    graded_tier=graded_tier,
+                )
 
             if throttle_ms > 0:
                 await asyncio.sleep(throttle_ms / 1000)
@@ -625,6 +695,19 @@ def main(argv: Iterable[str] | None = None) -> None:
             "where soft-blocks are the primary miss cause."
         ),
     )
+    parser.add_argument(
+        "--include-asking-fallback",
+        action="store_true",
+        help=(
+            "When the sold pass returns n<MIN_LISTINGS for a card/tier, "
+            "run a second pass on the same query WITHOUT the LH_Sold "
+            "filter (active listings). Writes as source='ebay_asking' "
+            "with the same tier grade. Populates tiles for thin markets "
+            "(vintage CGC etc.) where sold data is sparse but active "
+            "asks are plentiful. Frontend labels the tile 'Asking' so "
+            "users see the source clearly."
+        ),
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     snapshot_date = args.snapshot_date or date.today().isoformat()
@@ -648,6 +731,7 @@ def main(argv: Iterable[str] | None = None) -> None:
             skip_if_recent_days=skip_days,
             ipg=args.ipg,
             max_attempts=args.max_attempts,
+            include_asking_fallback=args.include_asking_fallback,
         )
     )
 

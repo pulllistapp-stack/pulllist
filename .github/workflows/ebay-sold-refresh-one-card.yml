@@ -63,5 +63,6 @@ jobs:
                 --card-id "$CARD_ID" \
                 --ipg 120 \
                 --max-attempts 3 \
-                --throttle-ms 1500 || echo "tier $tier failed, continuing"
+                --throttle-ms 1500 \
+                --include-asking-fallback || echo "tier $tier failed, continuing"
           done
