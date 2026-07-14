@@ -214,7 +214,10 @@ async def _launch_browser(headless: bool = False) -> tuple[Browser, "async_playw
 
 
 async def _fetch_sold_html(
-    browser: Browser, query: str, max_attempts: int = 2
+    browser: Browser,
+    query: str,
+    max_attempts: int = 2,
+    ipg: int = 60,
 ) -> str | None:
     """One search. Returns the sold-listings HTML or None on failure.
 
@@ -250,7 +253,7 @@ async def _fetch_sold_html(
             url = (
                 "https://www.ebay.com/sch/i.html?"
                 f"_nkw={query.replace(' ', '+')}"
-                "&LH_Sold=1&LH_Complete=1&_ipg=60"
+                f"&LH_Sold=1&LH_Complete=1&_ipg={ipg}"
             )
             resp = await page.goto(
                 url, wait_until="domcontentloaded", timeout=45_000
@@ -317,12 +320,23 @@ async def _pick_cards(
     limit: int | None,
     min_price: float,
     card_ids: list[str] | None,
+    skip_if_today: bool,
+    graded_tier: str,
+    snapshot_date: str,
 ) -> list[tuple[Card, Set | None]]:
-    """Return chase cards worth scraping. Same gate as snapshot_ebay
-    (EN cards priced above the floor); if --card-id is passed, use
-    only those (for one-off testing)."""
+    """Return chase cards worth scraping.
+
+    Default gate: EN cards priced above the floor, ranked by market
+    DESC. `--card-id` overrides that with an explicit list (one-off
+    testing). When `skip_if_today=True` we drop any card that already
+    has a (source='ebay_sold', grade=WANTED, snapshot_date=today) row
+    — turns the script into a gap-filler for the second run of a day,
+    so soft-blocked or n<MIN cards get retried without re-scraping
+    the ones that already landed.
+    """
     async with SessionLocal() as db:
         from sqlalchemy.orm import selectinload
+        from sqlalchemy import not_, exists
 
         stmt = select(Card).options(selectinload(Card.set)).where(
             Card.language == "en"
@@ -333,6 +347,17 @@ async def _pick_cards(
             stmt = stmt.where(Card.market_price_usd >= min_price).order_by(
                 Card.market_price_usd.desc()
             )
+
+        if skip_if_today:
+            wanted_grade = classify_grade(f"dummy {graded_tier}")
+            already = select(CardPriceSnapshot.card_id).where(
+                CardPriceSnapshot.card_id == Card.id,
+                CardPriceSnapshot.source == SOURCE,
+                CardPriceSnapshot.grade == wanted_grade,
+                CardPriceSnapshot.snapshot_date == snapshot_date,
+            )
+            stmt = stmt.where(not_(exists(already)))
+
         if limit:
             stmt = stmt.limit(limit)
         rows = list((await db.execute(stmt)).scalars())
@@ -351,11 +376,23 @@ async def run(
     dry_run: bool,
     card_ids: list[str] | None,
     headless: bool,
+    skip_if_today: bool,
+    ipg: int,
+    max_attempts: int,
 ) -> None:
     await init_db()
 
-    cards = await _pick_cards(limit, min_price, card_ids)
-    log.info(f"scraping {len(cards)} cards for tier {graded_tier!r} (headless={headless})")
+    cards = await _pick_cards(
+        limit, min_price, card_ids,
+        skip_if_today=skip_if_today,
+        graded_tier=graded_tier,
+        snapshot_date=snapshot_date,
+    )
+    log.info(
+        f"scraping {len(cards)} cards for tier {graded_tier!r} "
+        f"(headless={headless}, ipg={ipg}, max_attempts={max_attempts}, "
+        f"skip_if_today={skip_if_today})"
+    )
 
     stats = {
         "cards_seen": 0,
@@ -394,7 +431,9 @@ async def run(
             query = " ".join(str(p).strip() for p in parts if p)
 
             log.info(f"query: {query!r}")
-            html = await _fetch_sold_html(browser, query)
+            html = await _fetch_sold_html(
+                browser, query, max_attempts=max_attempts, ipg=ipg
+            )
             if not html:
                 stats["errors"] += 1
                 continue
@@ -519,6 +558,37 @@ def main(argv: Iterable[str] | None = None) -> None:
             "invisible-to-the-runner."
         ),
     )
+    parser.add_argument(
+        "--skip-if-today",
+        action="store_true",
+        help=(
+            "Skip cards that already have an ebay_sold snapshot for the "
+            "same tier on --date. Turns the script into a gap-filler for "
+            "the second run of a day — soft-blocked / n<MIN cards get "
+            "retried without re-scraping the ones already landed."
+        ),
+    )
+    parser.add_argument(
+        "--ipg",
+        type=int,
+        default=60,
+        help=(
+            "Listings per page for the eBay sold query (_ipg). Bump to "
+            "120 to widen the pool per query — helps CGC tiers where "
+            "most of the 60 default slots are PSA slabs and only a "
+            "handful survive the grade filter."
+        ),
+    )
+    parser.add_argument(
+        "--max-attempts",
+        type=int,
+        default=2,
+        help=(
+            "Retry budget per query. Each attempt uses a fresh browser "
+            "context (new DataDome cookie). Bump to 3 for gap-fill runs "
+            "where soft-blocks are the primary miss cause."
+        ),
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     snapshot_date = args.snapshot_date or date.today().isoformat()
@@ -534,6 +604,9 @@ def main(argv: Iterable[str] | None = None) -> None:
             dry_run=args.dry_run,
             card_ids=args.card_ids,
             headless=args.headless,
+            skip_if_today=args.skip_if_today,
+            ipg=args.ipg,
+            max_attempts=args.max_attempts,
         )
     )
 
