@@ -29,6 +29,42 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-13 ─────────────────────────────────────────────────
   {
     date: "2026-07-13",
+    emoji: "🗂️",
+    kr: "Series 페이지 신설 — /series 에서 시대 (Scarlet & Violet, Sword & Shield, Sun & Moon 등) 별로 브라우징 가능. 각 시리즈 페이지 (/series/scarlet-and-violet 등) 에는 그 시대 소속 모든 세트 + 모든 sealed 상품 한 화면에 집계. TopNav 에도 Series 링크 추가, /sets/[id] 헤더의 'Series · X' 라벨도 클릭 가능. 시리즈 → 세트 → 카드/sealed 자연스러운 계층",
+    en: "Series pages are live — /series lets you browse Pokémon TCG by era (Scarlet & Violet, Sword & Shield, Sun & Moon, and every earlier cycle). Each series page collects every set + every sealed product in that era on one screen. Series link added to the top nav; the 'Series · X' label on set pages now deep-links to the corresponding series. Natural nav flow: series → set → cards or sealed",
+  },
+  {
+    date: "2026-07-13",
+    emoji: "📦",
+    kr: "Sealed 상품 컬렉션 + 위시리스트 활성화 — 상품 상세 페이지에 'Mark as owned' / 'Add to wishlist' 버튼 추가. 유저가 소유한 박스/ETB/번들을 카드처럼 트래킹 가능. /portfolio 에 새 'Sealed' 탭에서 owned + wishlist 그리드 + 총 가치 표시. 카드 컬렉션 반쪽자리에서 완전한 인벤 관리로 승격",
+    en: "Sealed products are now trackable — the detail page adds Mark as owned + Add to wishlist buttons, mirroring the card collection flow. Your sealed inventory (boxes, ETBs, bundles, tins, blisters) lives under the new Sealed tab on /portfolio with owned + wishlist grids and a total-value stat. Collection tracking is no longer just for singles",
+  },
+  {
+    date: "2026-07-13",
+    emoji: "📈",
+    kr: "Sealed 상품 가격 히스토리 차트 신설 — 상품 상세 페이지 아래쪽에 30일/90일/6개월/1년 가격 차트. TCGCSV 매일 스냅샷 저장 기반. 박스 시세가 stable 인지 매수 타이밍인지 시각적 판단 가능. 지금은 오늘부터 축적 (~1주일 지나면 실용 차트)",
+    en: "Sealed products get a price history chart — every product detail page now shows a 30d / 90d / 6M / 1Y line chart with range low / high stats. Backed by daily TCGCSV snapshots (starting today; a week's data will make the chart genuinely useful). Answers whether a box is trending up or trending down before you commit to the buy",
+  },
+  {
+    date: "2026-07-13",
+    emoji: "🧾",
+    kr: "Sealed 카탈로그 커버리지 3배 확장 — 기존 7세트 (Mega Evolution 시대만) 에서 39세트로 확장, 총 상품 320 → 963개. SV, SWSH, XY, SM, HGSS 등 모든 현대 시대 세트가 이제 sealed 라인업 포함. TCGCSV 이름 매칭 알고리즘으로 매일 자동 갱신",
+    en: "Sealed catalog expanded from 7 sets to 39 sets (320 → 963 SKUs). Every modern era — Scarlet & Violet, Sword & Shield, Sun & Moon, XY, HGSS — now carries its full sealed lineup: Booster Boxes, ETBs, Bundles, Premium Collections, Tins, Blisters, Build & Battle boxes",
+  },
+  {
+    date: "2026-07-13",
+    emoji: "🎯",
+    kr: "세트 상세 페이지 헤더 재디자인 — 기존 작은 완성도 카드 → 큰 헤더 배너로 승격. Master 완성률 원형 링, Master Owned/Total + Full Set Owned/Total 카운트, 하단에 Full Set (빨강) + Master (청록) 진행바. 219장 세트가 130장 base + 89장 secret 로 나뉘어 있는게 즉시 파악됨. 로그아웃 유저도 세트 총 사이즈 학습 가능",
+    en: "Set detail page gets a header-scale completion widget — Master completion ring (%), Master + Full Set owned/total counts, and stacked Full Set (red) + Master (teal) progress bars. Now instantly clear that a 219-card set is really 130 base + 89 secret / SIR / hyper-rares. Non-logged-in visitors also see the set totals so they can learn what's in the era before signing up",
+  },
+  {
+    date: "2026-07-13",
+    emoji: "🃏",
+    kr: "세트 상세 페이지 Cards | Sealed 탭 분리 — 이전엔 카드 그리드 위에 sealed 상품이 stack 돼있어서 스크롤이 길었음. 이제 두 탭으로 분리, URL 도 유지 (`?tab=sealed` 새로고침해도 그대로). Sealed 탭에서 유저는 그 세트의 박스/ETB/번들 라인업 한 눈에",
+    en: "Set detail pages now split into Cards | Sealed tabs — no more scrolling past a sealed grid to find the cards section (or vice versa). Tab state persists in the URL so refreshing lands you back on the same view. The Sealed tab surfaces every box, ETB, bundle, premium collection, tin, and blister for that set in one grid",
+  },
+  {
+    date: "2026-07-13",
     emoji: "🎖️",
     kr: "Multi-Grade 가격 타일 활성화 — 카드 상세 페이지 가격 차트 아래 새 섹션 'Graded Prices' 추가 (PSA 10 / PSA 9 / CGC 10 / CGC 9 4개 타일). 앞으로 들어오는 eBay 리스팅이 title 기반으로 자동 분류돼서 각 등급별 median 가격이 별도 저장됨. 첫 크론 돌기 전엔 대부분 'No sold listings indexed yet' 상태 → 며칠 지나면 인기 카드부터 채워짐. 기존 raw 스냅샷은 title 정보가 없어서 재분류 불가라 grade='raw' 유지 (일부 슬랩 오염 포함, 새 파이프라인 돌면서 자연 감소)",
     en: "Multi-Grade price tiles are live — a new 'Graded Prices' section under the price chart on card detail pages shows PSA 10 / PSA 9 / CGC 10 / CGC 9 medians. Every incoming eBay listing now runs through a title classifier and gets bucketed by grade before we compute the median, so slabbed prices no longer contaminate the raw sold-listings number. Most tiles will read 'No sold listings indexed yet' until the next few daily crons — chase cards populate first. Historical raw snapshots stay grade='raw' (their listing titles weren't stored, so retroactive reclassification isn't possible) and will phase out as the new pipeline runs",
