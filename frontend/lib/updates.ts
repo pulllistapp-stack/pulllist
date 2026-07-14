@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-14 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-14",
+    emoji: "📦",
+    kr: "일본판 sealed 상품 251개 추가 — 부스터박스 / 부스터팩 / 카드파일세트 / 스페셜박스 / 스타터덱 등, TCGCSV Pokemon Japan 카테고리(85)에서 212개 세트 매칭해 자동 임포트. 각 상품 USD 시세(market/low/high) 포함, 82%(206장)에 초기 시세 존재. 대표: CP6 20주년 1st Edition Booster Box $10,999, SM9 Tag Bolt Booster Box $3,475, S6a Eevee Heroes Gym Box $1,966, SV5a Crimson Haze Booster Box Case $1,299, SV11B Black Bolt Booster Box $157.98. 데일리 시세 싱크가 EN(카테고리 3)만 돌던 문제도 함께 fix — 이제 JP 상품은 카테고리 85로 라우팅. m6a(30주년)는 세트 seeding 후 자동 편입",
+    en: "251 Japanese sealed products added — booster boxes / packs / card file sets / special boxes / starter decks pulled from TCGCSV Pokemon Japan (categoryId 85) and matched against 212 of our JP sets. USD market/low/high prices are populated on 82% of them (206/251); the rest are deep-cut vintage SKUs with no active TCGplayer listing. Notable: CP6 20th Anniversary 1st Edition Booster Box $10,999, SM9 Tag Bolt Booster Box $3,475, Eevee Heroes Gym Box $1,966, Crimson Haze Booster Box Case $1,299, SV11B Black Bolt Booster Box $157.98. Daily price sync patched at the same time to route JP-linked products through category 85 (was hardcoded to EN's category 3). m6a (30th Celebration) will auto-onboard once its set is seeded.",
+  },
   // ── 2026-07-13 ─────────────────────────────────────────────────
   {
     date: "2026-07-13",

@@ -37,7 +37,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import SessionLocal, init_db
-from app.models import Product, ProductPriceSnapshot
+from app.models import Product, ProductPriceSnapshot, Set
 
 
 logging.basicConfig(
@@ -46,13 +46,19 @@ logging.basicConfig(
 log = logging.getLogger("sync_products_daily")
 
 
-TCGCSV_BASE = "https://tcgcsv.com/tcgplayer/3"
+TCGCSV_BASE = "https://tcgcsv.com/tcgplayer"
+TCGCSV_CAT_EN = 3   # Pokemon
+TCGCSV_CAT_JP = 85  # Pokemon Japan
 UA = "PullList-ProductPrices/1.0 (+https://pulllist.org)"
 SOURCE = "tcgplayer"
 
 
-async def _fetch_prices(client: httpx.AsyncClient, group_id: int) -> list[dict]:
-    r = await client.get(f"{TCGCSV_BASE}/{group_id}/prices", timeout=45)
+async def _fetch_prices(
+    client: httpx.AsyncClient, group_id: int, category_id: int
+) -> list[dict]:
+    r = await client.get(
+        f"{TCGCSV_BASE}/{category_id}/{group_id}/prices", timeout=45
+    )
     r.raise_for_status()
     payload = r.json()
     if isinstance(payload, dict):
@@ -101,7 +107,10 @@ async def run(snapshot_date: str, dry_run: bool) -> None:
 
     async with SessionLocal() as db:
         # Group our products by tcgplayer_group_id so one TCGCSV fetch
-        # covers many products.
+        # covers many products. Joined against sets so we know which
+        # TCGCSV category (3 = Pokemon EN, 85 = Pokemon Japan) to hit
+        # — group IDs live in per-category namespaces so a JP group
+        # like 24721 (m6a) 404s under /3/.
         rows = (
             await db.execute(
                 select(
@@ -111,15 +120,22 @@ async def run(snapshot_date: str, dry_run: bool) -> None:
                     Product.market_price_usd,
                     Product.low_price_usd,
                     Product.high_price_usd,
+                    Set.language,
                 )
+                .join(Set, Product.set_id == Set.id, isouter=True)
                 .where(Product.tcgplayer_product_id.is_not(None))
                 .where(Product.tcgplayer_group_id.is_not(None))
             )
         ).all()
 
-    groups: dict[int, list[tuple]] = defaultdict(list)
-    for pid, tpid, gid, market, low, high in rows:
-        groups[int(gid)].append((pid, int(tpid), market, low, high))
+    # Route each product to the right TCGCSV category. Products with a
+    # null/EN-linked set stay on category 3; JP-linked products flip
+    # to category 85. Fold (category, group) → product list so one
+    # fetch still covers many products.
+    groups: dict[tuple[int, int], list[tuple]] = defaultdict(list)
+    for pid, tpid, gid, market, low, high, lang in rows:
+        cat = TCGCSV_CAT_JP if lang == "ja" else TCGCSV_CAT_EN
+        groups[(cat, int(gid))].append((pid, int(tpid), market, low, high))
     log.info(
         f"tracking {len(rows)} products across {len(groups)} TCGCSV groups"
     )
@@ -134,13 +150,17 @@ async def run(snapshot_date: str, dry_run: bool) -> None:
     }
 
     async with httpx.AsyncClient(headers={"User-Agent": UA}) as client:
-        for group_id, product_list in groups.items():
+        for (category_id, group_id), product_list in groups.items():
             stats["groups"] += 1
             try:
-                price_rows = await _fetch_prices(client, group_id)
+                price_rows = await _fetch_prices(
+                    client, group_id, category_id
+                )
             except Exception as exc:
                 stats["fetch_errors"] += 1
-                log.warning(f"group {group_id} fetch failed: {exc}")
+                log.warning(
+                    f"cat={category_id} group={group_id} fetch failed: {exc}"
+                )
                 continue
 
             # Fold price rows by productId; sealed items are single-
