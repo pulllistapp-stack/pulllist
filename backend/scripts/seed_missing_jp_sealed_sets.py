@@ -124,37 +124,13 @@ _SETS: list[dict] = [
         "printed_total": 17,
         "total": 17,
     },
-    {
-        "id": "S8a-P",
-        "name": "25thアニバーサリー プロモカードパック",
-        "name_en": "25th Anniversary Promo Card Pack",
-        "series": "ソード＆シールド",
-        "set_type": "PROMO_NEW",
-        "set_subtype": None,
-        "release_date": date(2021, 10, 22),
-        "printed_total": 25,
-        "total": 25,
-        # 25 classic-Pokemon reprint promos bundled with the s8a base
-        # release. Separate numbering series (NNN/025) from the base
-        # 25th Anniversary Collection (NNN/028). Common JP catalog
-        # error is to fold both into a single set — we split them.
-    },
-    {
-        "id": "S8a-G",
-        "name": "25thアニバーサリー ゴールデンボックス",
-        "name_en": "25th Anniversary Golden Box",
-        "series": "ソード＆シールド",
-        "set_type": "PROMO_NEW",
-        "set_subtype": "BOX",
-        "release_date": date(2021, 11, 27),
-        "printed_total": 15,
-        "total": 15,
-        # 15-card golden-foil variant set from the s8a-G premium box.
-        # Distinct SKU from the base collection; also gets its own
-        # PullList set to keep the anniversary-family sealed products
-        # attached to the right home.
-    },
 ]
+# NOTE: S8a-P and S8a-G were briefly split into their own sets to
+# match TCGCSV's numbering series, but LO wanted them collapsed
+# back into S8a (matches how TCG Republic groups the 25th Anniversary
+# release as one line for collectors). migrate_s8a_family_merge.py
+# handles the tear-down; import_jp_group_cards then re-imports those
+# TCGCSV groups into S8a with "P" / "G" number prefixes.
 
 
 async def run(dry_run: bool) -> None:

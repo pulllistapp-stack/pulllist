@@ -58,6 +58,25 @@ jobs:
           fi
           python -m scripts.seed_missing_jp_sealed_sets $args
 
+      - name: Merge 25th Anniversary family into S8a (one-shot; idempotent)
+        # LO decided the 3-way split (S8a / S8a-P / S8a-G) is the wrong
+        # UX — collectors think of the 25th Anniversary release as one
+        # product line (TCG Republic groups it that way too). This step
+        # moves any sealed rows off S8a-P/S8a-G onto S8a, deletes the
+        # now-empty sub-set cards + set rows, and lifts S8a.total to 70
+        # (30 base + 25 promo + 15 golden). The card-import step below
+        # then re-imports the promo+golden groups directly into S8a
+        # with number prefixes "P" and "G".
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.migrate_s8a_family_merge $args
+
       - name: Cleanup S8a anniversary artifacts (bogus rows + total)
         # Removes 4 duplicate Pikachu V-UNION panel rows introduced by
         # an earlier import pass with a strict-suffix regex, and lifts
@@ -90,7 +109,7 @@ jobs:
             args="$args --dry-run"
           fi
           python -m scripts.import_jp_group_cards \
-            --pairs "23847:S8a-P,23638:S8a,23838:S8a-G" $args
+            --pairs "23638:S8a,23847:S8a:P,23838:S8a:G" $args
 
       - name: Ingest JP sealed products
         env:

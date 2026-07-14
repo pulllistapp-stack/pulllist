@@ -158,7 +158,21 @@ async def import_pair(
     target_set: str,
     only_missing: bool,
     dry_run: bool,
+    number_prefix: str = "",
+    number_int_offset: int = 0,
 ) -> dict[str, int]:
+    """Import all singles from a TCGCSV group into ``target_set``.
+
+    ``number_prefix`` is prepended to the card's Number string ("1" →
+    "P1" when prefix="P"). This is how the S8a family merge works —
+    the promo pack imports with prefix "P" into set S8a alongside the
+    base cards, avoiding id/number collisions.
+
+    ``number_int_offset`` is added to the parsed integer so sort-by-
+    number keeps the sub-set cards grouped correctly (e.g. all promo
+    cards land in the 101-125 int range, sorting after base 1-30).
+    Ignored when prefix is empty.
+    """
     stats = {
         "products_seen": 0,
         "sealed_skipped": 0,
@@ -201,13 +215,24 @@ async def import_pair(
                 continue
             stats["cards_seen"] += 1
 
-            number = _normalize_number(ext.get("Number"))
-            if number is None:
+            base_number = _normalize_number(ext.get("Number"))
+            if base_number is None:
                 stats["skipped_no_number"] += 1
                 log.warning(
                     f"tcg_pid={tcg_pid} name={name!r} has no Number → skip"
                 )
                 continue
+
+            # Namespace the number for sub-set imports (see docstring
+            # + S8a family merge). Blank prefix = base behavior.
+            number = f"{number_prefix}{base_number}" if number_prefix else base_number
+            try:
+                base_int = int(base_number)
+                num_int = (
+                    number_int_offset + base_int if number_prefix else base_int
+                )
+            except (TypeError, ValueError):
+                num_int = None
 
             card_id = f"{target_set}-{number}"
             rarity = _map_rarity(ext.get("Rarity"))
@@ -223,7 +248,7 @@ async def import_pair(
                 id=card_id,
                 name=clean_name,
                 number=number,
-                number_int=int(number) if number.isdigit() else None,
+                number_int=num_int,
                 rarity=rarity,
                 image_small=image_url,
                 image_large=image_large,
@@ -273,14 +298,25 @@ async def import_pair(
     return stats
 
 
-async def run(pairs: list[tuple[int, str]], only_missing: bool, dry_run: bool) -> None:
+async def run(
+    pairs: list[tuple[int, str, str, int]],
+    only_missing: bool,
+    dry_run: bool,
+) -> None:
     await init_db()
     grand = defaultdict(int)
 
     async with httpx.AsyncClient(headers={"User-Agent": UA}) as client:
-        for gid, target in pairs:
-            log.info(f"=== group {gid} → set {target} ===")
-            stats = await import_pair(client, gid, target, only_missing, dry_run)
+        for gid, target, prefix, offset in pairs:
+            label = f"group {gid} → set {target}"
+            if prefix:
+                label += f" [prefix={prefix!r} offset={offset}]"
+            log.info(f"=== {label} ===")
+            stats = await import_pair(
+                client, gid, target, only_missing, dry_run,
+                number_prefix=prefix,
+                number_int_offset=offset,
+            )
             for k, v in stats.items():
                 log.info(f"  {k}: {v}")
                 grand[k] += v
@@ -292,14 +328,29 @@ async def run(pairs: list[tuple[int, str]], only_missing: bool, dry_run: bool) -
         log.info("MODE: DRY-RUN — no writes")
 
 
-def _parse_pairs(spec: str) -> list[tuple[int, str]]:
+def _parse_pairs(spec: str) -> list[tuple[int, str, str, int]]:
+    """Parse "gid:set" or "gid:set:prefix" (offset auto-derived from
+    prefix letter — 'P' = 100, 'G' = 200, other = 0 which stays inert
+    when no prefix).
+
+    Returns list of (group_id, set_id, prefix, number_int_offset).
+    """
+    _PREFIX_OFFSETS = {"P": 100, "G": 200}
     out = []
     for chunk in spec.split(","):
         chunk = chunk.strip()
         if not chunk:
             continue
-        gid_s, sid = chunk.split(":", 1)
-        out.append((int(gid_s.strip()), sid.strip()))
+        parts = [p.strip() for p in chunk.split(":")]
+        if len(parts) == 2:
+            gid_s, sid = parts
+            prefix, offset = "", 0
+        elif len(parts) == 3:
+            gid_s, sid, prefix = parts
+            offset = _PREFIX_OFFSETS.get(prefix, 0)
+        else:
+            raise ValueError(f"bad pair {chunk!r}: expected gid:set or gid:set:prefix")
+        out.append((int(gid_s), sid, prefix, offset))
     return out
 
 
@@ -322,7 +373,7 @@ def main() -> None:
     if args.pairs:
         pairs = _parse_pairs(args.pairs)
     elif args.group and args.set:
-        pairs = [(args.group, args.set)]
+        pairs = [(args.group, args.set, "", 0)]
     else:
         p.error("provide --pairs OR both --group and --set")
 

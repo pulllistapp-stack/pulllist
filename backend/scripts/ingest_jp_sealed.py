@@ -188,12 +188,11 @@ _TCGCSV_ALIASES: dict[str, str] = {
     "sm3+": "SM3p",  # Shining Legends
     "sm4+": "SM4p",  # GX Battle Boost
     "sm5+": "SM5p",  # Ultra Force
-    # 25th Anniversary sub-groups. Each is a distinct set with its
-    # own numbering scheme — s8a is NNN/028 (30 base cards), s8a-P
-    # is NNN/025 (25 classic-Pokemon reprint promos), s8a-G is 15
-    # golden-foil variants. Route each to its own PullList set.
-    "s8a-g": "S8a-G",
-    "s8a-p": "S8a-P",
+    # 25th Anniversary sub-groups both roll back into S8a. Cards are
+    # namespaced with P/G number prefixes by import_jp_group_cards;
+    # sealed just needs a home, no number collision to worry about.
+    "s8a-g": "S8a",
+    "s8a-p": "S8a",
     # Promo card sets — TCGCSV uses "{era}-P" naming, PullList uses
     # "JPP-{era}" for the same concept.
     "s-p":  "JPP-S",   # SW-era promos
