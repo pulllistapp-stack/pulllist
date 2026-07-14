@@ -96,12 +96,6 @@ _SUBSETS: dict[str, dict] = {
 # want the FULL-scan URL (Bulbapedia's /upload/X/XX/Foo.jpg), not the
 # resized proxy at /upload/thumb/X/XX/Foo.jpg/180px-Foo.jpg.
 _IMG_RE = re.compile(
-    r'<a href="/wiki/File:([^"]+)\.(?:jpg|png))"[^>]*class="mw-file-description"[^>]*>'
-    r'\s*<img[^>]+src="([^"]+)"',
-    re.IGNORECASE,
-)
-# The above regex has a typo (stray `)`); fix inline for clarity:
-_IMG_RE = re.compile(
     r'<a href="/wiki/File:([^"]+)\.(?:jpg|png)"[^>]*class="mw-file-description"[^>]*>'
     r'\s*<img[^>]+src="([^"]+)"',
     re.IGNORECASE,
