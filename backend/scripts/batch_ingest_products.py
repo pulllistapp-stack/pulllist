@@ -61,12 +61,31 @@ _MANUAL_MAP: dict[str, int] = {
 }
 
 
+_TOKEN_ALIASES: dict[str, str] = {
+    # Vintage HGSS sets: TCGCSV writes "HS Undaunted" / "HS-Undaunted"
+    # while our set name is "HS—Undaunted" (em-dash). Fold every HS
+    # variant into a canonical two-token form so the overlap scoring
+    # actually sees the match.
+    "hs": "heartgold soulsilver",
+}
+
+
 def _normalize(s: str) -> str:
     """Lowercase, drop punctuation, collapse whitespace. Keeps digits
-    intact so 'SV01' matches 'sv01'."""
+    intact so 'SV01' matches 'sv01'. Expands well-known abbreviations
+    (HS → heartgold soulsilver) so cross-source name matches survive."""
     s = s.lower()
+    # Em / en dashes → space so "HS—Undaunted" splits into ["hs",
+    # "undaunted"] cleanly.
+    s = s.replace("—", " ").replace("–", " ")
     s = re.sub(r"[^a-z0-9]+", " ", s)
-    return re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"\s+", " ", s).strip()
+    # Token-level alias expansion.
+    parts = s.split()
+    expanded: list[str] = []
+    for tok in parts:
+        expanded.append(_TOKEN_ALIASES.get(tok, tok))
+    return " ".join(expanded)
 
 
 # TCGCSV names carry era-prefixes we don't ("SV09: Journey Together",
@@ -136,6 +155,15 @@ def _score_match(our_set: Set, tcgcsv_group: dict) -> int:
                 rf"\b{padded}\b", haystack
             ):
                 score += 60
+            # SM / XY / HGSS era TCGCSV names look like "SM - Cosmic
+            # Eclipse" or "XY - Evolutions" — they lead with the era
+            # prefix but don't repeat the set number. When our set_id
+            # starts with that same prefix (sm12, xy4, hgss3) AND the
+            # TCGCSV name starts with the same prefix followed by
+            # " -", trust the name-token overlap even at a lower
+            # ratio.
+            if re.match(rf"^{prefix}\s*[-:]\s*", haystack):
+                score += 25
     # Small penalty if the total-token overlap ratio is low — a match
     # sharing "swsh" but no other tokens shouldn't win.
     ratio = len(overlap) / max(len(our_tokens), len(their_tokens))
@@ -195,8 +223,12 @@ async def main() -> None:
     parser.add_argument(
         "--min-score",
         type=int,
-        default=30,
-        help="Minimum match score to accept an auto-mapping (default 30).",
+        default=20,
+        help=(
+            "Minimum match score to accept an auto-mapping (default 20 — "
+            "old SM/XY/HGSS sets score ~20 on name overlap alone; the "
+            "era-code bonuses lift confident matches to 60-135)."
+        ),
     )
     args = parser.parse_args()
 
