@@ -320,7 +320,7 @@ async def _pick_cards(
     limit: int | None,
     min_price: float,
     card_ids: list[str] | None,
-    skip_if_today: bool,
+    skip_if_recent_days: int,
     graded_tier: str,
     snapshot_date: str,
 ) -> list[tuple[Card, Set | None]]:
@@ -328,15 +328,20 @@ async def _pick_cards(
 
     Default gate: EN cards priced above the floor, ranked by market
     DESC. `--card-id` overrides that with an explicit list (one-off
-    testing). When `skip_if_today=True` we drop any card that already
-    has a (source='ebay_sold', grade=WANTED, snapshot_date=today) row
-    — turns the script into a gap-filler for the second run of a day,
-    so soft-blocked or n<MIN cards get retried without re-scraping
-    the ones that already landed.
+    testing).
+
+    When `skip_if_recent_days > 0` we drop any card that already has
+    a (source='ebay_sold', grade=WANTED, snapshot_date >= today-N)
+    row. Zero means "no skip". `1` means skip cards refreshed TODAY
+    (same-day gap fill). Larger values enable rolling coverage: at
+    N=14 the weekly sweep never revisits a card it already got in
+    the last two weeks, so week-over-week we drill deeper into the
+    candidate pool instead of re-scraping the same top-300 chase.
     """
     async with SessionLocal() as db:
         from sqlalchemy.orm import selectinload
         from sqlalchemy import not_, exists
+        from datetime import date, timedelta
 
         stmt = select(Card).options(selectinload(Card.set)).where(
             Card.language == "en"
@@ -348,13 +353,17 @@ async def _pick_cards(
                 Card.market_price_usd.desc()
             )
 
-        if skip_if_today:
+        if skip_if_recent_days > 0:
             wanted_grade = classify_grade(f"dummy {graded_tier}")
+            cutoff = (
+                date.fromisoformat(snapshot_date)
+                - timedelta(days=skip_if_recent_days - 1)
+            ).isoformat()
             already = select(CardPriceSnapshot.card_id).where(
                 CardPriceSnapshot.card_id == Card.id,
                 CardPriceSnapshot.source == SOURCE,
                 CardPriceSnapshot.grade == wanted_grade,
-                CardPriceSnapshot.snapshot_date == snapshot_date,
+                CardPriceSnapshot.snapshot_date >= cutoff,
             )
             stmt = stmt.where(not_(exists(already)))
 
@@ -376,7 +385,7 @@ async def run(
     dry_run: bool,
     card_ids: list[str] | None,
     headless: bool,
-    skip_if_today: bool,
+    skip_if_recent_days: int,
     ipg: int,
     max_attempts: int,
 ) -> None:
@@ -384,14 +393,14 @@ async def run(
 
     cards = await _pick_cards(
         limit, min_price, card_ids,
-        skip_if_today=skip_if_today,
+        skip_if_recent_days=skip_if_recent_days,
         graded_tier=graded_tier,
         snapshot_date=snapshot_date,
     )
     log.info(
         f"scraping {len(cards)} cards for tier {graded_tier!r} "
         f"(headless={headless}, ipg={ipg}, max_attempts={max_attempts}, "
-        f"skip_if_today={skip_if_today})"
+        f"skip_if_recent_days={skip_if_recent_days})"
     )
 
     stats = {
@@ -562,10 +571,21 @@ def main(argv: Iterable[str] | None = None) -> None:
         "--skip-if-today",
         action="store_true",
         help=(
-            "Skip cards that already have an ebay_sold snapshot for the "
-            "same tier on --date. Turns the script into a gap-filler for "
-            "the second run of a day — soft-blocked / n<MIN cards get "
-            "retried without re-scraping the ones already landed."
+            "Legacy alias for --skip-if-recent-days 1. Skip cards that "
+            "already have an ebay_sold snapshot for the same tier today."
+        ),
+    )
+    parser.add_argument(
+        "--skip-if-recent-days",
+        type=int,
+        default=0,
+        help=(
+            "Skip cards with a snapshot in the last N days for the same "
+            "tier. Zero means no skip. `1` gap-fills today's run. `14` "
+            "enables rolling weekly coverage — the sweep never revisits "
+            "a card it hit in the last 2 weeks, so week-over-week we "
+            "drill deeper into the candidate pool instead of re-scraping "
+            "the same top-300 chase."
         ),
     )
     parser.add_argument(
@@ -594,6 +614,11 @@ def main(argv: Iterable[str] | None = None) -> None:
     snapshot_date = args.snapshot_date or date.today().isoformat()
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    # Legacy --skip-if-today == --skip-if-recent-days 1
+    skip_days = args.skip_if_recent_days
+    if args.skip_if_today and skip_days <= 0:
+        skip_days = 1
+
     asyncio.run(
         run(
             graded_tier=args.graded_tier,
@@ -604,7 +629,7 @@ def main(argv: Iterable[str] | None = None) -> None:
             dry_run=args.dry_run,
             card_ids=args.card_ids,
             headless=args.headless,
-            skip_if_today=args.skip_if_today,
+            skip_if_recent_days=skip_days,
             ipg=args.ipg,
             max_attempts=args.max_attempts,
         )

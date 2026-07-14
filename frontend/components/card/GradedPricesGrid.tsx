@@ -14,9 +14,11 @@
  */
 
 import { useEffect, useState } from "react";
-import { Award, Loader2 } from "lucide-react";
+import { Award, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 
 import { API_BASE } from "@/lib/api";
+import { authFetch } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 
 type GradedTier = "psa10" | "psa9" | "cgc10" | "cgc9";
 
@@ -59,6 +61,11 @@ function fmtRelative(iso: string | null): string {
 export function GradedPricesGrid({ cardId }: { cardId: string }) {
   const [data, setData] = useState<GradedResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState<
+    "idle" | "queuing" | "queued" | "error" | "cooldown"
+  >("idle");
+  const [refreshMsg, setRefreshMsg] = useState<string>("");
+  const { user } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -84,16 +91,85 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
     };
   }, [cardId]);
 
+  async function onRefresh() {
+    setRefreshing("queuing");
+    setRefreshMsg("");
+    try {
+      const r = await authFetch<{ status: string; message: string }>(
+        `/cards/${cardId}/refresh-graded-prices`,
+        { method: "POST" },
+      );
+      setRefreshing("queued");
+      setRefreshMsg(r?.message ?? "Refresh queued — check back in 2-3 min");
+    } catch (e: unknown) {
+      const err = e as { status?: number; message?: string };
+      if (err.status === 429) {
+        setRefreshing("cooldown");
+        setRefreshMsg("Already refreshed recently — try again later");
+      } else if (err.status === 401) {
+        setRefreshing("error");
+        setRefreshMsg("Sign in to refresh graded prices");
+      } else {
+        setRefreshing("error");
+        setRefreshMsg(err.message ?? "Refresh failed");
+      }
+    }
+  }
+
   return (
     <section className="mt-8">
-      <div className="flex items-baseline justify-between mb-3">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <h3 className="text-lg font-bold tracking-tight text-text-primary">
           Graded Prices
         </h3>
-        <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
-          Beta · sold-listing medians
-        </span>
+        <div className="flex items-center gap-2">
+          {user && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing === "queuing" || refreshing === "queued"}
+              className={
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 " +
+                "text-[10px] font-mono uppercase tracking-wider " +
+                "border border-border bg-bg-surface hover:bg-bg-elevated " +
+                "text-text-secondary disabled:opacity-60 disabled:cursor-not-allowed " +
+                "transition-colors"
+              }
+              title="Fetch fresh sold-listing data for this card (2-3 min)"
+            >
+              {refreshing === "queuing" ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : refreshing === "queued" ? (
+                <CheckCircle2 className="h-3 w-3 text-accent-green" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              {refreshing === "queuing"
+                ? "Queuing..."
+                : refreshing === "queued"
+                ? "Queued"
+                : "Refresh"}
+            </button>
+          )}
+          <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+            Beta · sold-listing medians
+          </span>
+        </div>
       </div>
+      {refreshMsg && (
+        <div
+          className={
+            "mb-3 text-[11px] px-2.5 py-1.5 rounded-lg border " +
+            (refreshing === "queued"
+              ? "border-accent-green/40 bg-accent-green/10 text-accent-green"
+              : refreshing === "cooldown"
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+              : "border-red-500/40 bg-red-500/10 text-red-400")
+          }
+        >
+          {refreshMsg}
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {TIER_META.map((tier) => {
           const row = data?.[tier.key];

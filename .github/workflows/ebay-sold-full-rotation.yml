@@ -26,14 +26,12 @@ on:
         description: "Delay between cards (ms)"
         required: false
         default: "2000"
-      skip_if_today:
-        description: "Gap-fill mode: skip cards that already got today's snapshot for this tier"
+      skip_if_recent_days:
+        description: "Skip cards refreshed in last N days (0 = re-scrape everything, 14 = weekly-sweep style)"
         required: false
-        default: "false"
-        type: choice
-        options: [ "false", "true" ]
+        default: "0"
       ipg:
-        description: "eBay listings per page (60 default, bump to 120 for wider pool on thin tiers)"
+        description: "eBay listings per page (60 default, 120 for wider pool)"
         required: false
         default: "60"
       max_attempts:
@@ -87,13 +85,6 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          # skip_if_today input arrives as the string "true"/"false".
-          # Only forward the flag when it is "true" so bash never
-          # passes the literal word to argparse.
-          SKIP_FLAG=""
-          if [ "${{ github.event.inputs.skip_if_today }}" = "true" ]; then
-            SKIP_FLAG="--skip-if-today"
-          fi
           xvfb-run --auto-servernum \
             python -m scripts.scrape_ebay_sold \
               --graded-tier "${{ matrix.tier.label }}" \
@@ -102,4 +93,4 @@ jobs:
               --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}" \
               --ipg "${{ github.event.inputs.ipg || '60' }}" \
               --max-attempts "${{ github.event.inputs.max_attempts || '2' }}" \
-              $SKIP_FLAG
+              --skip-if-recent-days "${{ github.event.inputs.skip_if_recent_days || '0' }}"

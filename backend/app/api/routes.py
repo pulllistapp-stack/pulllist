@@ -751,6 +751,100 @@ async def get_card_graded_prices(
     return {tier: latest.get(tier) for tier in ui_tiers}
 
 
+# In-memory refresh cooldown so a single user can't fire the
+# workflow 100× in a minute. Keyed by card_id → last-fire epoch.
+# One-process only, but that's fine — Render runs one instance.
+_REFRESH_LAST_FIRE: dict[str, float] = {}
+_REFRESH_COOLDOWN_SECONDS = 60 * 30  # 30 min per card
+
+# GitHub workflow_dispatch target for the "refresh one card" flow.
+# The token needs `actions: write` scope on this repo. Set via
+# GH_ACTIONS_TOKEN env var on Render — surfaced as a 503 if missing
+# so the frontend can hide the button gracefully.
+_GH_REFRESH_WORKFLOW_URL = (
+    "https://api.github.com/repos/pulllistapp-stack/pulllist/"
+    "actions/workflows/ebay-sold-refresh-one-card.yml/dispatches"
+)
+
+
+@router.post("/cards/{card_id}/refresh-graded-prices")
+async def refresh_card_graded_prices(
+    card_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User | None = Depends(get_current_user_optional),
+) -> dict:
+    """User-triggered refresh: fires the `ebay-sold-refresh-one-card`
+    GH workflow via `workflow_dispatch` API. The workflow scrapes all
+    4 grade tiers for this single card and writes new sold snapshots.
+    Takes ~2-3 minutes end-to-end; caller should show a spinner and
+    reload the card after a couple of minutes.
+
+    Rate limits:
+      * Card must exist (404 if not).
+      * Signed-in only (401 if not). Prevents anonymous flood.
+      * 30-minute cooldown per card_id across all users. Cheaper than
+        per-user + card since PSA/CGC data doesn't change hour-to-hour.
+
+    Returns:
+      * 202 with `{status: "queued", cooldown_until: ts}` on success.
+      * 429 if the cooldown is active — the client should display the
+        remaining wait time.
+      * 503 if the backend has no GH token configured (misconfig).
+    """
+    import os
+    import time
+
+    import httpx
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Sign in required")
+
+    card = await db.get(Card, card_id)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    now = time.time()
+    last = _REFRESH_LAST_FIRE.get(card_id, 0.0)
+    if now - last < _REFRESH_COOLDOWN_SECONDS:
+        wait = int(_REFRESH_COOLDOWN_SECONDS - (now - last))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Cooldown active for this card ({wait}s remaining)",
+        )
+
+    token = os.getenv("GH_ACTIONS_TOKEN")
+    if not token:
+        raise HTTPException(
+            status_code=503,
+            detail="Refresh not configured (missing GH_ACTIONS_TOKEN)",
+        )
+
+    payload = {
+        "ref": "main",
+        "inputs": {"card_id": card_id},
+    }
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.post(_GH_REFRESH_WORKFLOW_URL, json=payload, headers=headers)
+    if r.status_code >= 400:
+        # 401 = bad token, 404 = wrong workflow, 422 = bad ref
+        raise HTTPException(
+            status_code=502,
+            detail=f"GitHub dispatch failed: {r.status_code} {r.text[:200]}",
+        )
+
+    _REFRESH_LAST_FIRE[card_id] = now
+    return {
+        "status": "queued",
+        "message": "Refresh queued — check back in 2-3 minutes",
+        "cooldown_until": int(now + _REFRESH_COOLDOWN_SECONDS),
+    }
+
+
 @router.get("/cards/trending")
 async def get_trending(
     db: AsyncSession = Depends(get_db),

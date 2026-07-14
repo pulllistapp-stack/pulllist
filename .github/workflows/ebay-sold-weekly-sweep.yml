@@ -2,44 +2,52 @@ name: eBay sold-listing scrape — weekly gap-fill sweep
 
 # The "set and forget" companion to the on-demand full-rotation.
 # Every Sunday 08:00 UTC (03:00 ET, eBay off-peak) each grade
-# tier grabs the next 300 uncovered cards on its own runner in
-# parallel. `skip-if-today=true` means we NEVER re-scrape a card
-# that already has today's snapshot, so we only visit cards that
-# no rotation has touched today. Cadence is a compromise between
-# saturation speed and GH Actions minutes on the free tier.
+# tier grabs the next 400 uncovered cards on its own runner in
+# matrix parallel. `skip-if-recent-days=14` means the sweep never
+# revisits a card scraped in the last two weeks, so the candidate
+# pool shrinks week-over-week — coverage drills deeper into the
+# $35+ tier instead of re-scraping the same top chase.
 #
-# Saturation math ($10+ pool = 4,635 EN cards × 4 tiers):
-#   ~12 weeks (Sundays) × 300 cards/tier/week = 3,600 cards/tier
-#   ~= 15 weeks to cover most of $10+ chase at all four tiers.
+# Saturation math ($35+ pool = ~2,200 EN cards × 4 tiers):
+#     Week 1: top 400 chase covered
+#     Week 2: next 400 (skip week 1 — still <14d old)
+#     Week 3: next 400 (skip weeks 1-2)
+#     ...
+#     Week 6: full $35+ pool covered per tier
+#     Week 7+: week 1 ages past 14 days → refreshes.
+#   Steady state: each card refreshed every ~5-6 weeks.
 #
 # Budget math (private repo, 2,000 min/mo free tier):
-#   4 runners × (300 × ~22s + 5 min setup) = 4 × ~115 min = 460 min/sweep
-#   × 4 sweeps/month = ~1,840 min/mo = 92% budget.
-#   Combined with the daily-tier rotation (~1,170 min/mo) this
-#   pushes total usage over budget — LO must either (a) accept
-#   the ~$8/mo overage, (b) make the repo public for unlimited
-#   minutes, or (c) disable the daily rotation and rely on this
-#   weekly sweep alone.
+#   4 runners × (400 × ~22s + 5 min setup) = 4 × ~150 min = 600 min/sweep
+#   × ~4.3 sweeps/month = ~2,580 min/mo → ~30% over budget alone.
+#   Plus the daily-tier rotation adds ~1,170 min/mo. Options:
+#     (a) Accept ~$14/mo overage.
+#     (b) Make the repo public → unlimited free minutes.
+#     (c) Disable daily rotation (keep sweep only).
+#     (d) Shrink limit to 250 → ~1,720 min/mo alone.
+# Per-card manual "Refresh" from the frontend uses a separate
+# workflow (ebay-sold-refresh-one-card.yml) that fires exactly one
+# scrape per click, so users can top up specific listings on
+# demand without waiting for the Sunday cadence.
 
 on:
   schedule:
-    # Sunday 08:00 UTC. Off-peak on eBay's US-facing traffic;
-    # one hour before the daily per-tier rotation's own 09:00 UTC
-    # so it grabs Sunday's PSA 10 asking rotation *before* the
-    # skip-if-today filter would exclude it — but our sweep is
-    # source='ebay_sold', a distinct source key from the daily
-    # 'ebay' rotation, so the two don't step on each other anyway.
+    # Sunday 08:00 UTC (03:00 ET), eBay off-peak.
     - cron: "0 8 * * 0"
   workflow_dispatch:
     inputs:
       limit:
-        description: "Cards PER TIER this sweep (raise for aggressive fill)"
+        description: "Cards PER TIER this sweep"
         required: false
-        default: "300"
+        default: "400"
       min_price:
         description: "Skip cards below this market_price_usd"
         required: false
-        default: "10"
+        default: "35"
+      skip_if_recent_days:
+        description: "Skip cards refreshed in last N days (14 default = rolling coverage)"
+        required: false
+        default: "14"
 
 jobs:
   sweep:
@@ -79,17 +87,13 @@ jobs:
       - name: Weekly gap-fill ${{ matrix.tier.label }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        # Always skip-if-today. This is the point of the sweep —
-        # never re-scrape work we already have. Bigger ipg + one
-        # extra retry to squeeze the tail of the candidate list
-        # where soft-blocks are common.
         run: |
           xvfb-run --auto-servernum \
             python -m scripts.scrape_ebay_sold \
               --graded-tier "${{ matrix.tier.label }}" \
-              --limit "${{ github.event.inputs.limit || '300' }}" \
-              --min-price "${{ github.event.inputs.min_price || '10' }}" \
+              --limit "${{ github.event.inputs.limit || '400' }}" \
+              --min-price "${{ github.event.inputs.min_price || '35' }}" \
               --throttle-ms 2000 \
               --ipg 120 \
               --max-attempts 3 \
-              --skip-if-today
+              --skip-if-recent-days "${{ github.event.inputs.skip_if_recent_days || '14' }}"
