@@ -302,11 +302,27 @@ def _conflict_insert(dialect: str):
 
 
 async def _flush(db: AsyncSession, rows: list[dict]) -> int:
+    """Upsert snapshot rows. On (card_id, source, variant, grade,
+    snapshot_date) conflict we OVERWRITE with the newer values so a
+    user-triggered Refresh actually updates the tile — previously
+    DO NOTHING silently dropped the second write on the same day,
+    which was invisibly confusing (button "worked", tile didn't
+    change). Same-day double-writes are rare outside Refresh, and
+    when they do happen we prefer the fresher scrape."""
     if not rows:
         return 0
     dialect = db.bind.dialect.name
-    stmt = _conflict_insert(dialect).values(rows).on_conflict_do_nothing(
-        index_elements=["card_id", "source", "variant", "grade", "snapshot_date"]
+    stmt = _conflict_insert(dialect).values(rows)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["card_id", "source", "variant", "grade", "snapshot_date"],
+        set_={
+            "market_price_usd": stmt.excluded.market_price_usd,
+            "low_price_usd": stmt.excluded.low_price_usd,
+            "mid_price_usd": stmt.excluded.mid_price_usd,
+            "high_price_usd": stmt.excluded.high_price_usd,
+            "sales_count": stmt.excluded.sales_count,
+            "snapshot_at": stmt.excluded.snapshot_at,
+        },
     )
     r = await db.execute(stmt)
     await db.commit()
