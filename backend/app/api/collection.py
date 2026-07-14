@@ -513,7 +513,14 @@ async def my_summary(
 ) -> dict:
     """High-level stats for the user's whole collection. Variant-aware
     pricing means user with a reverseHolofoil Larvitar gets credit for
-    its $34.67 market while a normal Larvitar gets $0.50."""
+    its $34.67 market while a normal Larvitar gets $0.50.
+
+    Portfolio value combines singles + sealed so the /portfolio header
+    reflects the entire holdings, not just cards. `cards_value_usd`
+    and `sealed_value_usd` remain broken out for the mix donut.
+    """
+    from app.models import Product, SealedCollectionItem
+
     rows = (
         await db.execute(
             select(
@@ -533,7 +540,7 @@ async def my_summary(
     sets_touched: set[str] = set()
     total_entries = 0
     total_qty = 0
-    value = 0.0
+    cards_value = 0.0
     for qty, variant, card_id, set_id, prices, fallback in rows:
         total_entries += 1
         unique_ids.add(card_id)
@@ -541,12 +548,48 @@ async def my_summary(
         total_qty += qty or 0
         p = price_for_variant(prices, variant, fallback)
         if p is not None:
-            value += (qty or 0) * p
+            cards_value += (qty or 0) * p
+
+    # Sealed side — join SealedCollectionItem to Product for market
+    # price. Sealed items don't carry variant / grade, so this is a
+    # single sum.
+    sealed_rows = (
+        await db.execute(
+            select(
+                SealedCollectionItem.qty,
+                Product.market_price_usd,
+            )
+            .join(Product, SealedCollectionItem.product_id == Product.id)
+            .where(SealedCollectionItem.user_id == user.id)
+        )
+    ).all()
+    sealed_qty = 0
+    sealed_unique = 0
+    sealed_value = 0.0
+    for qty, market in sealed_rows:
+        sealed_unique += 1
+        q = qty or 0
+        sealed_qty += q
+        if market is not None:
+            sealed_value += q * float(market)
+
+    total_value = cards_value + sealed_value
 
     return {
+        # Legacy keys — Cards-only, kept for backward compatibility
+        # with older frontend builds that only knew about singles.
         "total_entries": total_entries,
         "unique_cards": len(unique_ids),
         "total_qty": total_qty,
         "sets_touched": len(sets_touched),
-        "estimated_value_usd": round(value, 2),
+        # `estimated_value_usd` now reflects the combined portfolio so
+        # every existing card that reads this field picks up sealed
+        # value automatically. The pre-split card-only value is still
+        # available as `cards_value_usd`.
+        "estimated_value_usd": round(total_value, 2),
+        # New breakdown fields.
+        "cards_value_usd": round(cards_value, 2),
+        "sealed_value_usd": round(sealed_value, 2),
+        "sealed_unique_products": sealed_unique,
+        "sealed_total_qty": sealed_qty,
     }

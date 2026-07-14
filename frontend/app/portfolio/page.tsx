@@ -246,6 +246,9 @@ export default function PortfolioPage() {
   );
 
   const value = summary?.estimated_value_usd ?? 0;
+  const cardsValue = summary?.cards_value_usd ?? value;
+  const sealedValue = summary?.sealed_value_usd ?? 0;
+  const sealedUnique = summary?.sealed_unique_products ?? 0;
   const cardsOwned = summary?.unique_cards ?? 0;
   const totalQty = summary?.total_qty ?? 0;
   const setsTouched = summary?.sets_touched ?? 0;
@@ -363,14 +366,34 @@ export default function PortfolioPage() {
         <div className="flex flex-col gap-4">
           <div className="rounded-card bg-bg-surface border border-border p-5">
             <div className="text-xs font-mono uppercase tracking-wider text-text-tertiary">
-              Total collection value
+              Total portfolio value
             </div>
             <div className="mt-2 font-mono text-3xl font-bold text-accent-green">
               ${value.toFixed(2)}
             </div>
             <div className="mt-1 text-xs text-text-tertiary">
-              Based on current TCGplayer + eBay market prices
+              Cards + sealed · TCGplayer & eBay market prices
             </div>
+            {sealedValue > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/60 pt-3 text-xs">
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+                    Cards
+                  </div>
+                  <div className="mt-0.5 font-mono font-semibold text-text-primary">
+                    ${cardsValue.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+                    Sealed
+                  </div>
+                  <div className="mt-0.5 font-mono font-semibold text-text-primary">
+                    ${sealedValue.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -378,6 +401,12 @@ export default function PortfolioPage() {
             <MiniStat label="Total copies" value={totalQty.toLocaleString()} />
             <MiniStat label="Sets touched" value={setsTouched.toLocaleString()} />
             <MiniStat label="Master sets" value={masterSets.toLocaleString()} highlight />
+            {sealedUnique > 0 && (
+              <MiniStat
+                label="Sealed products"
+                value={sealedUnique.toLocaleString()}
+              />
+            )}
           </div>
         </div>
 

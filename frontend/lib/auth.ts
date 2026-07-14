@@ -216,7 +216,15 @@ export type CollectionSummary = {
   unique_cards: number;
   total_qty: number;
   sets_touched: number;
+  /** Combined portfolio value (cards + sealed). Legacy field, so
+   *  every existing UI that reads it picks up the sealed side for
+   *  free. Broken out further via `cards_value_usd` +
+   *  `sealed_value_usd`. */
   estimated_value_usd: number;
+  cards_value_usd?: number;
+  sealed_value_usd?: number;
+  sealed_unique_products?: number;
+  sealed_total_qty?: number;
 };
 
 export type SetCompletion = {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, Box, TrendingDown, TrendingUp } from "lucide-react";
 
+import { ProductLiveListings } from "@/components/products/ProductLiveListings";
 import { ProductOwnButtons } from "@/components/products/ProductOwnButtons";
 import { ProductPriceChart } from "@/components/products/ProductPriceChart";
 import { getProduct } from "@/lib/api";
@@ -193,6 +194,7 @@ export default async function ProductDetailPage({
       </div>
 
       <ProductPriceChart productId={product.id} />
+      <ProductLiveListings productId={product.id} />
 
       {product.set_id && (
         <div className="mt-10">

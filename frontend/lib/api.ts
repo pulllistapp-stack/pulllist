@@ -781,6 +781,34 @@ export function getProductHistory(
   return apiFetch<ProductHistory>(`/products/${id}/history?days=${days}`);
 }
 
+export type ProductLiveListing = {
+  title: string;
+  price_usd: number;
+  shipping_usd: number;
+  total_usd: number;
+  url: string | null;
+  image_url: string | null;
+  seller: string | null;
+  condition: string | null;
+  location: string | null;
+};
+
+export type ProductLiveListings = {
+  listings: ProductLiveListing[];
+  query: string;
+  product_id?: string;
+  error?: string;
+};
+
+export function getProductLiveListings(
+  id: string,
+  limit = 12,
+): Promise<ProductLiveListings> {
+  return apiFetch<ProductLiveListings>(
+    `/products/${id}/live-listings?limit=${limit}`,
+  );
+}
+
 // ── Series (roadmap §10.8 G) ────────────────────────────────────
 
 export type SeriesSummary = {

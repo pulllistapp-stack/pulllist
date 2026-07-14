@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Card, Product, ProductPriceSnapshot, Set
+from app.services.ebay_client import EbayClient, EbayClientError
 
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -207,6 +208,15 @@ async def list_products(
     sort: str = Query("newest", pattern="^(newest|price_desc|price_asc|name)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
+    include_unpriced: bool = Query(
+        False,
+        description=(
+            "Include products missing a TCGCSV market price. Default false — "
+            "the browse grid stays clean; the ~14% of SKUs without a price "
+            "usually mean TCGCSV hasn't listed sold inventory in the last "
+            "week (obscure McDonald's promos, old regional exclusives, etc.)."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Browse sealed products. Optional filters: set_id / product_type.
@@ -222,6 +232,12 @@ async def list_products(
         base = base.where(Product.set_id == set_id)
     if product_type:
         base = base.where(Product.product_type == product_type)
+    if not include_unpriced:
+        # 14% of the catalog carries no market price (TCGCSV hasn't
+        # listed sold inventory recently, or the SKU is a McDonald's
+        # promo pack / obscure regional exclusive). Show `—` tiles by
+        # default clutters the grid; opt-in via ?include_unpriced=1.
+        base = base.where(Product.market_price_usd.is_not(None))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_stmt)).scalar_one()
@@ -323,24 +339,101 @@ async def get_product_history(
     }
 
 
+@router.get("/{product_id}/live-listings", response_model=dict)
+async def get_product_live_listings(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(10, ge=1, le=20),
+) -> dict:
+    """Live eBay listings for a sealed product. Mirrors the card-side
+    /cards/{id}/live-listings endpoint so the same UI component pattern
+    works on both surfaces.
+
+    Product searches don't need the strict per-card number filter —
+    eBay's Browse ranking for a full product name ("Prismatic
+    Evolutions Elite Trainer Box") already returns the right SKU
+    reliably. We still drop below-USD and negative-price rows to keep
+    the panel clean.
+    """
+    product = await db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(404, "Product not found")
+
+    query = f"pokemon {product.name}".strip()
+    try:
+        async with EbayClient() as ebay:
+            result = await ebay.browse_search(query, limit=min(limit * 2, 30))
+    except EbayClientError as e:
+        return {"listings": [], "query": query, "error": str(e)}
+    except Exception as e:
+        return {"listings": [], "query": query, "error": f"unexpected: {e}"}
+
+    raw_items = result.get("itemSummaries") or []
+    listings: list[dict] = []
+    for it in raw_items:
+        if len(listings) >= limit:
+            break
+        price_obj = it.get("price") or {}
+        try:
+            price_v = float(price_obj.get("value", 0))
+        except (TypeError, ValueError):
+            continue
+        if price_v <= 0:
+            continue
+        currency = price_obj.get("currency", "USD")
+        if currency != "USD":
+            continue
+        ship_cost = 0.0
+        ship_opts = it.get("shippingOptions") or []
+        if ship_opts:
+            ship_obj = ship_opts[0].get("shippingCost") or {}
+            try:
+                ship_cost = float(ship_obj.get("value", 0))
+            except (TypeError, ValueError):
+                ship_cost = 0.0
+        image_url = None
+        image_obj = it.get("image") or {}
+        if isinstance(image_obj, dict):
+            image_url = image_obj.get("imageUrl")
+        listings.append(
+            {
+                "title": it.get("title") or "",
+                "price_usd": price_v,
+                "shipping_usd": ship_cost,
+                "total_usd": price_v + ship_cost,
+                "url": it.get("itemWebUrl") or it.get("itemHref"),
+                "image_url": image_url,
+                "seller": (it.get("seller") or {}).get("username"),
+                "condition": it.get("condition"),
+                "location": (it.get("itemLocation") or {}).get("country"),
+            }
+        )
+
+    return {
+        "listings": listings,
+        "query": query,
+        "product_id": product_id,
+    }
+
+
 @router.get("/set/{set_id}/list", response_model=list[ProductRead])
 async def list_products_for_set(
     set_id: str,
     response: Response,
+    include_unpriced: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ) -> list[ProductRead]:
     """All sealed products for a set — used by /sets/[id] page's
     'Sealed products' section. Ordered by price desc so the big-ticket
-    Booster Box / ETB Case land first."""
+    Booster Box / ETB Case land first. Unpriced SKUs hidden by default
+    so a fresh /sets/[id] doesn't lead with `—` tiles."""
     s = await db.get(Set, set_id)
     if s is None:
         raise HTTPException(404, "Set not found")
-    rows = (
-        await db.execute(
-            select(Product)
-            .where(Product.set_id == set_id)
-            .order_by(Product.market_price_usd.desc().nullslast())
-        )
-    ).scalars().all()
+    stmt = select(Product).where(Product.set_id == set_id)
+    if not include_unpriced:
+        stmt = stmt.where(Product.market_price_usd.is_not(None))
+    stmt = stmt.order_by(Product.market_price_usd.desc().nullslast())
+    rows = (await db.execute(stmt)).scalars().all()
     response.headers["Cache-Control"] = _CATALOG_CACHE
     return [_row_to_read(p, s.name) for p in rows]
