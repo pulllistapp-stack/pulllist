@@ -111,6 +111,35 @@ jobs:
           python -m scripts.import_jp_group_cards \
             --pairs "23638:S8a,23847:S8a:P,23838:S8a:G" $args
 
+      - name: Repair S8a base card images (undo tcgplayer-cdn overwrite)
+        # NULLs image_small/image_large on S8a base 30 cards where the
+        # earlier import overwrote Bulbapedia scans with TCGCSV 200w
+        # thumbnails. Next step re-fills those NULLs from Bulbapedia.
+        # Idempotent after first successful backfill.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.repair_s8a_base_images $args
+
+      - name: Restore S8a base card images from Bulbapedia
+        # Picks up the NULLs the previous step cleared. --set S8a
+        # scopes the sweep to just this set — full-sweep still runs
+        # nightly elsewhere if needed.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args="--set S8a"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.backfill_jp_images_bulbapedia $args
+
       - name: Ingest JP sealed products
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

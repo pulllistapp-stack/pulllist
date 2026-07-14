@@ -237,7 +237,11 @@ async def import_pair(
             card_id = f"{target_set}-{number}"
             rarity = _map_rarity(ext.get("Rarity"))
             image_url = p.get("imageUrl")
-            image_large = image_url.replace("_200w", "_1000x1000") if image_url else None
+            # TCGCSV serves only _200w and _400w on tcgplayer-cdn.
+            # The earlier _1000x1000 substitution 403s — keep image_large
+            # to the largest size TCGCSV actually returns (_400w ~ 73KB
+            # vs _200w ~ 20KB).
+            image_large = image_url.replace("_200w", "_400w") if image_url else None
             market, low, mid, high = _pick_price(prices_by_pid.get(int(tcg_pid), []))
 
             # Strip the trailing " - NNN/YYY" that TCGCSV sometimes
@@ -280,9 +284,16 @@ async def import_pair(
                 db.add(Card(**fields))
                 stats["added"] += 1
             else:
+                # Never overwrite image_small/image_large on update —
+                # cards seeded from Bulbapedia (or any non-TCGCSV
+                # source) carry higher-res scans than TCGCSV's 200w
+                # thumbnails, and blindly re-writing them regresses
+                # image quality. Fresh-insert rows still get the
+                # TCGCSV image below because they had nothing.
+                _IMAGE_KEYS = {"image_small", "image_large"}
                 changed = False
                 for k, v in fields.items():
-                    if k == "id":
+                    if k == "id" or k in _IMAGE_KEYS:
                         continue
                     if getattr(existing, k) != v:
                         setattr(existing, k, v)
