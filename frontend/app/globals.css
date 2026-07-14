@@ -107,6 +107,34 @@
     }
   }
 
+  /* Reverse-holo idle shine on set-page thumbnails. A diagonal
+     rainbow gradient sweeps across the card at slow cadence — subtle
+     enough that a grid of non-RH cards isn't visually noisy, obvious
+     enough that RH-eligible cards stand out at a glance. */
+  @keyframes pl-rh-shine {
+    0% {
+      transform: translateX(-120%) skewX(-18deg);
+    }
+    100% {
+      transform: translateX(220%) skewX(-18deg);
+    }
+  }
+  .reverse-holo-shine {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      110deg,
+      transparent 30%,
+      rgba(56, 189, 248, 0.28) 42%,
+      rgba(232, 121, 249, 0.32) 50%,
+      rgba(253, 224, 71, 0.28) 58%,
+      transparent 70%
+    );
+    mix-blend-mode: screen;
+    animation: pl-rh-shine 3.6s ease-in-out infinite;
+    pointer-events: none;
+  }
+
   .pulse-dot {
     position: relative;
   }

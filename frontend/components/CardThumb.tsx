@@ -21,10 +21,34 @@ function fmtPriceTag(price: number | null | undefined): string | null {
   return `$${price.toFixed(2)}`;
 }
 
+/**
+ * Does this card have a reverse-holo variant on TCGplayer? Reverse
+ * holos share the card id but sell as a distinct SKU, so surfacing
+ * the fact on the grid tile saves users a click to figure out whether
+ * they need to hunt down a second copy.
+ *
+ * Heuristic: `tcgplayer_prices` contains a `reverseHolofoil` key with
+ * ANY price signal (market / mid / low / high). Cards that only carry
+ * a `normal` or `holofoil` entry return false. First-edition + shiny
+ * vault variants get skipped by design — those are separate cards in
+ * our catalog, not variants of the same id.
+ */
+function hasReverseHoloVariant(card: Card): boolean {
+  const prices = card.tcgplayer_prices?.reverseHolofoil;
+  if (!prices) return false;
+  return (
+    prices.market != null ||
+    prices.mid != null ||
+    prices.low != null ||
+    prices.high != null
+  );
+}
+
 export function CardThumb({ card, priority = false }: Props) {
   const { has } = useCollection();
   const owned = has(card.id);
   const priceLabel = fmtPriceTag(card.market_price_usd);
+  const hasReverseHolo = hasReverseHoloVariant(card);
 
   return (
     <Link
@@ -75,6 +99,27 @@ export function CardThumb({ card, priority = false }: Props) {
         <div className="absolute top-1.5 right-1.5">
           <WishlistHeart cardId={card.id} variant="corner" />
         </div>
+
+        {/* Reverse-holo indicator — continuous shine + "RH" chip on
+            the bottom edge so browsers can spot RH-eligible cards
+            without opening the detail page. Purely visual overlay;
+            doesn't block clicks (pointer-events: none). */}
+        {hasReverseHolo && (
+          <>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 overflow-hidden rounded-md"
+            >
+              <span className="reverse-holo-shine" />
+            </span>
+            <span
+              className="absolute bottom-1.5 right-1.5 rounded-full bg-gradient-to-br from-cyan-300 via-fuchsia-300 to-yellow-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-900 shadow-md shadow-fuchsia-500/20 ring-1 ring-white/30"
+              title="Reverse Holo variant available"
+            >
+              RH
+            </span>
+          </>
+        )}
       </div>
 
       <div className="mt-2 px-1 flex flex-col gap-1">
