@@ -61,7 +61,19 @@ log = logging.getLogger("scrape_ebay_sold")
 
 SOURCE = "ebay_sold"
 VARIANT = "active"  # sold snapshots share the variant-key space with asking rows
-MIN_LISTINGS_PER_GRADE = 2
+# Bumped from 2 → 5 after the first prod run. n=3-4 buckets produced
+# unstable medians (Charizard δ n=3 → $3,737 with $19,500 hi). n≥5
+# tightens signal-to-noise at the cost of dropping a few thin cards
+# per run — those tend to have wide asks anyway.
+MIN_LISTINGS_PER_GRADE = 5
+
+# Trim the top/bottom TRIM_PCT of listings before taking the median,
+# but only when the sample is large enough for a trim to make sense.
+# Filters out obvious scam listings ($174k Pikachu, $85k Mewtwo) and
+# ads/pop-report/raw-slipthrough on the low end ($19.99 Umbreon VMAX)
+# without hurting cards that already cluster tightly.
+TRIM_PCT = 0.10
+TRIM_MIN_N = 10
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -108,22 +120,75 @@ def _parse_sold(html: str) -> list[tuple[str, float]]:
 
 
 def _card_number_match(title: str, card_number: str | None) -> bool:
-    """Loose card-number match — accepts `161/131`, `#161`, `-161`.
-    Rejects listings that reference a DIFFERENT explicit number so a
-    #060 promo doesn't sneak into a #161 SIR bucket."""
+    """Strict card-number match — the card's number MUST appear in
+    the title (word-bounded, zero-pad tolerant). Reject listings that
+    reference a DIFFERENT explicit number, AND reject listings that
+    have no matching number at all when the card has one.
+
+    Tightened after the first prod run: the previous fallback ("no
+    digit-slash-digit anywhere → keep") let generic bulk lots slip
+    through — "Pokemon PSA 10 Gem Mint Lot" would pass even when
+    scraping Shining Charizard 107. We give up a few promo-style
+    hits without printed numbers, but for numbered cards this is
+    the right trade — that's the vast majority of chase inventory.
+    """
     if not card_number:
         return True
     num = card_number.split("/")[0].lstrip("0") or card_number.split("/")[0]
     if not num:
         return True
-    # Explicit number in title (word-bounded).
-    if re.search(rf"\b0*{re.escape(num)}\b", title):
-        return True
-    # Fallback: no digit-slash-digit anywhere → keep (Nintendo Black
-    # Star Promos, POP Series etc. that ship without printed numbers).
-    if not re.search(r"\b\d{1,3}\s*/\s*\d{1,3}\b", title):
-        return True
-    return False
+    # Explicit number in title (word-bounded). Zero-pad tolerant so
+    # "161" matches "0161", "00161".
+    return bool(re.search(rf"\b0*{re.escape(num)}\b", title))
+
+
+# Words that carry so little info they don't help identify a card.
+_NAME_STOPWORDS = frozenset(
+    {
+        "the", "of", "and", "a", "an", "de", "la", "le", "el",
+        "ex", "gx", "vmax", "vstar", "v",  # too generic — thousands of listings have "ex" without being THIS ex
+    }
+)
+
+
+def _first_content_word(card_name: str) -> str | None:
+    """Pull the first substantive word from a card name — the primary
+    identifier we can require in the listing title. E.g.:
+        "Umbreon ex"        → "umbreon"
+        "Mewtwo ★"          → "mewtwo"
+        "Latias & Latios-GX"→ "latias"
+    """
+    for word in re.split(r"[\s\-&/]+", (card_name or "").lower()):
+        clean = re.sub(r"[^a-z0-9]", "", word)
+        if clean and clean not in _NAME_STOPWORDS and len(clean) >= 3:
+            return clean
+    return None
+
+
+def _card_name_match(title: str, card_name: str) -> bool:
+    """Title must contain the card's primary identifier word. Rejects
+    generic "Pokemon PSA 10 Bulk Lot" listings the query returns as
+    filler. Case-insensitive substring, not word-bounded — Pokémon
+    listings often mangle spacing ("UmbreonEX")."""
+    key = _first_content_word(card_name)
+    if not key:
+        return True  # No usable identifier → don't filter (rare)
+    return key in title.lower()
+
+
+def _trim_median(prices: list[float]) -> tuple[float, float, float, int]:
+    """Sort, optionally trim the tails, then return
+    (low_kept, median, high_kept, n_kept)."""
+    prices = sorted(prices)
+    n = len(prices)
+    if n >= TRIM_MIN_N:
+        drop = max(1, int(round(n * TRIM_PCT)))
+        kept = prices[drop : n - drop]
+        if len(kept) < 3:
+            kept = prices  # too aggressive for the sample, unwind
+    else:
+        kept = prices
+    return kept[0], float(_median(kept)), kept[-1], len(kept)
 
 
 # ── Playwright driver ─────────────────────────────────────────────
@@ -341,14 +406,21 @@ async def run(
                 for marker in ("s-card", "captcha", "unusual", "shop on ebay"):
                     log.info(f"  '{marker}' count: {html.lower().count(marker)}")
 
-            # Filter by card number + grade classifier tag matches
-            # the requested tier.
+            # Filter by card number + name + grade classifier. All three
+            # must pass for a listing to count. Rejected reasons are
+            # tallied so we can spot bad queries.
             wanted_grade = classify_grade(f"dummy {graded_tier}")
             prices: list[float] = []
+            rej = {"number": 0, "name": 0, "grade": 0}
             for title, price in listings:
                 if not _card_number_match(title, card.number):
+                    rej["number"] += 1
+                    continue
+                if not _card_name_match(title, card.name):
+                    rej["name"] += 1
                     continue
                 if classify_grade(title) != wanted_grade:
+                    rej["grade"] += 1
                     continue
                 prices.append(price)
 
@@ -357,20 +429,19 @@ async def run(
                 log.info(
                     f"[{stats['cards_seen']}/{len(cards)}] {card.id} "
                     f"({card.name[:30]}) {graded_tier}: n={len(prices)} "
-                    "— below MIN, skipped"
+                    f"(rej {rej}) — below MIN, skipped"
                 )
                 continue
             stats["cards_with_data"] += 1
             stats["listings_in_bucket"] += len(prices)
 
-            prices.sort()
-            n = len(prices)
-            med = float(_median(prices))
-            lo, hi = float(prices[0]), float(prices[-1])
+            lo_raw, hi_raw = float(min(prices)), float(max(prices))
+            lo, med, hi, n_kept = _trim_median(prices)
             log.info(
                 f"[{stats['cards_seen']}/{len(cards)}] {card.id} "
-                f"({card.name[:30]}) {graded_tier}: n={n} "
-                f"lo=${lo:.2f} med=${med:.2f} hi=${hi:.2f}"
+                f"({card.name[:30]}) {graded_tier}: n={len(prices)}→{n_kept} "
+                f"lo=${lo:.2f} med=${med:.2f} hi=${hi:.2f} "
+                f"(pre-trim ${lo_raw:.2f}-${hi_raw:.2f})"
             )
 
             if not dry_run:
@@ -387,7 +458,7 @@ async def run(
                                 "low_price_usd": lo,
                                 "mid_price_usd": med,
                                 "high_price_usd": hi,
-                                "sales_count": n,
+                                "sales_count": n_kept,
                                 "snapshot_at": datetime.utcnow(),
                                 "snapshot_date": snapshot_date,
                             }

@@ -1,0 +1,106 @@
+name: eBay sold-listing scrape — full 4-tier rotation (manual)
+
+# Fires all 4 grade tiers (PSA 10, PSA 9, CGC 10, CGC 9) in a single
+# job, one after the other. Intended for overnight/on-demand runs so
+# a full coverage sweep lands in one queue click. The scheduled per-
+# day rotation in `ebay-sold-scrape.yml` handles the ongoing
+# maintenance cadence; this one exists for catch-up passes and
+# initial backfill.
+#
+# Budget note (GH Actions free tier 2000 min/mo for private repos):
+# with defaults limit=120, min-price=30, one full rotation ~= 150-
+# 210 minutes on a hosted runner. Two overnight runs per week is
+# safely inside budget.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max chase cards PER TIER"
+        required: false
+        default: "120"
+      min_price:
+        description: "Skip cards below this market_price_usd"
+        required: false
+        default: "30"
+      throttle_ms:
+        description: "Delay between cards (ms)"
+        required: false
+        default: "2000"
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # ~5h50 hard cap; single-tier ~= 40-50 min
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright + Chromium
+        run: |
+          pip install playwright playwright-stealth
+          python -m playwright install --with-deps chromium
+
+      - name: Install Xvfb
+        run: sudo apt-get install -y xvfb
+
+      - name: Scrape PSA 10
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          xvfb-run --auto-servernum \
+            python -m scripts.scrape_ebay_sold \
+              --graded-tier "PSA 10" \
+              --limit "${{ github.event.inputs.limit || '120' }}" \
+              --min-price "${{ github.event.inputs.min_price || '30' }}" \
+              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
+
+      - name: Scrape PSA 9
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Continue even if a tier partly fails — one tier's bad night
+        # shouldn't blow away the other three's data. Individual
+        # failures still surface in the log.
+        if: always()
+        run: |
+          xvfb-run --auto-servernum \
+            python -m scripts.scrape_ebay_sold \
+              --graded-tier "PSA 9" \
+              --limit "${{ github.event.inputs.limit || '120' }}" \
+              --min-price "${{ github.event.inputs.min_price || '30' }}" \
+              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
+
+      - name: Scrape CGC 10
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        if: always()
+        run: |
+          xvfb-run --auto-servernum \
+            python -m scripts.scrape_ebay_sold \
+              --graded-tier "CGC 10" \
+              --limit "${{ github.event.inputs.limit || '120' }}" \
+              --min-price "${{ github.event.inputs.min_price || '30' }}" \
+              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
+
+      - name: Scrape CGC 9
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        if: always()
+        run: |
+          xvfb-run --auto-servernum \
+            python -m scripts.scrape_ebay_sold \
+              --graded-tier "CGC 9" \
+              --limit "${{ github.event.inputs.limit || '120' }}" \
+              --min-price "${{ github.event.inputs.min_price || '30' }}" \
+              --throttle-ms "${{ github.event.inputs.throttle_ms || '2000' }}"
