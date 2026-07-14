@@ -1,8 +1,12 @@
 """Dedupe newly-crawled items against what we've already posted.
 
-Keyed on source_url — exact match. Title-similarity dedupe (catching
-the same story syndicated across PokeBeach + Bulbanews) is deferred
-to Phase 2 once we have multi-source overlap to test against.
+Two levels of dedupe, both wired here:
+  - URL-level: source_url exact match. news_posts.source_url (current
+    published/draft rows) unioned with processed_urls.source_url (the
+    persistent log that survives admin post deletion).
+  - Title-level: content-word Jaccard >= 0.6 against processed_urls
+    title_tokens. Catches the same story syndicated across sources on
+    different days. Applied in main._select_for_publishing.
 """
 from __future__ import annotations
 
@@ -122,17 +126,3 @@ async def mark_processed(
             )
     except Exception as exc:
         log.warning("mark_processed %s failed: %s", source_url[:80], exc)
-
-
-async def filter_unseen(
-    items: list[NewsItem], api_base: str, token: str
-) -> list[NewsItem]:
-    seen = await fetch_seen_urls(api_base, token)
-    fresh = [i for i in items if i.url not in seen]
-    log.info(
-        "dedupe: %d incoming, %d already seen, %d fresh",
-        len(items),
-        len(items) - len(fresh),
-        len(fresh),
-    )
-    return fresh
