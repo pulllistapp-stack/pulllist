@@ -394,86 +394,120 @@ function PrintChecklistContent() {
         {pages.map((page, i) => (
           <div
             key={i}
-            className="print-sheet"
-            style={
-              {
-                gridTemplateColumns: `repeat(${LAYOUT_COLS[layout]}, 1fr)`,
-              } as React.CSSProperties
-            }
+            className={`print-sheet print-sheet-cols-${LAYOUT_COLS[layout]}`}
           >
             <div className="print-sheet-header">
               Sheet {i + 1} of {totalSheets} · {set.name} · pulllist.org
             </div>
-            {page.map((card, idx) => {
-              const positionInPage = idx + 1;
-              const cols = LAYOUT_COLS[layout];
-              const row = Math.floor(idx / cols) + 1;
-              const col = (idx % cols) + 1;
-              return (
-                <div key={card.id} className="print-card">
-                  {card.image_small ? (
-                    <div className="print-card-image">
-                      <Image
+            <div
+              className={`print-sheet-grid print-grid-cols-${LAYOUT_COLS[layout]}`}
+            >
+              {page.map((card, idx) => {
+                const positionInPage = idx + 1;
+                const cols = LAYOUT_COLS[layout];
+                const row = Math.floor(idx / cols) + 1;
+                const col = (idx % cols) + 1;
+                return (
+                  <div key={card.id} className="print-card">
+                    {card.image_small ? (
+                      // Plain <img> (not next/image) — the print media
+                      // needs images to be in the layout pass BEFORE
+                      // the browser lays out pages, so we can't have
+                      // any lazy loading kicking in. loading="eager"
+                      // + fetchpriority forces the browser to have
+                      // pixels ready when @media print fires.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
                         src={card.image_small}
                         alt={card.name}
-                        fill
-                        unoptimized
-                        className="object-contain"
-                        sizes="200px"
+                        className="print-card-image"
+                        loading="eager"
+                        // @ts-expect-error fetchpriority landed in the
+                        // DOM spec after React's type defs
+                        fetchpriority="high"
+                        decoding="sync"
                       />
-                    </div>
-                  ) : (
-                    <div className="print-card-image print-card-image-empty">
-                      {card.name}
-                    </div>
-                  )}
-                  <div className="print-card-meta">
-                    <div className="print-card-name">{card.name}</div>
-                    <div className="print-card-numbers">
-                      <span className="print-card-number">
-                        #{card.number ?? "—"}
-                      </span>
-                      <span className="print-card-position">
-                        p.{i + 1}s.{positionInPage} · r{row} c{col}
-                      </span>
+                    ) : (
+                      <div className="print-card-image print-card-image-empty">
+                        {card.name}
+                      </div>
+                    )}
+                    <div className="print-card-meta">
+                      <div className="print-card-name">{card.name}</div>
+                      <div className="print-card-numbers">
+                        <span className="print-card-number">
+                          #{card.number ?? "—"}
+                        </span>
+                        <span className="print-card-position">
+                          p.{i + 1}s.{positionInPage} · r{row} c{col}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>
 
       <style jsx global>{`
+        /* Standard US letter is 8.5in × 11in = 215.9mm × 279.4mm.
+           @page margin 6mm leaves 203.9mm × 267.4mm usable.
+           Sheet header takes ~6mm, so cards get ~260mm of vertical
+           space. Card art aspect ratio is 245:342 (~0.716). Per
+           layout we solve for the largest card image whose tile
+           (image + 4mm label block) fits three-across or four-across
+           or five-across within the sheet:
+             3×3 → image w ≈ 62mm  → tile h ≈ 91mm
+             4×4 → image w ≈ 46mm  → tile h ≈ 68mm
+             5×5 → image w ≈ 36mm  → tile h ≈ 55mm
+           Widths are held via fixed-column-width grid template so
+           browsers don't reflow when a font-size changes. */
         .print-sheet {
-          display: grid;
-          gap: 6mm;
-          padding: 8mm;
+          display: block;
+          padding: 0;
           page-break-after: always;
+          break-after: page;
+          overflow: hidden;
         }
         .print-sheet:last-child {
           page-break-after: auto;
+          break-after: auto;
         }
         .print-sheet-header {
-          grid-column: 1 / -1;
           font-size: 9pt;
           color: #666;
-          margin-bottom: 2mm;
+          margin-bottom: 3mm;
+        }
+        .print-sheet-grid {
+          display: grid;
+          gap: 4mm;
+        }
+        .print-grid-cols-3 {
+          grid-template-columns: repeat(3, 62mm);
+        }
+        .print-grid-cols-4 {
+          grid-template-columns: repeat(4, 46mm);
+        }
+        .print-grid-cols-5 {
+          grid-template-columns: repeat(5, 36mm);
         }
         .print-card {
           display: flex;
           flex-direction: column;
           align-items: stretch;
           break-inside: avoid;
+          page-break-inside: avoid;
         }
         .print-card-image {
-          position: relative;
+          display: block;
           width: 100%;
           aspect-ratio: 245 / 342;
+          object-fit: contain;
           background: #eee;
           border: 1px solid #ccc;
-          overflow: hidden;
+          /* Grayscale renders regardless of ink budget. */
           filter: grayscale(1) contrast(1.05);
         }
         .print-card-image-empty {
@@ -488,12 +522,12 @@ function PrintChecklistContent() {
         .print-card-meta {
           margin-top: 1mm;
           font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-          font-size: 8pt;
+          font-size: 7pt;
           color: #333;
+          line-height: 1.15;
         }
         .print-card-name {
           font-weight: 700;
-          line-height: 1.15;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -502,7 +536,7 @@ function PrintChecklistContent() {
           margin-top: 0.5mm;
           display: flex;
           justify-content: space-between;
-          font-size: 7pt;
+          font-size: 6pt;
           color: #666;
         }
         .print-card-number {
@@ -518,8 +552,11 @@ function PrintChecklistContent() {
             size: letter;
             margin: 6mm;
           }
+          html,
           body {
             background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
         }
       `}</style>
