@@ -1,0 +1,57 @@
+name: Ingest JP sealed products (one-shot)
+
+# Manual-only. Pulls sealed SKUs (booster boxes, packs, ETBs, card file
+# sets, starter decks…) for every JP TCGCSV group whose abbreviation
+# matches one of our JP sets, inserts them into `products` with USD
+# prices, and refreshes `products.market_price_usd/low/high` on
+# subsequent runs.
+#
+# Runs against the real Neon prod DB via ``secrets.DATABASE_URL`` —
+# ``ingest_jp_sealed.py`` is idempotent (upsert on productId), so
+# re-triggering only adds newly-listed sealed SKUs or updates changed
+# prices. Safe to click any time; ~1 min run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run only (print matches, don't write)"
+        required: false
+        default: "false"
+      only:
+        description: "Limit to a single TCGCSV abbreviation (e.g. SV11B). Blank = all matched groups."
+        required: false
+        default: ""
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ingest JP sealed products
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          if [ -n "${{ inputs.only }}" ]; then
+            args="$args --only ${{ inputs.only }}"
+          fi
+          python -m scripts.ingest_jp_sealed $args
