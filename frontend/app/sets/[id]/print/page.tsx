@@ -96,11 +96,29 @@ function PrintChecklistContent() {
     (async () => {
       try {
         const token = user ? getToken() ?? undefined : undefined;
-        const result = await browseCards(
-          { set_id: setId, sort: "number_asc", page_size: 500 },
-          token,
-        );
-        if (!cancelled) setCards(result.items);
+        // Paginate through the whole set — backend caps page_size at
+        // 250, but a set can carry >250 cards once secrets + variants
+        // are counted. Loop until we've fetched `total` rows or we hit
+        // an empty page (safety guard against infinite loops on a
+        // backend inconsistency).
+        const PAGE = 250;
+        let page = 1;
+        const collected: Card[] = [];
+        while (!cancelled) {
+          const result = await browseCards(
+            { set_id: setId, sort: "number_asc", page_size: PAGE, page },
+            token,
+          );
+          collected.push(...result.items);
+          if (
+            result.items.length < PAGE ||
+            collected.length >= result.total
+          ) {
+            break;
+          }
+          page += 1;
+        }
+        if (!cancelled) setCards(collected);
       } catch (e) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : "Unknown error");
