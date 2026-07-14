@@ -204,6 +204,18 @@ _TCGCSV_ALIASES: dict[str, str] = {
     # Ceruledge, svLN for Sylveon, svLS for Soulblaze-Ceruledge JP).
     # Our DB collapsed the two Ceruledge variants into SVLS.
     "svl":  "SVLS",  # Ceruledge ex Stellar Tera Type Starter Set
+    # MEGA-era promos — new set seeded as JPP-M.
+    "m-p":  "JPP-M",
+}
+
+
+# Overrides keyed on TCGCSV groupId, applied *before* the abbr map.
+# Only used when a TCGCSV abbreviation is shared across multiple
+# distinct groups (e.g., "Pt" fronts every Pt-era Platinum expansion
+# and every Pt-era deck), so an abbr → set mapping can't disambiguate.
+_GROUP_ID_OVERRIDES: dict[int, str] = {
+    24054: "PtA-GF",  # Pt Arceus LV.X Deck: Grass & Fire
+    24055: "PtA-LP",  # Pt Arceus LV.X Deck: Lightning & Psychic
 }
 
 
@@ -238,13 +250,26 @@ async def ingest(
         groups = await _fetch(client, "groups")
         log.info(f"TCGCSV JP groups: {len(groups)}")
 
-        # Filter to groups whose abbreviation matches a PullList set.
+        # Filter to groups that resolve to a PullList set. Priority
+        # order: (1) groupId override (needed when a TCGCSV abbr is
+        # reused across multiple groups, e.g., "Pt" fronts every Pt
+        # deck and expansion), (2) abbreviation map (base match +
+        # hand-curated aliases). Empty-abbr groups without an override
+        # are skipped — no way to route them.
         candidates: list[tuple[dict, str]] = []
         for g in groups:
             abbr = (g.get("abbreviation") or "").strip()
-            if not abbr:
+            gid = g.get("groupId")
+            override = _GROUP_ID_OVERRIDES.get(int(gid)) if gid else None
+
+            if only_abbr and (not abbr or abbr.lower() != only_abbr.lower()):
                 continue
-            if only_abbr and abbr.lower() != only_abbr.lower():
+
+            if override is not None:
+                candidates.append((g, override))
+                continue
+
+            if not abbr:
                 continue
             our_set = set_map.get(abbr.lower())
             if our_set is None:
