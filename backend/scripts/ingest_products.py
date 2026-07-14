@@ -43,19 +43,68 @@ _TYPE_RULES: list[tuple[str, re.Pattern[str]]] = [
     ("sleeved_booster", re.compile(r"\bsleeved\s+booster\b", re.IGNORECASE)),
 ]
 
-# Any of these substrings and it's a sealed product, not a single card.
-_SEALED_HINTS = (
-    "booster", "bundle", "elite trainer", "premium", "prerelease",
-    "build & battle", "build and battle", "tin", "blister", "sealed",
-    "collection", "case", "display", "sleeved",
+# Strong sealed keywords — presence means sealed no matter what other
+# cues appear. Bracketed card references inside a tin's label
+# ("30th Celebration Tin [Sylveon ex]") or "(48 ct)" quantity strings
+# shouldn't overturn this.
+_STRONG_SEALED_RE = re.compile(
+    r"\b(?:"
+    r"booster|elite\s+trainer|etb|bundle|blister|"
+    r"build\s*[&x]\s*battle|build\s+and\s+battle|sleeved\s+booster|"
+    r"trainer(?:'|’)s?\s+kit|"
+    r"booster\s+pack|display\s+box|battle\s+stadium"
+    r")\b",
+    re.IGNORECASE,
 )
 
-# Guardrail — even if it matches a sealed hint, drop items that also
-# smell like a single-card listing (e.g. "Booster Pack — Charizard art"
-# type entries that sometimes sneak in).
-_CARD_LIKE_KEYWORDS = (
-    " ex ", " gx ", " vmax ", " vstar ", " v-union", "1st edition",
+# Weak sealed keywords — mean sealed ONLY when no card-shape pattern
+# is also present. `tin` word-bounded avoids Gira*tin*a. `collection`
+# / `premium` / `case` / `display` can be part of card names in some
+# vintage sets, so they need the card-pattern gate.
+_WEAK_SEALED_RE = re.compile(
+    r"\b(?:tin|case|collection|premium|prerelease|display|sleeved|"
+    r"figure)\b",
+    re.IGNORECASE,
 )
+
+# Card-shape patterns. Presence in a WEAK-sealed name flips it back
+# to a single card. Kept intentionally strict — pure numeric
+# parentheticals like "(48 ct)" or "(6 packs)" are pack quantity
+# strings on sealed listings, NOT card numbers, so they're excluded
+# via the trailing unit-word negative lookahead.
+_CARD_NAME_PATTERNS = [
+    # `43/101` printed card number
+    re.compile(r"\b\d+\s*/\s*\d+\b"),
+    # named card treatment parentheticals — always cards
+    re.compile(
+        r"\((?:prerelease|full\s+art|alternate|reverse\s+holo|"
+        r"secret|holo|shiny|rainbow|hyper|master\s+ball|"
+        r"poke\s+ball|special\s+illustration|team\s+plasma)"
+        r"[^)]*\)",
+        re.IGNORECASE,
+    ),
+    # `[Staff]` / `[Prerelease]` / `[Jumbo]` etc — card variants
+    re.compile(
+        r"\[(?:staff|prerelease|jumbo|oversized)[^\]]*\]",
+        re.IGNORECASE,
+    ),
+    # Set-code + number suffix (`SM151`, `XY117`, `BW32`) — always cards
+    re.compile(r"\b(?:sm|xy|bw|dp|hgss|sv|swsh)\d+\b", re.IGNORECASE),
+    # Bare `(N)` where N is a card number (small int, no unit word)
+    re.compile(r"\(\s*\d{1,3}\s*\)"),
+]
+
+# Card variant tokens at END-OF-NAME. "Victini EX" and "Giratina EX"
+# end in the variant marker; "EX Power Trio Tin" starts with "EX" as
+# an era brand — the era prefix must NOT reject the tin. Anchoring
+# on the end (allowing a trailing parenthetical like "(Full Art)")
+# discriminates the two.
+_CARD_LIKE_ENDING_RE = re.compile(
+    r"\b(?:ex|gx|vmax|vstar|v-?union|prism\s+star)\s*(?:\([^)]*\))?\s*$",
+    re.IGNORECASE,
+)
+# `1st Edition` is a card-only signal wherever it appears.
+_FIRST_EDITION_RE = re.compile(r"\b1st\s+edition\b", re.IGNORECASE)
 
 
 # ETBs and Premium Collections don't hold booster packs in a
@@ -88,10 +137,36 @@ def _looks_sealed(name: str) -> bool:
     # doesn't clutter with intangible SKUs.
     if lower.startswith("code card") or "code card - " in lower:
         return False
-    if not any(hint in lower for hint in _SEALED_HINTS):
+
+    # STRONG sealed keyword (booster, ETB, bundle, blister,
+    # build & battle, sleeved booster, trainer kit) → always sealed.
+    # Bracketed card names inside tin labels ("[Sylveon ex]") and
+    # pack-count parentheticals ("(48 ct)") do NOT override this.
+    if _STRONG_SEALED_RE.search(name):
+        return True
+
+    # WEAK sealed keyword (tin, case, collection, premium, prerelease,
+    # display, sleeved, figure). Word-bounded regex so "tin" doesn't
+    # fire on Gira*tin*a. Only accept as sealed when no card-shape
+    # signal is present outside brackets.
+    if not _WEAK_SEALED_RE.search(name):
         return False
-    # If a sealed hint AND a card-like keyword both appear, it's a card.
-    return not any(kw in lower for kw in _CARD_LIKE_KEYWORDS)
+
+    # Tin / Case products often carry a bracketed featured-card
+    # description ("30th Celebration Tin [Sylveon ex]", "Kalos Power
+    # Tin [Chesnaught EX]"). Strip bracket contents before running
+    # card-shape checks so the featured-card label doesn't reclassify
+    # the tin itself.
+    bare = re.sub(r"\[[^\]]*\]", " ", name)
+
+    for pat in _CARD_NAME_PATTERNS:
+        if pat.search(bare):
+            return False
+    if _FIRST_EDITION_RE.search(bare):
+        return False
+    if _CARD_LIKE_ENDING_RE.search(bare):
+        return False
+    return True
 
 
 def _tcgplayer_url(product_id: int, name: str) -> str:
