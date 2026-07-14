@@ -25,13 +25,15 @@ gospel.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Card, Product, Set
+from app.models import Card, Product, ProductPriceSnapshot, Set
 
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -265,6 +267,60 @@ async def get_product(
         ev=ev,
         description=row.description,
     )
+
+
+@router.get("/{product_id}/history", response_model=dict)
+async def get_product_history(
+    product_id: str,
+    response: Response,
+    days: int = Query(90, ge=7, le=365),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Daily price history for the sealed product's `market_price_usd`.
+    Backs the chart on the product detail page. Matches the card-side
+    /cards/{id}/history shape so the frontend chart component can be
+    reused with minimal glue."""
+    product = await db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(404, "Product not found")
+
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    stmt = (
+        select(
+            ProductPriceSnapshot.snapshot_date,
+            ProductPriceSnapshot.market_price_usd,
+            ProductPriceSnapshot.low_price_usd,
+            ProductPriceSnapshot.mid_price_usd,
+            ProductPriceSnapshot.high_price_usd,
+        )
+        .where(
+            ProductPriceSnapshot.product_id == product_id,
+            ProductPriceSnapshot.snapshot_date >= cutoff,
+        )
+        .order_by(ProductPriceSnapshot.snapshot_date.asc())
+    )
+    rows = (await db.execute(stmt)).all()
+
+    points = [
+        {
+            "date": snap_date,
+            "market": float(market) if market is not None else None,
+            "low": float(low) if low is not None else None,
+            "mid": float(mid) if mid is not None else None,
+            "high": float(high) if high is not None else None,
+        }
+        for snap_date, market, low, mid, high in rows
+    ]
+
+    # Same catalog cache TTL as the browse endpoints — sealed snapshots
+    # only refresh once a day.
+    response.headers["Cache-Control"] = _CATALOG_CACHE
+    return {
+        "product_id": product_id,
+        "product_name": product.name,
+        "days": days,
+        "points": points,
+    }
 
 
 @router.get("/set/{set_id}/list", response_model=list[ProductRead])

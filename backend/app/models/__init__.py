@@ -7,6 +7,7 @@ from app.models.news_view import NewsView
 from app.models.portfolio import PortfolioSnapshot
 from app.models.processed_url import ProcessedUrl
 from app.models.product import Product
+from app.models.product_snapshot import ProductPriceSnapshot
 from app.models.refresh_token import RefreshToken
 from app.models.sealed_collection import (
     SealedCollectionItem,
@@ -31,6 +32,7 @@ __all__ = [
     "PortfolioSnapshot",
     "ProcessedUrl",
     "Product",
+    "ProductPriceSnapshot",
     "RefreshToken",
     "ScanCache",
     "SealedCollectionItem",

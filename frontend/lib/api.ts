@@ -759,6 +759,28 @@ export function listProductsForSet(setId: string): Promise<Product[]> {
   return apiFetch<Product[]>(`/products/set/${setId}/list`);
 }
 
+export type ProductHistoryPoint = {
+  date: string;
+  market: number | null;
+  low: number | null;
+  mid: number | null;
+  high: number | null;
+};
+
+export type ProductHistory = {
+  product_id: string;
+  product_name: string;
+  days: number;
+  points: ProductHistoryPoint[];
+};
+
+export function getProductHistory(
+  id: string,
+  days = 90,
+): Promise<ProductHistory> {
+  return apiFetch<ProductHistory>(`/products/${id}/history?days=${days}`);
+}
+
 // ── Sealed collection / wishlist (Products roadmap §10.8 B) ──────
 
 export type SealedCollectionItem = {
