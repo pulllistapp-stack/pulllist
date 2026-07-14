@@ -1,3 +1,4 @@
+import asyncio
 import re
 import time
 from datetime import date, datetime, timedelta
@@ -1060,8 +1061,13 @@ async def get_live_listings(
 ) -> dict:
     """Hit eBay Browse API in real-time and return the top live listings for this card.
 
-    Uses the same noise-filtered query as the snapshot script. One call per request.
-    Frontend should cache (the standard apiFetch helper caches for 5 min).
+    Uses the same noise-filtered query as the snapshot script. Runs the
+    default relevance query PLUS a slab-focused variant so the Graded
+    tab in the frontend LiveListings component actually populates —
+    eBay Browse's default ranking for a bare "card name + number" query
+    returns almost exclusively raw listings; slabs only surface when
+    the query contains an explicit grader token. Frontend cache is
+    ~5min per card so the 2 API calls don't run on every navigation.
     """
     card = await db.get(Card, card_id)
     if not card:
@@ -1084,17 +1090,46 @@ async def get_live_listings(
 
     try:
         async with EbayClient() as ebay:
-            result = await ebay.browse_search(
-                query,
-                limit=raw_limit,
-                category_id=POKEMON_CATEGORIES["tcg_root"],
+            raw_result, graded_result = await asyncio.gather(
+                ebay.browse_search(
+                    query,
+                    limit=raw_limit,
+                    category_id=POKEMON_CATEGORIES["tcg_root"],
+                ),
+                # Slab pass — appending " PSA" surfaces PSA-graded
+                # slabs (the dominant grading company by listing
+                # volume). CGC / BGS titles also frequently include
+                # "PSA" as a comparison ("PSA 10 equiv") so this
+                # single suffix catches most of them too. If it
+                # doesn't, users can still find those via TCG search.
+                ebay.browse_search(
+                    f"{query} PSA",
+                    limit=raw_limit,
+                    category_id=POKEMON_CATEGORIES["tcg_root"],
+                ),
+                return_exceptions=True,
             )
     except EbayClientError as e:
         return {"listings": [], "query": query, "error": str(e)}
     except Exception as e:
         return {"listings": [], "query": query, "error": f"unexpected: {e}"}
 
-    raw_items = result.get("itemSummaries") or []
+    # Combine + dedupe by URL. Same listing sometimes surfaces in both
+    # passes (rare: a slab whose title also passes the raw query).
+    raw_items: list[dict] = []
+    seen_urls: set[str] = set()
+    for res in (raw_result, graded_result):
+        if isinstance(res, Exception):
+            continue
+        if not isinstance(res, dict):
+            continue
+        for it in res.get("itemSummaries") or []:
+            url = it.get("itemWebUrl") or it.get("itemHref")
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+            raw_items.append(it)
     # Strict card-number match: drop listings whose titles reference a
     # different x/y than this card. See app/services/listing_match.py
     # for the tier breakdown. Wishlist alerts (future) will tighten this
