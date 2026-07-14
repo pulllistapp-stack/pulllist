@@ -43,8 +43,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Seed missing JP set stubs
-        # Idempotent — creates any of the 6 sealed-focused stub sets
-        # (SBC, JPP-M, CLL, NPF1, PtA-GF, PtA-LP) that don't yet exist
+        # Idempotent — creates the sealed-focused stub sets that don't
+        # yet exist (SBC, JPP-M, CLL, NPF1, PtA-GF/LP, S8a-P, S8a-G)
         # so the ingest step below can attach their sealed SKUs.
         # Skipped when `only` scopes the ingest to a single abbr —
         # seeding is only relevant to the full-catalog pass.
@@ -57,6 +57,25 @@ jobs:
             args="$args --dry-run"
           fi
           python -m scripts.seed_missing_jp_sealed_sets $args
+
+      - name: Import 25th Anniversary singles (S8a-P full, S8a gap fill, S8a-G)
+        # After the seed step lands the S8a-P and S8a-G set rows, pull
+        # their card lists from TCGCSV so the /sets/S8a-P and
+        # /sets/S8a-G pages actually show cards, not just sealed. Also
+        # runs S8a (23638) so the previously-missing Mew #030 UR
+        # backfills alongside any refreshed prices on the other 29.
+        # Idempotent: existing cards get an UPDATE only when a field
+        # changes; new ones are inserted.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.import_jp_group_cards \
+            --pairs "23847:S8a-P,23638:S8a,23838:S8a-G" $args
 
       - name: Ingest JP sealed products
         env:
