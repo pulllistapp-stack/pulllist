@@ -61,7 +61,7 @@ export function TopNav() {
   }
 
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/80 border-b border-border">
+    <header className="sticky top-0 z-40 backdrop-blur-md bg-bg/80 border-b border-border print:hidden">
       <div className="mx-auto max-w-[100rem] px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-6">
         <Link
           href="/"
