@@ -73,6 +73,7 @@ _EN_TO_JP_RARITY: dict[str, str] = {
     "Rare Holo 1st Edition": "R",
     "Double Rare": "RR",
     "Triple Rare": "RRR",
+    "Super Rare": "SR",
     "Special Rare": "SR",
     "Illustration Rare": "AR",
     "Special Illustration Rare": "SAR",
@@ -96,16 +97,22 @@ _EN_TO_JP_RARITY: dict[str, str] = {
 }
 
 
-_NUM_SLASH_RE = re.compile(r"^(\d+)(?:\s*/\s*\d+)?$")
+# Any leading integer, optionally followed by "/YYY", optionally
+# followed by an arbitrary parenthesized/suffix tail (TCGCSV appends
+# things like "(Top Left)" for multi-panel cards e.g. Pikachu V-UNION
+# 025-028). We take the leading integer only, so all four V-UNION
+# panels collapse to their base numbers 25/26/27/28 instead of
+# spawning bogus card ids like `S8a-025/028 (Top Left)`.
+_NUM_LEADING_RE = re.compile(r"^\s*(\d+)")
 
 
 def _normalize_number(raw: str | None) -> str | None:
-    """'030/028' → '30'; '15' → '15'; None → None."""
+    """'030/028' → '30'; '15' → '15'; '025/028 (Top Left)' → '25'."""
     if not raw:
         return None
-    m = _NUM_SLASH_RE.match(raw.strip())
+    m = _NUM_LEADING_RE.match(raw)
     if not m:
-        return raw.strip()
+        return None
     return str(int(m.group(1)))
 
 

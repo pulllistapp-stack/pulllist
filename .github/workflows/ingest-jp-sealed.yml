@@ -58,6 +58,21 @@ jobs:
           fi
           python -m scripts.seed_missing_jp_sealed_sets $args
 
+      - name: Cleanup S8a anniversary artifacts (bogus rows + total)
+        # Removes 4 duplicate Pikachu V-UNION panel rows introduced by
+        # an earlier import pass with a strict-suffix regex, and lifts
+        # sets.S8a.total from 28 → 30 to include the SR + UR secrets.
+        # Idempotent no-op on subsequent runs.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.cleanup_s8a_anniversary $args
+
       - name: Import 25th Anniversary singles (S8a-P full, S8a gap fill, S8a-G)
         # After the seed step lands the S8a-P and S8a-G set rows, pull
         # their card lists from TCGCSV so the /sets/S8a-P and
