@@ -111,15 +111,10 @@ jobs:
           python -m scripts.import_jp_group_cards \
             --pairs "23638:S8a,23847:S8a:P,23838:S8a:G" $args
 
-      - name: Repair S8a base card images (correct URLs + size)
+      - name: Repair S8a base card images (TCGCSV fallback URLs)
         # Reseats image_small/image_large on the 30 base cards to
-        # correctly-sized TCGCSV URLs. Two prior mistakes to undo:
-        # (a) the earlier import wrote a broken _1000x1000 image_large
-        #     that 403s on tcgplayer-cdn; (b) an attempt to restore via
-        #     Bulbapedia's anchor-order matcher mis-mapped every card
-        #     (S8a #1 Pikachu got the Ho-Oh Celebrations image, etc.)
-        #     because the wiki page walks EN Celebrations order, not
-        #     our JP number order.
+        # correctly-sized TCGCSV URLs so quality never regresses below
+        # 400w even if the Bulbapedia HD restore below misses a card.
         # Idempotent; no-op after first successful run.
         if: inputs.only == ''
         env:
@@ -130,6 +125,23 @@ jobs:
             args="$args --dry-run"
           fi
           python -m scripts.repair_s8a_base_images $args
+
+      - name: Restore S8a family HD images from Bulbapedia (name-slug matcher)
+        # Upgrades the 70 S8a cards (30 base + 25 promo + 15 golden) from
+        # TCGCSV 400w thumbnails to Bulbapedia full-scan URLs by matching
+        # each anchor via its specific wiki slug — avoids the previous
+        # mis-mapping bug where the general Bulbapedia backfill walked
+        # anchors in EN Celebrations order and shifted every JP card
+        # onto someone else's image.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.restore_s8a_family_images $args
 
       - name: Ingest JP sealed products
         env:
