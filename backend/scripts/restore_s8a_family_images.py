@@ -104,6 +104,25 @@ _THUMB_STRIP_RE = re.compile(
     r"/thumb/((?:[^/]+/){2}[^/]+\.(?:jpg|png))/\d+px-[^/]+$"
 )
 
+# Card-name extract: /wiki/Pikachu_V_(25th_Anniversary_Golden_Box_1) →
+# "Pikachu_V". Bulbapedia URL-encodes special characters (' → %27),
+# leave them alone for straight substring comparison.
+_CARD_NAME_FROM_HREF = re.compile(r"/wiki/([^/]+?)_\([^)]+\)$")
+
+# Filenames that are page-decoration or mechanic-mark icons, not
+# actual card scans. Bulbapedia embeds these inside the same
+# <a class="mw-file-description"> shell so the picker can't tell them
+# apart without a blacklist.
+_GENERIC_ICON_RE = re.compile(
+    r"^(Pok[e\xe9%C3%A9]+?mon_[A-Z0-9\-]{1,6}|"
+    r"Project_TCG_logo|"
+    r"Rarity_|"
+    r"SetSymbol|"
+    r"Team_Rocket_|"
+    r"MSP)",
+    re.IGNORECASE,
+)
+
 
 async def _fetch(client: httpx.AsyncClient, url: str) -> str | None:
     try:
@@ -135,10 +154,23 @@ async def _extract_card_image(
 ) -> str | None:
     """Fetch card wiki page, return the best full-scan URL.
 
-    Card pages list multiple variants (reverse holo, cross-set
-    reprints, non-holo). We prefer images whose File: name contains
-    the anchor's set token — falls back to the first when nothing
-    matches. Same picker logic as backfill_jp_images_bulbapedia.
+    Bulbapedia card pages list multiple images inside
+    <a class="mw-file-description">: mechanic icons (Pokemon_V.png,
+    Pokemon_GX.png), the TCG project logo, then the actual card
+    scans (often multiple variants — the JP-set scan, the EN parallel
+    Celebrations scan, cross-set reprints).
+
+    Selection priority:
+      1. filter out generic mechanic/project icons via blacklist
+      2. among the rest, prefer files whose name matches the anchor's
+         set token (e.g. "25thanniversarygoldenbox")
+      3. otherwise prefer files whose name contains the Pokemon's
+         card-name portion of the href ("PikachuV", "Mew", …) so a
+         cross-Pokemon match can't leak in
+      4. finally, first non-generic candidate as a last resort
+    Never falls back to a blacklisted generic — better to return None
+    and stick with the TCGCSV fallback than serve a Pokemon-V icon
+    where a card scan should be.
     """
     html = await _fetch(client, BASE + href)
     if not html:
@@ -147,16 +179,35 @@ async def _extract_card_image(
     if not candidates:
         return None
 
+    # Drop generic mechanic/logo images up front — no legitimate card
+    # scan would ever be named "Pokemon_V.png" or "Project_TCG_logo".
+    non_generic = [
+        (f, s) for f, s in candidates if not _GENERIC_ICON_RE.match(f)
+    ]
+    if not non_generic:
+        return None  # only icons on the page — nothing usable
+
     token = anchor_slug.replace("_", "").lower()
-    pick = None
-    for filename, src in candidates:
+    name_m = _CARD_NAME_FROM_HREF.search(href)
+    card_name = name_m.group(1) if name_m else ""
+    card_name_stripped = card_name.replace("_", "").lower()
+
+    # Tier 1: filename contains the set-specific token
+    for filename, src in non_generic:
         if token in filename.lower():
-            pick = src
-            break
-    if not pick:
-        pick = candidates[0][1]
-    # Strip /thumb/.../Npx- to reach the original full-res upload.
-    return _THUMB_STRIP_RE.sub(r"/\1", pick)
+            return _THUMB_STRIP_RE.sub(r"/\1", src)
+
+    # Tier 2: filename contains the card-name portion (guards against
+    # e.g. serving MewCrownZenithGG10.jpg for Mew #30 when the wiki
+    # cross-links other Mew cards).
+    if card_name_stripped:
+        for filename, src in non_generic:
+            if card_name_stripped in filename.lower():
+                return _THUMB_STRIP_RE.sub(r"/\1", src)
+
+    # Tier 3: first surviving non-generic candidate. Better than
+    # nothing when Bulbapedia only hosts a parallel-set image.
+    return _THUMB_STRIP_RE.sub(r"/\1", non_generic[0][1])
 
 
 async def restore_subset(
