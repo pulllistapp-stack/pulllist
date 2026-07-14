@@ -163,7 +163,12 @@ function PrintChecklistContent() {
   }, [filteredCards, layout]);
 
   const totalSheets = pages.length;
-  const previewCards = filteredCards.slice(0, 6);
+  // Show ONE FULL SHEET in the preview panel — matches what will
+  // actually print. Previous "first 6" was ambiguous: 6 cards look
+  // fine in a 3x3 grid (fills 2 rows) but leave a bad half-row in 4x4
+  // and 5x5 layouts. Full-sheet preview keeps every layout's shape
+  // legible.
+  const previewCards = filteredCards.slice(0, layout);
 
   if (error) {
     return (
@@ -351,25 +356,32 @@ function PrintChecklistContent() {
               </div>
             </div>
 
-            {/* Right: live preview strip */}
+            {/* Right: live preview — renders one whole sheet at the
+                selected layout so the shape you see is the shape that
+                prints. */}
             <div className="rounded-card border border-border bg-bg-surface/40 p-4">
               <div className="mb-3 flex items-baseline justify-between">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-text-tertiary">
-                  Live preview · first {previewCards.length}
+                  Sheet preview
                 </span>
                 <span className="text-[10px] font-mono text-text-tertiary">
-                  {LAYOUT_META[layout].label}
+                  {LAYOUT_META[layout].label} · sheet 1 of {totalSheets}
                 </span>
               </div>
               {previewCards.length > 0 ? (
                 <div
-                  className="grid gap-2"
+                  className="grid gap-1.5"
                   style={{
                     gridTemplateColumns: `repeat(${LAYOUT_COLS[layout]}, 1fr)`,
                   }}
                 >
                   {previewCards.map((c, idx) => (
-                    <PreviewTile key={c.id} card={c} idx={idx + 1} />
+                    <PreviewTile
+                      key={c.id}
+                      card={c}
+                      idx={idx + 1}
+                      dense={layout >= 16}
+                    />
                   ))}
                 </div>
               ) : (
@@ -452,111 +464,123 @@ function PrintChecklistContent() {
       </div>
 
       <style jsx global>{`
-        /* Standard US letter is 8.5in × 11in = 215.9mm × 279.4mm.
-           @page margin 6mm leaves 203.9mm × 267.4mm usable.
-           Sheet header takes ~6mm, so cards get ~260mm of vertical
-           space. Card art aspect ratio is 245:342 (~0.716). Per
-           layout we solve for the largest card image whose tile
-           (image + 4mm label block) fits three-across or four-across
-           or five-across within the sheet:
-             3×3 → image w ≈ 62mm  → tile h ≈ 91mm
-             4×4 → image w ≈ 46mm  → tile h ≈ 68mm
-             5×5 → image w ≈ 36mm  → tile h ≈ 55mm
-           Widths are held via fixed-column-width grid template so
-           browsers don't reflow when a font-size changes. */
+        /* Letter portrait: 8.5in × 11in = 215.9mm × 279.4mm.
+           @page margin 8mm all sides → 199.9mm × 263.4mm usable.
+           Force each .print-sheet to exactly that height via flexbox
+           so a card never spills into a second page. The grid inside
+           uses fractional rows/columns so tiles auto-size to fill —
+           no manual mm calculation needed. object-fit: contain keeps
+           the 245:342 card aspect ratio inside whatever box the grid
+           hands each cell. */
         .print-sheet {
-          display: block;
-          padding: 0;
-          page-break-after: always;
-          break-after: page;
-          overflow: hidden;
-        }
-        .print-sheet:last-child {
-          page-break-after: auto;
-          break-after: auto;
-        }
-        .print-sheet-header {
-          font-size: 9pt;
-          color: #666;
-          margin-bottom: 3mm;
-        }
-        .print-sheet-grid {
-          display: grid;
-          gap: 4mm;
-        }
-        .print-grid-cols-3 {
-          grid-template-columns: repeat(3, 62mm);
-        }
-        .print-grid-cols-4 {
-          grid-template-columns: repeat(4, 46mm);
-        }
-        .print-grid-cols-5 {
-          grid-template-columns: repeat(5, 36mm);
-        }
-        .print-card {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-        .print-card-image {
-          display: block;
-          width: 100%;
-          aspect-ratio: 245 / 342;
-          object-fit: contain;
-          background: #eee;
-          border: 1px solid #ccc;
-          /* Grayscale renders regardless of ink budget. */
-          filter: grayscale(1) contrast(1.05);
-        }
-        .print-card-image-empty {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 8pt;
-          color: #555;
-          text-align: center;
-          padding: 2mm;
-        }
-        .print-card-meta {
-          margin-top: 1mm;
-          font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-          font-size: 7pt;
-          color: #333;
-          line-height: 1.15;
-        }
-        .print-card-name {
-          font-weight: 700;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .print-card-numbers {
-          margin-top: 0.5mm;
-          display: flex;
-          justify-content: space-between;
-          font-size: 6pt;
-          color: #666;
-        }
-        .print-card-number {
-          font-family: ui-monospace, SFMono-Regular, monospace;
-          font-weight: 700;
-        }
-        .print-card-position {
-          font-family: ui-monospace, SFMono-Regular, monospace;
+          display: none;
         }
 
         @media print {
           @page {
-            size: letter;
-            margin: 6mm;
+            size: letter portrait;
+            margin: 8mm;
           }
           html,
           body {
             background: #fff !important;
             margin: 0 !important;
             padding: 0 !important;
+          }
+
+          .print-sheet {
+            display: flex;
+            flex-direction: column;
+            width: 199.9mm;
+            height: 263.4mm;
+            box-sizing: border-box;
+            overflow: hidden;
+            page-break-after: always;
+            break-after: page;
+          }
+          .print-sheet:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+          .print-sheet-header {
+            flex: 0 0 auto;
+            font-size: 8pt;
+            color: #666;
+            padding-bottom: 2mm;
+          }
+          .print-sheet-grid {
+            flex: 1 1 auto;
+            display: grid;
+            gap: 3mm;
+            min-height: 0;
+          }
+          .print-grid-cols-3 {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+          }
+          .print-grid-cols-4 {
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+          }
+          .print-grid-cols-5 {
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+          }
+          .print-card {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            min-width: 0;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .print-card-image {
+            flex: 1 1 auto;
+            min-height: 0;
+            min-width: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #eee;
+            border: 1px solid #ccc;
+            filter: grayscale(1) contrast(1.05);
+          }
+          .print-card-image-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7pt;
+            color: #555;
+            text-align: center;
+            padding: 1mm;
+          }
+          .print-card-meta {
+            flex: 0 0 auto;
+            padding-top: 0.8mm;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 6pt;
+            color: #333;
+            line-height: 1.1;
+          }
+          .print-card-name {
+            font-weight: 700;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .print-card-numbers {
+            margin-top: 0.3mm;
+            display: flex;
+            justify-content: space-between;
+            font-size: 5.5pt;
+            color: #666;
+          }
+          .print-card-number {
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            font-weight: 700;
+          }
+          .print-card-position {
+            font-family: ui-monospace, SFMono-Regular, monospace;
           }
         }
       `}</style>
@@ -568,13 +592,28 @@ function PrintChecklistContent() {
  * Grayscale preview tile — matches how the printed card will look,
  * miniature. Doesn't need to be interactive; just gives the user a
  * confidence check before they burn ink.
+ *
+ * `dense` toggle drops the corner overlays for 4x4 and 5x5 previews
+ * where the tile shrinks small enough that overlays would overlap
+ * the card art.
  */
-function PreviewTile({ card, idx }: { card: Card; idx: number }) {
+function PreviewTile({
+  card,
+  idx,
+  dense = false,
+}: {
+  card: Card;
+  idx: number;
+  dense?: boolean;
+}) {
   return (
-    <div className="relative overflow-hidden rounded-md border border-border bg-bg">
+    <div className="relative overflow-hidden rounded border border-border bg-bg">
       <div
         className="relative"
-        style={{ aspectRatio: "245 / 342", filter: "grayscale(1) contrast(1.03)" }}
+        style={{
+          aspectRatio: "245 / 342",
+          filter: "grayscale(1) contrast(1.03)",
+        }}
       >
         {card.image_small ? (
           <Image
@@ -582,21 +621,25 @@ function PreviewTile({ card, idx }: { card: Card; idx: number }) {
             alt={card.name}
             fill
             unoptimized
-            sizes="160px"
+            sizes="120px"
             className="object-contain"
           />
         ) : (
-          <div className="flex h-full items-center justify-center px-2 text-center text-[9px] text-text-tertiary">
+          <div className="flex h-full items-center justify-center px-1 text-center text-[8px] text-text-tertiary">
             {card.name}
           </div>
         )}
       </div>
-      <div className="absolute left-1 top-1 rounded bg-black/70 px-1 py-0.5 text-[8px] font-mono font-bold text-white">
-        #{card.number ?? "—"}
-      </div>
-      <div className="absolute right-1 top-1 rounded bg-accent-yellow px-1 py-0.5 text-[8px] font-mono font-bold text-gray-900">
-        {idx}
-      </div>
+      {!dense && (
+        <>
+          <div className="absolute left-1 top-1 rounded bg-black/70 px-1 py-0.5 text-[8px] font-mono font-bold text-white">
+            #{card.number ?? "—"}
+          </div>
+          <div className="absolute right-1 top-1 rounded bg-accent-yellow px-1 py-0.5 text-[8px] font-mono font-bold text-gray-900">
+            {idx}
+          </div>
+        </>
+      )}
     </div>
   );
 }
