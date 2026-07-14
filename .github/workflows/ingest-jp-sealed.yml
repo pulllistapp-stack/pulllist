@@ -42,6 +42,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Seed missing JP set stubs
+        # Idempotent — creates any of the 6 sealed-focused stub sets
+        # (SBC, JPP-M, CLL, NPF1, PtA-GF, PtA-LP) that don't yet exist
+        # so the ingest step below can attach their sealed SKUs.
+        # Skipped when `only` scopes the ingest to a single abbr —
+        # seeding is only relevant to the full-catalog pass.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.seed_missing_jp_sealed_sets $args
+
       - name: Ingest JP sealed products
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

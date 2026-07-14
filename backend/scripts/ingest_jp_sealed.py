@@ -200,6 +200,10 @@ _TCGCSV_ALIASES: dict[str, str] = {
     # already has them as XY5g / XY5t (single-letter suffix).
     "xy5-bg": "XY5g",  # Gaia Volcano
     "xy5-bt": "XY5t",  # Tidal Storm
+    # SV Stellar Starter Sets — TCGCSV has three groups (svL for
+    # Ceruledge, svLN for Sylveon, svLS for Soulblaze-Ceruledge JP).
+    # Our DB collapsed the two Ceruledge variants into SVLS.
+    "svl":  "SVLS",  # Ceruledge ex Stellar Tera Type Starter Set
 }
 
 
