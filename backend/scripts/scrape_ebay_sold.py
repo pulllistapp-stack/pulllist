@@ -1,0 +1,471 @@
+"""Scrape eBay sold-listings for chase cards via Playwright + stealth.
+
+Why this exists: our regular `snapshot_ebay.py` uses eBay's Browse
+API, which returns ACTIVE (asking) listings. Sellers routinely list
+graded slabs 10-30% above the clearing price ("testing the market"),
+so the median of active asks overshoots true market. For chase
+cards this matters — SV Prismatic Umbreon SIR PSA 10 asks at ~$7,950
+median but ACTUALLY SELLS around $6,950-7,050 (12% gap).
+
+eBay's Marketplace Insights API (which returns sold data cleanly)
+was declined 2026-06-29. Direct HTTP scraping is blocked by
+DataDome at the TLS layer. Playwright + `playwright-stealth` +
+warm-up navigation defeats the bot check by driving a real headless
+Chromium — same TLS/JA3 fingerprint as a normal browser session.
+
+Scope: one grade tier per invocation (matching the DOW rotation of
+`snapshot_ebay`). Card selection = same chase-only filter (price
+gate + rarity). Writes to `card_price_snapshots` with source
+`ebay_sold` — kept distinct from `source='ebay'` (asking) so the
+Graded Prices endpoint can prefer sold when both exist.
+
+Usage:
+    python -m scripts.scrape_ebay_sold --graded-tier "PSA 10" --limit 5
+    python -m scripts.scrape_ebay_sold --graded-tier "CGC 10" --min-price 50
+    python -m scripts.scrape_ebay_sold --dry-run --card-id sv8pt5-161
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import logging
+import os
+import re
+import sys
+from datetime import date, datetime
+from pathlib import Path
+from statistics import median as _median
+from typing import Iterable
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from playwright.async_api import Browser, async_playwright
+from playwright_stealth import Stealth
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import SessionLocal, init_db
+from app.models import Card, CardPriceSnapshot, Set
+from app.services.grade_classifier import classify_grade
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+log = logging.getLogger("scrape_ebay_sold")
+
+
+SOURCE = "ebay_sold"
+VARIANT = "active"  # sold snapshots share the variant-key space with asking rows
+MIN_LISTINGS_PER_GRADE = 2
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/130.0.0.0 Safari/537.36"
+)
+
+# ── eBay sold-page parser ─────────────────────────────────────────
+
+_TITLE_RE = re.compile(
+    r'class="[^"]*\bs-card__title\b[^"]*"[^>]*>\s*<span[^>]*>([^<]+)</span>',
+    re.IGNORECASE,
+)
+_PRICE_RE = re.compile(
+    r'class="[^"]*\bs-card__price\b[^"]*"[^>]*>\$([0-9,]+\.[0-9]{2})',
+)
+
+
+def _parse_sold(html: str) -> list[tuple[str, float]]:
+    """Return [(title, price_usd)] for every sold-item card block in
+    the HTML. Skips eBay's "Shop on eBay" ad slots."""
+    out: list[tuple[str, float]] = []
+    # Split on <li class="s-card ..."> boundaries.
+    blocks = re.split(
+        r'<li[^>]*class="[^"]*\bs-card\b[^"]*"[^>]*>',
+        html,
+    )
+    for block in blocks[1:]:
+        t = _TITLE_RE.search(block)
+        p = _PRICE_RE.search(block)
+        if not t or not p:
+            continue
+        title = re.sub(r"\s+", " ", t.group(1).strip())
+        if title.lower() in ("shop on ebay", ""):
+            continue
+        try:
+            price = float(p.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        if price <= 0:
+            continue
+        out.append((title, price))
+    return out
+
+
+def _card_number_match(title: str, card_number: str | None) -> bool:
+    """Loose card-number match — accepts `161/131`, `#161`, `-161`.
+    Rejects listings that reference a DIFFERENT explicit number so a
+    #060 promo doesn't sneak into a #161 SIR bucket."""
+    if not card_number:
+        return True
+    num = card_number.split("/")[0].lstrip("0") or card_number.split("/")[0]
+    if not num:
+        return True
+    # Explicit number in title (word-bounded).
+    if re.search(rf"\b0*{re.escape(num)}\b", title):
+        return True
+    # Fallback: no digit-slash-digit anywhere → keep (Nintendo Black
+    # Star Promos, POP Series etc. that ship without printed numbers).
+    if not re.search(r"\b\d{1,3}\s*/\s*\d{1,3}\b", title):
+        return True
+    return False
+
+
+# ── Playwright driver ─────────────────────────────────────────────
+
+
+async def _launch_browser(headless: bool = False) -> tuple[Browser, "async_playwright"]:
+    """Chromium launch. `headless=False` is the default because
+    DataDome consistently soft-blocks pure-headless Chromium — it
+    fingerprints the headless build. Visible mode works reliably on
+    a real display, and works headless-ish on GH Actions when the
+    workflow wraps the command in `xvfb-run` (virtual X server).
+    """
+    p = await async_playwright().start()
+    browser = await p.chromium.launch(
+        headless=headless,
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-features=IsolateOrigins,site-per-process",
+        ],
+    )
+    return browser, p
+
+
+async def _fetch_sold_html(
+    browser: Browser, query: str, max_attempts: int = 2
+) -> str | None:
+    """One search. Returns the sold-listings HTML or None on failure.
+
+    Retries up to `max_attempts` because DataDome's challenge is
+    stateful: the first request in a fresh context sometimes resolves
+    cleanly, sometimes lands on a soft-block page with no listings.
+    A fresh context on retry usually clears it.
+
+    Warms up via ebay.com/ so DataDome sets its challenge cookie
+    inside the context first; direct navigation to /sch/ returns 403
+    without the cookie.
+    """
+    last_html: str | None = None
+    for attempt in range(1, max_attempts + 1):
+        stealth = Stealth()
+        context = await browser.new_context(
+            viewport={"width": 1440, "height": 900},
+            locale="en-US",
+            timezone_id="America/New_York",
+            user_agent=USER_AGENT,
+        )
+        await stealth.apply_stealth_async(context)
+        page = await context.new_page()
+        try:
+            await page.goto(
+                "https://www.ebay.com/",
+                wait_until="domcontentloaded",
+                timeout=45_000,
+            )
+            # Longer warm-up on retries — DataDome's challenge takes
+            # 2-4s to execute; being generous keeps our success rate up.
+            await page.wait_for_timeout(3500 + (attempt - 1) * 2000)
+            url = (
+                "https://www.ebay.com/sch/i.html?"
+                f"_nkw={query.replace(' ', '+')}"
+                "&LH_Sold=1&LH_Complete=1&_ipg=60"
+            )
+            resp = await page.goto(
+                url, wait_until="domcontentloaded", timeout=45_000
+            )
+            if resp is None or resp.status >= 400:
+                log.warning(
+                    f"attempt {attempt}: sold nav HTTP "
+                    f"{resp.status if resp else '?'}"
+                )
+                continue
+            try:
+                await page.wait_for_selector(
+                    'li[class*="s-card"]', timeout=12_000
+                )
+            except Exception:
+                # No selector match — could be genuinely-empty results
+                # OR a soft-block page. Try once more with a fresh
+                # context before giving up.
+                pass
+            html = await page.content()
+            last_html = html
+            # Quick real-listings check: > 30 s-card hits usually means
+            # a populated results page. Lower counts might still parse
+            # cleanly but often mean the page redirected to a "no
+            # results" template.
+            if html.count("s-card") > 30:
+                return html
+            log.info(
+                f"attempt {attempt}: only {html.count('s-card')} s-card "
+                "hits, retrying"
+            )
+        except Exception as e:
+            log.warning(f"attempt {attempt} fetch error: {e}")
+        finally:
+            await context.close()
+    return last_html
+
+
+# ── Snapshot writer ───────────────────────────────────────────────
+
+
+def _conflict_insert(dialect: str):
+    if dialect == "postgresql":
+        return pg_insert(CardPriceSnapshot)
+    return sqlite_insert(CardPriceSnapshot)
+
+
+async def _flush(db: AsyncSession, rows: list[dict]) -> int:
+    if not rows:
+        return 0
+    dialect = db.bind.dialect.name
+    stmt = _conflict_insert(dialect).values(rows).on_conflict_do_nothing(
+        index_elements=["card_id", "source", "variant", "grade", "snapshot_date"]
+    )
+    r = await db.execute(stmt)
+    await db.commit()
+    return r.rowcount or 0
+
+
+# ── Card selection ────────────────────────────────────────────────
+
+
+async def _pick_cards(
+    limit: int | None,
+    min_price: float,
+    card_ids: list[str] | None,
+) -> list[tuple[Card, Set | None]]:
+    """Return chase cards worth scraping. Same gate as snapshot_ebay
+    (EN cards priced above the floor); if --card-id is passed, use
+    only those (for one-off testing)."""
+    async with SessionLocal() as db:
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(Card).options(selectinload(Card.set)).where(
+            Card.language == "en"
+        )
+        if card_ids:
+            stmt = stmt.where(Card.id.in_(card_ids))
+        else:
+            stmt = stmt.where(Card.market_price_usd >= min_price).order_by(
+                Card.market_price_usd.desc()
+            )
+        if limit:
+            stmt = stmt.limit(limit)
+        rows = list((await db.execute(stmt)).scalars())
+    return [(c, c.set) for c in rows]
+
+
+# ── Main pipeline ─────────────────────────────────────────────────
+
+
+async def run(
+    graded_tier: str,
+    snapshot_date: str,
+    limit: int | None,
+    min_price: float,
+    throttle_ms: int,
+    dry_run: bool,
+    card_ids: list[str] | None,
+    headless: bool,
+) -> None:
+    await init_db()
+
+    cards = await _pick_cards(limit, min_price, card_ids)
+    log.info(f"scraping {len(cards)} cards for tier {graded_tier!r} (headless={headless})")
+
+    stats = {
+        "cards_seen": 0,
+        "cards_with_data": 0,
+        "listings_parsed": 0,
+        "listings_in_bucket": 0,
+        "snapshots_written": 0,
+        "empty_pages": 0,
+        "errors": 0,
+    }
+
+    browser, playwright = await _launch_browser(headless=headless)
+    try:
+        for card, set_obj in cards:
+            stats["cards_seen"] += 1
+            # Build query: card name + number + set name (cleaned) + tier.
+            # eBay's search hits work best on natural language — strip
+            # SET-code prefixes we use ("SV: ", "SWSH: ", "SM - ") that
+            # collectors rarely type. Also drop the /Y denominator from
+            # the card number so "161/131" becomes "161", matching how
+            # sellers title their listings.
+            parts = [card.name]
+            if card.number:
+                num = card.number.split("/")[0]
+                parts.append(num)
+            if set_obj is not None:
+                set_name = re.sub(
+                    r"^(?:SV|SWSH|SM|XY|BW|HGSS|DP|EX|ME)\s*[:\-]\s*",
+                    "",
+                    set_obj.name or "",
+                    flags=re.IGNORECASE,
+                )
+                if set_name.strip():
+                    parts.append(set_name.strip())
+            parts.append(graded_tier)
+            query = " ".join(str(p).strip() for p in parts if p)
+
+            log.info(f"query: {query!r}")
+            html = await _fetch_sold_html(browser, query)
+            if not html:
+                stats["errors"] += 1
+                continue
+            listings = _parse_sold(html)
+            stats["listings_parsed"] += len(listings)
+            log.info(f"  html len={len(html)}, parsed={len(listings)}")
+            if not listings and len(html) > 100:
+                # Diagnostic: count marker classes in what came back.
+                for marker in ("s-card", "captcha", "unusual", "shop on ebay"):
+                    log.info(f"  '{marker}' count: {html.lower().count(marker)}")
+
+            # Filter by card number + grade classifier tag matches
+            # the requested tier.
+            wanted_grade = classify_grade(f"dummy {graded_tier}")
+            prices: list[float] = []
+            for title, price in listings:
+                if not _card_number_match(title, card.number):
+                    continue
+                if classify_grade(title) != wanted_grade:
+                    continue
+                prices.append(price)
+
+            if len(prices) < MIN_LISTINGS_PER_GRADE:
+                stats["empty_pages"] += 1
+                log.info(
+                    f"[{stats['cards_seen']}/{len(cards)}] {card.id} "
+                    f"({card.name[:30]}) {graded_tier}: n={len(prices)} "
+                    "— below MIN, skipped"
+                )
+                continue
+            stats["cards_with_data"] += 1
+            stats["listings_in_bucket"] += len(prices)
+
+            prices.sort()
+            n = len(prices)
+            med = float(_median(prices))
+            lo, hi = float(prices[0]), float(prices[-1])
+            log.info(
+                f"[{stats['cards_seen']}/{len(cards)}] {card.id} "
+                f"({card.name[:30]}) {graded_tier}: n={n} "
+                f"lo=${lo:.2f} med=${med:.2f} hi=${hi:.2f}"
+            )
+
+            if not dry_run:
+                async with SessionLocal() as db:
+                    written = await _flush(
+                        db,
+                        [
+                            {
+                                "card_id": card.id,
+                                "source": SOURCE,
+                                "variant": VARIANT,
+                                "grade": wanted_grade,
+                                "market_price_usd": med,
+                                "low_price_usd": lo,
+                                "mid_price_usd": med,
+                                "high_price_usd": hi,
+                                "sales_count": n,
+                                "snapshot_at": datetime.utcnow(),
+                                "snapshot_date": snapshot_date,
+                            }
+                        ],
+                    )
+                    stats["snapshots_written"] += written
+
+            if throttle_ms > 0:
+                await asyncio.sleep(throttle_ms / 1000)
+    finally:
+        await browser.close()
+        await playwright.stop()
+
+    log.info(f"=== sold-scrape summary ({snapshot_date}, tier={graded_tier}) ===")
+    for k, v in stats.items():
+        log.info(f"  {k}: {v}")
+    log.info(f"  dry_run: {dry_run}")
+
+
+def main(argv: Iterable[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--graded-tier",
+        default="PSA 10",
+        help='Grade tier to fetch this run — appended to the eBay query. '
+        'Match the DOW rotation used by snapshot_ebay: "PSA 10", "CGC 10", '
+        '"PSA 9", "CGC 9". Default "PSA 10".',
+    )
+    parser.add_argument(
+        "--date",
+        dest="snapshot_date",
+        default=None,
+        help="YYYY-MM-DD, defaults to today UTC.",
+    )
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--min-price",
+        type=float,
+        default=25.0,
+        help="Skip cards with market_price_usd below this (default 25).",
+    )
+    parser.add_argument("--throttle-ms", type=int, default=1500)
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--card-id",
+        dest="card_ids",
+        action="append",
+        help="Restrict to specific card_id (repeatable). Ignores --limit / --min-price.",
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help=(
+            "Launch Chromium in headless mode. Default is visible because "
+            "DataDome fingerprints and soft-blocks pure headless. On CI "
+            "wrap the command in `xvfb-run` and leave this flag off — "
+            "the browser will be visible-to-the-virtual-display and "
+            "invisible-to-the-runner."
+        ),
+    )
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    snapshot_date = args.snapshot_date or date.today().isoformat()
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    asyncio.run(
+        run(
+            graded_tier=args.graded_tier,
+            snapshot_date=snapshot_date,
+            limit=args.limit,
+            min_price=args.min_price,
+            throttle_ms=args.throttle_ms,
+            dry_run=args.dry_run,
+            card_ids=args.card_ids,
+            headless=args.headless,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

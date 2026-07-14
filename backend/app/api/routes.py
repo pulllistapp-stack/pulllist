@@ -681,8 +681,11 @@ async def get_card_graded_prices(
     days: int = Query(90, ge=7, le=365),
 ) -> dict:
     """Latest median-per-grade for the graded tiles under the price
-    chart. Reads `card_price_snapshots` where source='ebay' and
-    aggregates by grade tier.
+    chart. Reads `card_price_snapshots` filtered to grade rows, then
+    prefers `ebay_sold` (Playwright-scraped sold data) over `ebay`
+    (Browse API asking data) when both exist for the same tier —
+    sold prices are the actual clearing rate, asking prices run
+    10-30% above.
 
     Response shape (matches `frontend/components/card/GradedPricesGrid.tsx`):
         {
@@ -691,11 +694,6 @@ async def get_card_graded_prices(
           "cgc10": {...} | null,
           "cgc9":  {...} | null,
         }
-
-    Missing tiers omitted (frontend treats absent keys as null). Falls
-    back to no rows when the card has no graded eBay snapshots yet —
-    normal until the classifier accumulates enough grade-tagged
-    listings.
     """
     card = await db.get(Card, card_id)
     if not card:
@@ -703,6 +701,16 @@ async def get_card_graded_prices(
 
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     ui_tiers = ("psa10", "psa9", "cgc10", "cgc9")
+    # Prefer sold over asking when picking the "latest" per grade —
+    # the CASE-based sort_priority lifts ebay_sold rows above ebay
+    # ones with the same snapshot_date.
+    from sqlalchemy import case
+
+    source_priority = case(
+        (CardPriceSnapshot.source == "ebay_sold", 0),
+        (CardPriceSnapshot.source == "ebay", 1),
+        else_=2,
+    )
 
     stmt = (
         select(
@@ -714,17 +722,21 @@ async def get_card_graded_prices(
         )
         .where(
             CardPriceSnapshot.card_id == card_id,
-            CardPriceSnapshot.source == "ebay",
+            CardPriceSnapshot.source.in_(("ebay", "ebay_sold")),
             CardPriceSnapshot.snapshot_date >= cutoff,
             CardPriceSnapshot.grade.in_(ui_tiers),
             CardPriceSnapshot.market_price_usd.is_not(None),
         )
-        .order_by(CardPriceSnapshot.snapshot_date.desc())
+        .order_by(
+            CardPriceSnapshot.snapshot_date.desc(),
+            source_priority.asc(),
+        )
     )
     rows = (await db.execute(stmt)).all()
 
     # Keep only the most recent snapshot per grade (first hit wins
-    # because we ordered by date desc).
+    # because we ordered by date desc + source priority so ebay_sold
+    # beats ebay on same-day ties).
     latest: dict[str, dict] = {}
     for grade, price, variant, source, snap_date in rows:
         if grade in latest:
