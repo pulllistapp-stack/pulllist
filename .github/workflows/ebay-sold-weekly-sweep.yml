@@ -1,0 +1,95 @@
+name: eBay sold-listing scrape — weekly gap-fill sweep
+
+# The "set and forget" companion to the on-demand full-rotation.
+# Every Sunday 08:00 UTC (03:00 ET, eBay off-peak) each grade
+# tier grabs the next 300 uncovered cards on its own runner in
+# parallel. `skip-if-today=true` means we NEVER re-scrape a card
+# that already has today's snapshot, so we only visit cards that
+# no rotation has touched today. Cadence is a compromise between
+# saturation speed and GH Actions minutes on the free tier.
+#
+# Saturation math ($10+ pool = 4,635 EN cards × 4 tiers):
+#   ~12 weeks (Sundays) × 300 cards/tier/week = 3,600 cards/tier
+#   ~= 15 weeks to cover most of $10+ chase at all four tiers.
+#
+# Budget math (private repo, 2,000 min/mo free tier):
+#   4 runners × (300 × ~22s + 5 min setup) = 4 × ~115 min = 460 min/sweep
+#   × 4 sweeps/month = ~1,840 min/mo = 92% budget.
+#   Combined with the daily-tier rotation (~1,170 min/mo) this
+#   pushes total usage over budget — LO must either (a) accept
+#   the ~$8/mo overage, (b) make the repo public for unlimited
+#   minutes, or (c) disable the daily rotation and rely on this
+#   weekly sweep alone.
+
+on:
+  schedule:
+    # Sunday 08:00 UTC. Off-peak on eBay's US-facing traffic;
+    # one hour before the daily per-tier rotation's own 09:00 UTC
+    # so it grabs Sunday's PSA 10 asking rotation *before* the
+    # skip-if-today filter would exclude it — but our sweep is
+    # source='ebay_sold', a distinct source key from the daily
+    # 'ebay' rotation, so the two don't step on each other anyway.
+    - cron: "0 8 * * 0"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Cards PER TIER this sweep (raise for aggressive fill)"
+        required: false
+        default: "300"
+      min_price:
+        description: "Skip cards below this market_price_usd"
+        required: false
+        default: "10"
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      # Never cancel siblings — one tier tripping should not
+      # rob the other three of their sweep.
+      fail-fast: false
+      matrix:
+        tier:
+          - { label: "PSA 10", slug: "psa10" }
+          - { label: "PSA 9",  slug: "psa9"  }
+          - { label: "CGC 10", slug: "cgc10" }
+          - { label: "CGC 9",  slug: "cgc9"  }
+    name: Sweep ${{ matrix.tier.label }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - run: |
+          pip install playwright playwright-stealth
+          python -m playwright install --with-deps chromium
+
+      - run: sudo apt-get install -y xvfb
+
+      - name: Weekly gap-fill ${{ matrix.tier.label }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # Always skip-if-today. This is the point of the sweep —
+        # never re-scrape work we already have. Bigger ipg + one
+        # extra retry to squeeze the tail of the candidate list
+        # where soft-blocks are common.
+        run: |
+          xvfb-run --auto-servernum \
+            python -m scripts.scrape_ebay_sold \
+              --graded-tier "${{ matrix.tier.label }}" \
+              --limit "${{ github.event.inputs.limit || '300' }}" \
+              --min-price "${{ github.event.inputs.min_price || '10' }}" \
+              --throttle-ms 2000 \
+              --ipg 120 \
+              --max-attempts 3 \
+              --skip-if-today
