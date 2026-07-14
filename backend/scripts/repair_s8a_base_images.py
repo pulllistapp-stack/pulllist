@@ -1,20 +1,32 @@
-"""Undo the tcgplayer-cdn image overwrite on S8a base cards.
+"""Restore correct S8a base card images from TCGCSV.
 
-The first S8a card-import pass clobbered image_small / image_large on
-all 30 base cards (numbers 1-30, no P/G prefix) with TCGCSV thumbnail
-URLs — 200w resolution vs the Bulbapedia scans they previously
-carried. Additionally, the derived _1000x1000 variant used for
-image_large 403s on tcgplayer-cdn, so the "large" URL is broken.
+The 30 base cards took a two-step regression:
 
-This script NULLs out those tcgplayer-cdn URLs on the base 30 rows
-so the follow-up ``backfill_jp_images_bulbapedia --set S8a`` step can
-re-populate them from Bulbapedia at full quality. Only touches base
-cards; leaves P1-P25 (promo pack) and G1-G15 (golden box) alone
-since those were freshly imported and TCGCSV thumbnails are the
-best we have for them right now.
+1. First S8a card-import pass overwrote their Bulbapedia scans with
+   TCGCSV thumbnail URLs at 200w resolution AND a broken derived
+   _1000x1000 URL for image_large.
 
-Idempotent — after the Bulbapedia backfill fires, the tcgplayer-cdn
-URLs are gone, so re-running this script is a no-op.
+2. A follow-up attempt to restore via Bulbapedia's card-list scraper
+   pulled the wrong images entirely: the wiki page for
+   /25th_Anniversary_Collection_(TCG) walks anchors in EN Celebrations
+   set order (Ho-Oh, Reshiram, Kyogre, Palkia, Pikachu…) while our JP
+   S8a numbers are Pikachu, Mew, Professor's Research, Ho-Oh, Lugia…
+   The scraper matched by anchor position, so S8a #1 (Pikachu) ended
+   up carrying the Ho-Oh Celebrations #1 image, and everything below
+   shifted the same way.
+
+This script gives up on Bulbapedia for now (a name-based JP↔EN
+matcher is out of scope for the immediate fix) and reseats the 30
+base rows to TCGCSV's own URLs at the correct sizes:
+    image_small  → tcgplayer-cdn .../{pid}_200w.jpg
+    image_large  → tcgplayer-cdn .../{pid}_400w.jpg
+
+The pid is already stored on the row from the earlier import, so no
+external fetch is needed — just derive the URLs from
+``tcgplayer_product_id``. 200w/400w are the only sizes TCGCSV
+actually serves (500w/800w/1000w return 403).
+
+Idempotent — no-op after the first successful run.
 
 Usage:
     python -m scripts.repair_s8a_base_images --dry-run
@@ -43,41 +55,45 @@ async def run(dry_run: bool) -> None:
     await init_db()
 
     async with SessionLocal() as db:
-        # Base cards only: id like "S8a-<int>" (no P/G prefix in the
-        # numeric part). number_int between 1 and 30 covers exactly
-        # the base printing.
         rows = (await db.execute(text("""
-            SELECT id, number, image_small, image_large
+            SELECT id, number_int, tcgplayer_product_id, image_small, image_large
             FROM cards
             WHERE set_id = 'S8a'
               AND number_int BETWEEN 1 AND 30
-              AND (
-                image_small LIKE '%tcgplayer-cdn.tcgplayer.com%'
-                OR image_large LIKE '%tcgplayer-cdn.tcgplayer.com%'
-              )
             ORDER BY number_int
         """))).all()
-        log.info(f"S8a base cards with tcgplayer-cdn images: {len(rows)}")
-        for r in rows[:5]:
-            log.info(f"  {r.id}  small={r.image_small[:70] if r.image_small else '?'}")
+
+        needs_fix = []
+        for r in rows:
+            pid = r.tcgplayer_product_id
+            if pid is None:
+                # Can't build a TCGCSV URL without a product id.
+                # Skip rather than blank the image out.
+                continue
+            want_small = f"https://tcgplayer-cdn.tcgplayer.com/product/{pid}_200w.jpg"
+            want_large = f"https://tcgplayer-cdn.tcgplayer.com/product/{pid}_400w.jpg"
+            if r.image_small != want_small or r.image_large != want_large:
+                needs_fix.append((r.id, want_small, want_large))
+
+        log.info(f"S8a base rows scanned: {len(rows)}")
+        log.info(f"rows needing image fix: {len(needs_fix)}")
+        for cid, s, _ in needs_fix[:3]:
+            log.info(f"  → {cid}: {s}")
 
         if dry_run:
             log.info("MODE: DRY-RUN — no writes")
             return
 
-        r = await db.execute(text("""
-            UPDATE cards
-            SET image_small = NULL,
-                image_large = NULL
-            WHERE set_id = 'S8a'
-              AND number_int BETWEEN 1 AND 30
-              AND (
-                image_small LIKE '%tcgplayer-cdn.tcgplayer.com%'
-                OR image_large LIKE '%tcgplayer-cdn.tcgplayer.com%'
-              )
-        """))
-        log.info(f"cleared: {r.rowcount} rows (backfill_jp_images_bulbapedia will re-fill)")
+        for cid, small, large in needs_fix:
+            await db.execute(
+                text(
+                    "UPDATE cards SET image_small = :s, image_large = :l "
+                    "WHERE id = :id"
+                ),
+                {"s": small, "l": large, "id": cid},
+            )
         await db.commit()
+        log.info(f"fixed: {len(needs_fix)}")
 
 
 def main() -> None:
