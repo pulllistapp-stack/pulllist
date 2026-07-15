@@ -339,6 +339,121 @@ def _cards_match_predicate(pattern: str, dex_numbers: list[int]):
     )
 
 
+@router.get("/cards/top-artists")
+async def top_artists(
+    db: AsyncSession = Depends(get_db),
+    min_usd: float = Query(
+        100.0, ge=0,
+        description=(
+            "Only count cards priced at or above this floor. Lower values "
+            "count bulk illustrations toward the ranking; the default $100 "
+            "restricts to hunt-worthy cards, which is what the illustrator "
+            "feature newsbot cares about."
+        ),
+    ),
+    limit: int = Query(10, ge=1, le=50),
+    language: str = Query("en", pattern="^(en|ja|ko)$"),
+) -> dict:
+    """Top illustrators by count of qualifying cards.
+
+    Data-driven newsbot uses this to auto-rotate the monthly
+    illustrator feature — it fetches the top artist, then feeds that
+    name to /cards/by-artist for the actual gallery. Ignoring artists
+    with fewer than 3 chase cards keeps the ranking away from one-hit
+    contributors.
+    """
+    stmt = (
+        select(
+            Card.artist,
+            func.count(Card.id).label("card_count"),
+            func.max(Card.market_price_usd).label("top_price"),
+        )
+        .where(
+            Card.language == language,
+            Card.artist.is_not(None),
+            Card.market_price_usd.is_not(None),
+            Card.market_price_usd >= min_usd,
+        )
+        .group_by(Card.artist)
+        .having(func.count(Card.id) >= 3)
+        .order_by(func.count(Card.id).desc(), func.max(Card.market_price_usd).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    return {
+        "min_usd": min_usd,
+        "limit": limit,
+        "language": language,
+        "artists": [
+            {
+                "artist": artist,
+                "card_count": int(count),
+                "top_price_usd": float(top) if top is not None else None,
+            }
+            for artist, count, top in rows
+        ],
+    }
+
+
+@router.get("/cards/by-artist")
+async def cards_by_artist(
+    db: AsyncSession = Depends(get_db),
+    artist: str = Query(..., min_length=1, description="Exact artist credit as stored on Card.artist"),
+    limit: int = Query(15, ge=1, le=50),
+    language: str = Query("en", pattern="^(en|ja|ko)$"),
+    sort: str = Query("price_desc", pattern="^(price_desc|newest|oldest)$"),
+) -> dict:
+    """Top cards credited to a specific artist.
+
+    Newsbot's illustrator-feature source calls this once per pick to
+    fill the gallery + rank/set metadata for the post. Not paginated
+    on purpose — the feature is a bounded gallery, not a browse feed.
+    """
+    stmt = (
+        select(Card, Set.name, Set.release_date, Set.logo_url)
+        .join(Set, Card.set_id == Set.id)
+        .where(
+            Card.language == language,
+            Card.artist == artist,
+        )
+    )
+    if sort == "price_desc":
+        stmt = stmt.order_by(Card.market_price_usd.desc().nullslast(), Card.name)
+    elif sort == "newest":
+        stmt = stmt.order_by(Set.release_date.desc().nullslast(), Card.name)
+    else:
+        stmt = stmt.order_by(Set.release_date.asc().nullslast(), Card.name)
+    stmt = stmt.limit(limit)
+    rows = (await db.execute(stmt)).all()
+    return {
+        "artist": artist,
+        "language": language,
+        "sort": sort,
+        "limit": limit,
+        "count": len(rows),
+        "items": [
+            {
+                "card_id": c.id,
+                "name": c.name,
+                "number": c.number,
+                "rarity": c.rarity,
+                "image_small": c.image_small,
+                "image_large": c.image_large,
+                "market_price_usd": (
+                    float(c.market_price_usd) if c.market_price_usd else None
+                ),
+                "set_id": c.set_id,
+                "set_name": set_name,
+                "set_release_date": (
+                    set_release.isoformat() if set_release else None
+                ),
+                "set_logo_url": set_logo,
+            }
+            for c, set_name, set_release, set_logo in rows
+        ],
+    }
+
+
 @router.get("/cards/top-priced")
 async def top_priced_cards(
     db: AsyncSession = Depends(get_db),

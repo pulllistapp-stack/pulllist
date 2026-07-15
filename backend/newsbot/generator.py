@@ -348,6 +348,64 @@ def _is_price_club(item: NewsItem) -> bool:
     return item.url.startswith("pulllist://price-club/")
 
 
+def _is_illustrator_feature(item: NewsItem) -> bool:
+    """illustrator_feature source uses pulllist://illustrator-feature/..."""
+    return item.url.startswith("pulllist://illustrator-feature/")
+
+
+def _build_illustrator_feature_prompt(item: NewsItem) -> str:
+    try:
+        payload = json.loads(item.raw_text)
+    except Exception:
+        payload = {}
+    artist = payload.get("artist", "")
+    items = payload.get("items", []) or []
+    lines = [
+        "Source type: monthly illustrator feature (data-driven, our own catalog)",
+        f"Month: {payload.get('month_id')}",
+        f"Artist: {artist}",
+        f"Gallery size: {len(items)}",
+        "",
+        "Every card row carries card_id + set_id — link the card name "
+        "to /cards/{card_id} and the set name to /sets/{set_id} for "
+        "each entry. This is the catalog loop. No external URLs.",
+        "",
+        f"CARDS BY {artist.upper()} (highest → lowest market price):",
+    ]
+    for c in items:
+        price = c.get("market_price_usd")
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "n/a"
+        lines.append(
+            f"- card_id={c.get('card_id')} name={c.get('name')} "
+            f"#{c.get('number')} rarity={c.get('rarity')} "
+            f"market={price_str} "
+            f"set_id={c.get('set_id')} set={c.get('set_name')} "
+            f"released={c.get('set_release_date')} "
+            f"image={c.get('image_small', '') or c.get('image_large', '')}"
+        )
+    lines.append("")
+    lines.append(
+        f"Structure the post as: hook (one striking fact about {artist} "
+        "drawn from the gallery — a signature card, a price ceiling, "
+        "a set they anchor) -> ## 🎨 About the artist (2-3 sentences "
+        "connecting recurring visual traits or eras across the "
+        "gallery — pull it from what's actually there, don't invent "
+        "biography) -> ## 💎 Signature cards (top 3-5 cards, each = "
+        "inline image + linked name + linked set + price + a 1-2 "
+        "sentence why-it-matters that ties back to the artist's "
+        "voice) -> ## 🖼️ The rest of the gallery (remaining cards as "
+        "tighter one-liners with image + name link + set link + price "
+        "— every card in the gallery must appear) -> ## 🎯 What their "
+        "catalog tells us (2-3 sentence pattern observation — era "
+        "concentration, rarity skew, set streak) -> ## 💡 The takeaway "
+        "(2-4 bullets) -> one-line PullList catalog CTA -> ## Sources "
+        f"(just '- PullList catalog snapshot'). Title: 'Artist Feature "
+        f"— {artist}: <angle>' where the angle is a data-grounded "
+        "observation (era streak / set anchor / price ceiling)."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _build_price_club_prompt(item: NewsItem) -> str:
     """Payload -> monthly '$1000+ club' ranking prompt."""
     try:
@@ -535,6 +593,8 @@ def _build_user_prompt(item: NewsItem) -> str:
         return _build_set_overview_prompt(item)
     if _is_price_club(item):
         return _build_price_club_prompt(item)
+    if _is_illustrator_feature(item):
+        return _build_illustrator_feature_prompt(item)
     body = item.raw_text or item.summary or ""
     # 50k chars (~12k tokens) is enough to fit the longest editorial
     # articles we've seen end-to-end (30th Celebration set lineup

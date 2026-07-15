@@ -82,6 +82,13 @@ class Settings(BaseSettings):
     # Off by default. Monthly workflow (1st of the month) flips it on.
     price_club_enabled: bool = False
 
+    # ── Illustrator-feature source (Phase B Sprint 4) ──
+    # Off by default. Auto-rotates on the top artist among chase-tier
+    # cards each fire; override via ILLUSTRATOR_FEATURE_ARTIST=<name>
+    # to force a specific pick for that run.
+    illustrator_feature_enabled: bool = False
+    illustrator_feature_artist: str = ""
+
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.
     # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).
