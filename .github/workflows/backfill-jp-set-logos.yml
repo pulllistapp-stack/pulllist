@@ -1,0 +1,54 @@
+name: Backfill JP set logos (Limitless CDN)
+
+# Manual-only. Sweeps every JP set with logo_url IS NULL and probes
+# https://s3.limitlesstcg.com/sets/jp/{SET_ID}.png. Where 200,
+# writes the URL onto ``sets.logo_url``. Case-insensitive fallback
+# covers PullList's mixed-case IDs (SVLN vs svLN).
+#
+# Runs against prod via ``secrets.DATABASE_URL``. Idempotent — a
+# repeat trigger only touches sets whose logo is still NULL.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (probe, don't write)"
+        required: false
+        default: "false"
+      only:
+        description: "Limit to a single set_type (DECK, PROMO_NEW, PROMO_LEGACY). Blank = all."
+        required: false
+        default: ""
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Probe Limitless CDN + write logo_url
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          if [ -n "${{ inputs.only }}" ]; then
+            args="$args --only ${{ inputs.only }}"
+          fi
+          python -m scripts.backfill_jp_set_logos_limitless $args
