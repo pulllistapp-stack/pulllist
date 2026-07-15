@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     # otherwise fires for every item every run.
     skip_factcheck: bool = True
 
+    # ── Market-report source (Phase B Sprint 1) ──
+    # Off by default. Only the weekly Monday cron flips this on;
+    # the daily news bot keeps its regular shape.
+    market_report_enabled: bool = False
+
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.
     # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).

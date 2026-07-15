@@ -324,7 +324,78 @@ def _is_drop_source(url: str) -> bool:
     return any(h in u for h in _DROP_HOSTS)
 
 
+def _is_market_report(item: NewsItem) -> bool:
+    """market_report source packages structured JSON payload into
+    raw_text and uses a synthetic pulllist:// URL. Detect by the
+    URL scheme so we don't misfire on any real article that
+    happens to include the word 'market' in its source_name."""
+    return item.url.startswith("pulllist://market-report/")
+
+
+def _build_market_report_prompt(item: NewsItem) -> str:
+    """Turn the JSON payload the market_report source packed into
+    raw_text into a prompt Claude can reason about. Everything the
+    generator needs is in the payload: week id, period, sources,
+    per-card gainer/loser rows with card_id + name + set + prices."""
+    try:
+        payload = json.loads(item.raw_text)
+    except Exception:
+        payload = {}
+    gainers = payload.get("gainers", []) or []
+    losers = payload.get("losers", []) or []
+    lines = [
+        "Source type: weekly market report (data-driven, our own dataset)",
+        f"Week: {payload.get('week_id', '')}",
+        f"Window: last {payload.get('period_days', 7)} days",
+        f"Price source: {payload.get('source', 'ebay')}",
+        "",
+        "Every card row below carries card_id — you MUST link the card "
+        "name to /cards/{card_id} in markdown ([Name](/cards/id)) every "
+        "time you mention it. That's how readers click through to our "
+        "own catalog page for the card. Do NOT invent slugs or use "
+        "external URLs for card names.",
+        "",
+        "TOP GAINERS (last 7 days):",
+    ]
+    for m in gainers:
+        lines.append(
+            f"- card_id={m.get('card_id')} name={m.get('name')} "
+            f"set={m.get('set_name')} #{m.get('number')} "
+            f"rarity={m.get('rarity')} "
+            f"latest=${m.get('latest_price'):.2f} "
+            f"oldest=${m.get('oldest_price'):.2f} "
+            f"delta={m.get('delta_pct'):+.1f}% "
+            f"image={m.get('image_small', '')}"
+        )
+    lines.append("")
+    lines.append("TOP LOSERS (last 7 days):")
+    for m in losers:
+        lines.append(
+            f"- card_id={m.get('card_id')} name={m.get('name')} "
+            f"set={m.get('set_name')} #{m.get('number')} "
+            f"rarity={m.get('rarity')} "
+            f"latest=${m.get('latest_price'):.2f} "
+            f"oldest=${m.get('oldest_price'):.2f} "
+            f"delta={m.get('delta_pct'):+.1f}% "
+            f"image={m.get('image_small', '')}"
+        )
+    lines.append("")
+    lines.append(
+        "Structure the post as: hook -> ## 🔥 Top Gainers (with each "
+        "card as an inline image + linked name + delta) -> ## ❄️ Top "
+        "Losers (same shape) -> ## 🎯 What's driving it (one or two "
+        "sentences on any pattern you see — set overlap, rarity "
+        "concentration, etc.) -> ## 💡 The takeaway (2-3 bullets) -> "
+        "one-line PullList catalog CTA -> ## Sources (just: '- PullList "
+        "eBay snapshot pipeline'). Title should be something like "
+        "'This Week: <most notable mover>' — concrete, not generic."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _build_user_prompt(item: NewsItem) -> str:
+    if _is_market_report(item):
+        return _build_market_report_prompt(item)
     body = item.raw_text or item.summary or ""
     # 50k chars (~12k tokens) is enough to fit the longest editorial
     # articles we've seen end-to-end (30th Celebration set lineup
