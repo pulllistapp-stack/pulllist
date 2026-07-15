@@ -60,7 +60,32 @@ _GROUPS = {
     "JPP-VM3": 24208,
 }
 
-_NAME_STRIP_RE = re.compile(r"\s+\(Vending\s+S\d\)\s*$")
+# Strip any trailing "(...)" — Vending Sn, Wizards Promo N, Gym
+# Challenge N, artist names, etc. Also handles our own "(Vending S3 1)"
+# form where the regex-strict "\(Vending\s+S\d\)$" missed the extra
+# " 1)" suffix on Kadabra rows.
+_PAREN_TAIL_RE = re.compile(r"\s*\([^)]*\)\s*$")
+
+# Gender symbols and other Unicode names TCGCSV normalises to plain
+# ASCII (Nidoran♀ → "Nidoran f", Nidoran♂ → "Nidoran m"). Applied
+# to both DB and TCGCSV names before comparison so both directions
+# converge.
+_SYMBOL_MAP = str.maketrans({
+    "♀": "f",
+    "♂": "m",
+    "é": "e",
+    "É": "e",
+})
+
+
+def _strip_trailing_parens(name: str) -> str:
+    prev = None
+    out = name
+    # Peel nested "(A) (B)" tails until stable.
+    while prev != out:
+        prev = out
+        out = _PAREN_TAIL_RE.sub("", out)
+    return out
 
 
 async def _fetch_products(client: httpx.AsyncClient, gid: int) -> list[dict]:
@@ -71,7 +96,17 @@ async def _fetch_products(client: httpx.AsyncClient, gid: int) -> list[dict]:
 
 
 def _normalize_name(name: str) -> str:
-    return _NAME_STRIP_RE.sub("", name).strip().lower()
+    """Two-tier normalisation:
+      * full: strip trailing "(...)" (Vending Sn / Wizards Promo N /
+        Gym Challenge N / artist tag), lowercase, gender-symbol map
+      * base: same but ALSO strip any residual parenthetical
+    Callers try full first, fall back to base if no hit. Keeps
+    tight matches from cross-collision (two "Kadabra (artist)"
+    variants) while still catching cross-set mismatches ("Pikachu
+    (Wizards Promo 27)" → "pikachu").
+    """
+    stripped = _strip_trailing_parens(name).strip()
+    return stripped.lower().translate(_SYMBOL_MAP)
 
 
 async def run(dry_run: bool) -> None:
