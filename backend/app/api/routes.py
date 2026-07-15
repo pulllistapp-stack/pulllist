@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_optional
 from app.database import get_db
-from app.models import Card, CardPriceSnapshot, CollectionItem, NewsView, Set, User
+from app.models import Card, CardPriceSnapshot, CollectionItem, NewsView, Product, Set, User
 from app.schemas.card import CardList, CardRead
 from app.schemas.set import SetRead, SetWithCardCount
 from app.services.ebay_client import POKEMON_CATEGORIES, EbayClient, EbayClientError, build_card_query
@@ -127,19 +127,31 @@ async def list_sets(
 
     rows = (await db.execute(stmt)).all()
 
-    # JP visibility rule: show a set when it carries either a logo or
-    # at least one card. The old rule hid every logo-less row (a swath
-    # of vintage E-card / PMCG / PCG / VS / web-era expansions with
-    # ~1,500 cards already in the DB never reached the UI). Now those
-    # land in the grid with the placeholder logo and a real card list.
+    # JP visibility rule: show a set when it carries either a logo,
+    # at least one card, or at least one sealed product. The old rule
+    # was logo-or-cards; sealed-only sets (SBC / JPP-M / CLL / NPF1 /
+    # PtA-GF / PtA-LP — created 2026-07-14 for the JP-sealed backfill)
+    # got hidden even though their /sets/{id} page carried real
+    # product tiles, so nobody could discover them by browsing.
     #
     # The carve-out: TCGdex returns stub rows for prehistoric promo
     # buckets (JPP-MCD / JPP-SI / JPP-VM / etc.) and a few never-
     # populated expansion shells (ADV1-5, L1a, LL) — no source has
-    # ever filled them with cards, and surfacing them creates empty
-    # tiles. Hide the no-logo-AND-no-cards intersection only.
+    # ever filled them with cards OR sealed, so surfacing them still
+    # creates empty tiles. Hide the no-logo-AND-no-cards-AND-no-sealed
+    # intersection only.
     if language == "ja":
-        rows = [r for r in rows if r[0].logo_url is not None or r[1] > 0]
+        sealed_set_ids: set[str] = set(
+            (await db.execute(
+                select(Product.set_id).where(Product.set_id.is_not(None)).distinct()
+            )).scalars().all()
+        )
+        rows = [
+            r for r in rows
+            if r[0].logo_url is not None
+            or r[1] > 0
+            or r[0].id in sealed_set_ids
+        ]
 
     # Per-user owned counts in one query if logged in
     owned_map: dict[str, int] = {}
