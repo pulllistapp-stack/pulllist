@@ -143,6 +143,23 @@ jobs:
           fi
           python -m scripts.restore_s8a_family_images $args
 
+      - name: Upgrade S8a base to JP-native scans from Limitless
+        # Bulbapedia only hosts EN "Celebrations" scans — text on the
+        # card is English even though the artwork is identical to the
+        # JP release. Limitless hosts JP scans for S8a-1..29 on their
+        # CDN, so this step replaces those 29 URLs with the JP versions.
+        # Mew UR #30 + S8a-P{1-25} + S8a-G{1-15} stay on the Bulbapedia
+        # URLs — Limitless doesn't have them.
+        if: inputs.only == ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.restore_s8a_jp_scans_limitless $args
+
       - name: Ingest JP sealed products
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
