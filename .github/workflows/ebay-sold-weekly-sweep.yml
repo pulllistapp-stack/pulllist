@@ -58,17 +58,16 @@ jobs:
       # rob the other three of their sweep.
       fail-fast: false
       matrix:
+        # Grade 10 only — matches the full-rotation focus. Grade 9 /
+        # 9.5 tiers land via the per-card user Refresh flow when
+        # someone actually wants that data. Keeps the weekly sweep
+        # aligned with the "main = grade 10, edge cases = on-demand"
+        # strategy.
         tier:
           - { label: "PSA 10", slug: "psa10" }
-          - { label: "PSA 9",  slug: "psa9"  }
           - { label: "CGC 10", slug: "cgc10" }
-          - { label: "CGC 9",  slug: "cgc9"  }
           - { label: "BGS 10", slug: "bgs10" }
-          - { label: "BGS 9.5", slug: "bgs95" }
-          - { label: "BGS 9",  slug: "bgs9"  }
           - { label: "TAG 10", slug: "tag10" }
-          - { label: "TAG 9.5", slug: "tag95" }
-          - { label: "TAG 9",  slug: "tag9"  }
     name: Sweep ${{ matrix.tier.label }}
     defaults:
       run:

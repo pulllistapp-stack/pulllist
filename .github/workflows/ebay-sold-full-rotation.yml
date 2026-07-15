@@ -58,19 +58,18 @@ jobs:
       # blow away the other three's data.
       fail-fast: false
       matrix:
-        # Named pairs so the runner-facing log line is human-readable
-        # ("Scrape PSA 10") without shell-escape headaches.
+        # Grade 10 only for the main backfill sweep. Grade 9 / 9.5 tiers
+        # are handled by per-card user Refresh — they're niche markets
+        # (nobody hunts for a $5k CGC 9 the way they hunt for PSA 10),
+        # so spending the crawl budget on them thins the coverage of
+        # the queries that actually get searched. Narrowing 10 → 4
+        # tiers means each grade 10 tier goes 2.5× deeper into the
+        # candidate pool per round.
         tier:
           - { label: "PSA 10", slug: "psa10" }
-          - { label: "PSA 9",  slug: "psa9"  }
           - { label: "CGC 10", slug: "cgc10" }
-          - { label: "CGC 9",  slug: "cgc9"  }
           - { label: "BGS 10", slug: "bgs10" }
-          - { label: "BGS 9.5", slug: "bgs95" }
-          - { label: "BGS 9",  slug: "bgs9"  }
           - { label: "TAG 10", slug: "tag10" }
-          - { label: "TAG 9.5", slug: "tag95" }
-          - { label: "TAG 9",  slug: "tag9"  }
     name: Scrape ${{ matrix.tier.label }}
     defaults:
       run:
