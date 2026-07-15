@@ -1,7 +1,12 @@
 import type { MetadataRoute } from "next";
 
+// Canonical form is www.pulllist.org (Vercel 308-redirects the apex).
+// Emitting non-www URLs in the sitemap forces Google to follow a
+// redirect on every entry, which shows up as "Couldn't fetch" errors
+// in Search Console.
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://pulllist.org";
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
+  "https://www.pulllist.org";
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "https://api.pulllist.org/api/v1";
 
