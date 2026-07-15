@@ -58,15 +58,15 @@ jobs:
       # rob the other three of their sweep.
       fail-fast: false
       matrix:
-        # Grade 10 only — matches the full-rotation focus. Grade 9 /
-        # 9.5 tiers land via the per-card user Refresh flow when
-        # someone actually wants that data. Keeps the weekly sweep
-        # aligned with the "main = grade 10, edge cases = on-demand"
-        # strategy.
+        # Grade 10 tiers + BGS Black Label. See ebay-sold-full-
+        # rotation.yml for the rationale — Black Label is a distinct
+        # market that gets its own query so a mixed "BGS 10" query
+        # doesn't blend Black Label premiums into the regular median.
         tier:
           - { label: "PSA 10", slug: "psa10" }
           - { label: "CGC 10", slug: "cgc10" }
           - { label: "BGS 10", slug: "bgs10" }
+          - { label: "BGS 10 Black Label", slug: "bgs10bl" }
           - { label: "TAG 10", slug: "tag10" }
     name: Sweep ${{ matrix.tier.label }}
     defaults:

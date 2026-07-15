@@ -39,6 +39,10 @@ GRADE_CANONICAL = {
     "psa10", "psa9", "psa8",
     "cgc10", "cgc9.5", "cgc9",
     "bgs10", "bgs9.5", "bgs9",
+    # BGS Black Label / Pristine 10 — the "all four sub-grades hit 10"
+    # tier. Distinct SKU from a regular BGS 10 (Black Label slabs are
+    # framed in black and command 2-10× the price on chase cards).
+    "bgs10bl",
     # TAG Grading — newer service (2024+) hot with chase collectors.
     # TAG 10 = Pristine, 9.5 = Gem Mint, 9 = Mint+.
     "tag10", "tag9.5", "tag9",
@@ -58,6 +62,22 @@ _CGC_RE = re.compile(
 )
 _BGS_RE = re.compile(
     r"\bB\.?\s*G\.?\s*S\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
+    re.IGNORECASE,
+)
+# BGS Black Label / Pristine 10 signals — all four subgrades == 10
+# means Beckett stamps the slab with a black label. Different physical
+# slab, meaningfully different market price (2-10× a regular BGS 10 on
+# chase). Presence of any of these keywords in a BGS 10 listing routes
+# it to the `bgs10bl` bucket instead of `bgs10`.
+#
+# Deliberately excluding bare "BL" and bare "Black" — both false-
+# positive on unrelated titles ("Blaster", "Black Zacian", "Black
+# Star Promo"). Requiring the full "Black Label" / "Blk Label" /
+# "Pristine 10" phrase keeps precision high; a few no-keyword Black
+# Label listings will slip into the regular bgs10 bucket, which is
+# acceptable — they're the same physical grade.
+_BGS_BLACK_LABEL_RE = re.compile(
+    r"\b(?:black\s*label|blk\s*label|pristine\s*10)\b",
     re.IGNORECASE,
 )
 # TAG Grading — must be followed by grade number to avoid false-
@@ -103,6 +123,11 @@ def _bucket(prefix: str, num_str: str) -> str:
         return "other"
     if prefix == "bgs":
         if num == 10:
+            # Black Label / Pristine 10 gets promoted at the call
+            # site in classify_grade() — this bucket returns the
+            # regular bgs10 by default, then the caller upgrades
+            # to bgs10bl if the title also carries the Black Label
+            # signal. Keeps this helper stateless.
             return "bgs10"
         if num == 9.5:
             return "bgs9.5"
@@ -140,7 +165,13 @@ def classify_grade(title: str) -> str:
 
     m = _BGS_RE.search(title)
     if m:
-        return _bucket("bgs", m.group(1))
+        bucket = _bucket("bgs", m.group(1))
+        # Promote BGS 10 to Black Label when the listing carries
+        # the marker keywords. Only applies to grade 10 (Black
+        # Label doesn't exist below BGS 10).
+        if bucket == "bgs10" and _BGS_BLACK_LABEL_RE.search(title):
+            return "bgs10bl"
+        return bucket
 
     m = _TAG_RE.search(title)
     if m:

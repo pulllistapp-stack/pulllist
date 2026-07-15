@@ -26,6 +26,7 @@ type GradedTier =
   | "cgc10"
   | "cgc9"
   | "bgs10"
+  | "bgs10bl"
   | "bgs9.5"
   | "bgs9"
   | "tag10"
@@ -65,6 +66,10 @@ const TIER_META: {
   { key: "cgc10", label: "CGC 10", color: "text-teal-400" },
   { key: "cgc9", label: "CGC 9", color: "text-teal-300" },
   { key: "bgs10", label: "BGS 10", color: "text-indigo-400" },
+  // Black Label — highest BGS tier (all four subgrades = 10). The
+  // slate accent visually differentiates it from regular indigo BGS
+  // so users can tell the two apart at a glance.
+  { key: "bgs10bl", label: "BGS 10 BL", color: "text-slate-300" },
   { key: "bgs9.5", label: "BGS 9.5", color: "text-indigo-300" },
   { key: "bgs9", label: "BGS 9", color: "text-indigo-200" },
   // TAG family — rose accent so it reads as its own grader (PSA green,

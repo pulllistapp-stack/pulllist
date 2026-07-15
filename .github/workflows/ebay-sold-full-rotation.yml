@@ -58,17 +58,22 @@ jobs:
       # blow away the other three's data.
       fail-fast: false
       matrix:
-        # Grade 10 only for the main backfill sweep. Grade 9 / 9.5 tiers
-        # are handled by per-card user Refresh — they're niche markets
-        # (nobody hunts for a $5k CGC 9 the way they hunt for PSA 10),
-        # so spending the crawl budget on them thins the coverage of
-        # the queries that actually get searched. Narrowing 10 → 4
-        # tiers means each grade 10 tier goes 2.5× deeper into the
-        # candidate pool per round.
+        # Grade 10 tiers + BGS Black Label. Grade 9 / 9.5 fall to the
+        # per-card user Refresh flow — niche markets nobody backfills
+        # against as heavily as PSA 10.
+        #
+        # BGS Black Label is a SEPARATE query ("BGS 10 Black Label")
+        # because a bare "BGS 10" query returns both regular and Black
+        # Label listings mixed together; asking eBay to filter to only
+        # Black Label makes the response cleaner and the write goes to
+        # a distinct `grade=bgs10bl` snapshot key. Black Label slabs
+        # command 2-10× the regular BGS 10 price on chase cards, so
+        # blending them would poison both medians.
         tier:
           - { label: "PSA 10", slug: "psa10" }
           - { label: "CGC 10", slug: "cgc10" }
           - { label: "BGS 10", slug: "bgs10" }
+          - { label: "BGS 10 Black Label", slug: "bgs10bl" }
           - { label: "TAG 10", slug: "tag10" }
     name: Scrape ${{ matrix.tier.label }}
     defaults:

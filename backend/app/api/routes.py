@@ -727,7 +727,7 @@ async def get_card_graded_prices(
     ui_tiers = (
         "psa10", "psa9",
         "cgc10", "cgc9",
-        "bgs10", "bgs9.5", "bgs9",
+        "bgs10", "bgs10bl", "bgs9.5", "bgs9",
         # TAG Grading — newer service, especially hot on modern chases.
         "tag10", "tag9.5", "tag9",
     )
