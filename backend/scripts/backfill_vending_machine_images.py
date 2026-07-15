@@ -54,10 +54,26 @@ SEM_LIMIT = 4  # polite
 # below.
 _NAME_SPLIT_RE = re.compile(r"^(.*?)\s+\(Vending\s+S(\d)\)\s*$")
 
+# Capture BOTH the File: name and the rendered src so we can filter
+# out the card-back placeholder (which is itself the first image on
+# every Vending card page as decoration). Old picker took the first
+# src blindly, matched placeholder against placeholder, reported
+# rowcount success but wrote no visible change.
 _IMG_RE = re.compile(
-    r'<a href="/wiki/File:[^"]+\.(?:jpg|png)"[^>]*class="mw-file-description"[^>]*>'
+    r'<a href="/wiki/File:([^"]+\.(?:jpg|png))"[^>]*class="mw-file-description"[^>]*>'
     r'\s*<img[^>]+src="([^"]+)"',
     re.IGNORECASE,
+)
+
+# Substrings in File: names that mark an image as decoration/UI (not
+# the actual card scan). The card-back placeholder is on every
+# Vending card page; kicking it out of the candidate pool lets the
+# picker fall through to the real scan (BulbasaurVendingS1.jpg etc.).
+_SKIP_FILE_PATTERNS = (
+    "tcg_card_back",
+    "project_tcg_logo",
+    "setsymbol",
+    "rarity_",
 )
 _THUMB_STRIP_RE = re.compile(
     r"/thumb/((?:[^/]+/){2}[^/]+\.(?:jpg|png))/\d+px-[^/]+$"
@@ -91,11 +107,14 @@ async def _resolve_scan(
     html = await _fetch(client, url)
     if html is None:
         return None
-    m = _IMG_RE.search(html)
-    if not m:
-        return None
-    src = m.group(1)
-    return _THUMB_STRIP_RE.sub(r"/\1", src)
+    # Iterate all mw-file-description matches, skip decoration files,
+    # take the first real card scan.
+    for match in _IMG_RE.finditer(html):
+        filename = match.group(1).lower()
+        if any(skip in filename for skip in _SKIP_FILE_PATTERNS):
+            continue
+        return _THUMB_STRIP_RE.sub(r"/\1", match.group(2))
+    return None
 
 
 async def run(dry_run: bool) -> None:
