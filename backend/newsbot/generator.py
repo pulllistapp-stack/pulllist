@@ -375,7 +375,16 @@ async def generate_article(item: NewsItem) -> GenerateResult:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     resp = await client.messages.create(
         model=settings.claude_model,
-        max_tokens=4096,
+        # 4096 was clipping long editorials (LEGO Pokémon feature +
+        # Pitch Black deck strategy both truncated mid-JSON on the
+        # 2026-07-14 run — no closing brace, generator raised 'no
+        # JSON object found'). 16k is roughly 12k output words —
+        # comfortably above the 800-1500 word set-lineup ceiling
+        # from the prompt, with headroom for the JSON envelope and
+        # the takeaway block. max_tokens is only a cap: short posts
+        # still bill for their actual output length, so bumping this
+        # doesn't raise cost on normal drop / news posts.
+        max_tokens=16000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
         thinking={"type": "adaptive"},
