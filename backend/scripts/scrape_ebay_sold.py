@@ -261,7 +261,15 @@ async def _fetch_sold_html(
             # When False, drop LH_Sold/LH_Complete to include active
             # asking listings — the fallback pool for tiers with too
             # few sales to meet MIN_LISTINGS (vintage CGC especially).
-            base = f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}"
+            # `_sacat=0` (all categories) makes eBay less likely to
+            # serve a "did you mean" template — it says explicitly
+            # "search across everything" which matches the URL shape
+            # DataDome expects from a real user browsing from the
+            # search bar.
+            base = (
+                f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}"
+                "&_sacat=0"
+            )
             url = (
                 f"{base}&LH_Sold=1&LH_Complete=1&_ipg={ipg}"
                 if sold_only
@@ -434,8 +442,14 @@ async def _scrape_pass(
 
     prices: list[float] = []
     rej = {"number": 0, "name": 0, "grade": 0}
+    # Asking pass: relax the strict number match. Active listings
+    # for niche vintage tiers already return few results; if the
+    # seller wrote "Shining Charizard PSA 10 Neo Destiny" without
+    # the "#107" in the title, we still want to count it. Name +
+    # grade still filter the obvious wrong-card noise.
+    strict_number = sold_only
     for title, price in listings:
-        if not _card_number_match(title, card.number):
+        if strict_number and not _card_number_match(title, card.number):
             rej["number"] += 1
             continue
         if not _card_name_match(title, card.name):

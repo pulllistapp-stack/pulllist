@@ -63,6 +63,9 @@ jobs:
           - { label: "PSA 9",  slug: "psa9"  }
           - { label: "CGC 10", slug: "cgc10" }
           - { label: "CGC 9",  slug: "cgc9"  }
+          - { label: "BGS 10", slug: "bgs10" }
+          - { label: "BGS 9.5", slug: "bgs95" }
+          - { label: "BGS 9",  slug: "bgs9"  }
     name: Scrape ${{ matrix.tier.label }}
     defaults:
       run:

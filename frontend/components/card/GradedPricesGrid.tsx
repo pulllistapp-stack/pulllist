@@ -20,7 +20,14 @@ import { API_BASE } from "@/lib/api";
 import { authFetch } from "@/lib/auth";
 import { useAuth } from "@/components/AuthProvider";
 
-type GradedTier = "psa10" | "psa9" | "cgc10" | "cgc9";
+type GradedTier =
+  | "psa10"
+  | "psa9"
+  | "cgc10"
+  | "cgc9"
+  | "bgs10"
+  | "bgs9.5"
+  | "bgs9";
 
 type GradedPoint = {
   latest_price_usd: number | null;
@@ -54,6 +61,9 @@ const TIER_META: {
   { key: "psa9", label: "PSA 9", color: "text-emerald-300" },
   { key: "cgc10", label: "CGC 10", color: "text-teal-400" },
   { key: "cgc9", label: "CGC 9", color: "text-teal-300" },
+  { key: "bgs10", label: "BGS 10", color: "text-indigo-400" },
+  { key: "bgs9.5", label: "BGS 9.5", color: "text-indigo-300" },
+  { key: "bgs9", label: "BGS 9", color: "text-indigo-200" },
 ];
 
 function fmtMoney(v: number | null | undefined): string {
@@ -236,7 +246,14 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
                         </span>
                         {row!.sales_count != null && (
                           <span className="text-text-tertiary">
-                            n={row!.sales_count}
+                            {row!.sales_count}{" "}
+                            {meta.tone === "sold"
+                              ? row!.sales_count === 1
+                                ? "sale"
+                                : "sales"
+                              : row!.sales_count === 1
+                              ? "listing"
+                              : "listings"}
                           </span>
                         )}
                       </div>

@@ -702,7 +702,11 @@ async def get_card_graded_prices(
         raise HTTPException(status_code=404, detail="Card not found")
 
     cutoff = (date.today() - timedelta(days=days)).isoformat()
-    ui_tiers = ("psa10", "psa9", "cgc10", "cgc9")
+    ui_tiers = (
+        "psa10", "psa9",
+        "cgc10", "cgc9",
+        "bgs10", "bgs9.5", "bgs9",
+    )
     from sqlalchemy import case
 
     source_priority = case(

@@ -24,7 +24,7 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: backend
@@ -55,7 +55,7 @@ jobs:
         # between steps means one soft-blocked tier doesn't rob
         # the others.
         run: |
-          for tier in "PSA 10" "PSA 9" "CGC 10" "CGC 9"; do
+          for tier in "PSA 10" "PSA 9" "CGC 10" "CGC 9" "BGS 10" "BGS 9.5" "BGS 9"; do
             echo "=== $tier ==="
             xvfb-run --auto-servernum \
               python -m scripts.scrape_ebay_sold \
