@@ -126,22 +126,15 @@ jobs:
           fi
           python -m scripts.repair_s8a_base_images $args
 
-      - name: Restore S8a family HD images from Bulbapedia (name-slug matcher)
-        # Upgrades the 70 S8a cards (30 base + 25 promo + 15 golden) from
-        # TCGCSV 400w thumbnails to Bulbapedia full-scan URLs by matching
-        # each anchor via its specific wiki slug — avoids the previous
-        # mis-mapping bug where the general Bulbapedia backfill walked
-        # anchors in EN Celebrations order and shifted every JP card
-        # onto someone else's image.
-        if: inputs.only == ''
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          args=""
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            args="$args --dry-run"
-          fi
-          python -m scripts.restore_s8a_family_images $args
+      # NOTE: the Bulbapedia HD restore step used to live here but was
+      # removed on 2026-07-15 after LO reported broken tiles in the
+      # browser. archives.bulbagarden.net returns HTTP 403 for any GET
+      # with a `Referer` set to www.pulllist.org (hotlink protection
+      # kicked in system-wide, not just weserv). Bulbapedia scans can
+      # only be fetched server-side with no referer, so they're
+      # unusable for user-facing `<img>` tags. TCGCSV `_400w` (set
+      # earlier by repair_s8a_base_images) is the browser-safe
+      # fallback for all 41 non-Limitless cards.
 
       - name: Upgrade S8a base to JP-native scans from Limitless
         # Bulbapedia only hosts EN "Celebrations" scans — text on the

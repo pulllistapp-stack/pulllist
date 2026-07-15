@@ -55,11 +55,16 @@ async def run(dry_run: bool) -> None:
     await init_db()
 
     async with SessionLocal() as db:
+        # Whole S8a family — base 1-30, promo P{1-25} (number_int
+        # 101-125), golden G{1-15} (number_int 201-215). Every row has
+        # tcgplayer_product_id from the import pass, so we can rebuild
+        # every URL to a hotlink-clean TCGCSV endpoint.
         rows = (await db.execute(text("""
             SELECT id, number_int, tcgplayer_product_id, image_small, image_large
             FROM cards
             WHERE set_id = 'S8a'
-              AND number_int BETWEEN 1 AND 30
+              AND number_int IS NOT NULL
+              AND tcgplayer_product_id IS NOT NULL
             ORDER BY number_int
         """))).all()
 
