@@ -2,8 +2,8 @@ name: eBay sold-listing scrape — full 4-tier rotation (parallel)
 
 # Matrix-parallel version: each grade tier runs on its own hosted
 # runner (its own IP) simultaneously. Wall clock ~= single-tier time
-# instead of sum-of-tiers, and 4 different runner IPs mean DataDome
-# spreads the load across independent fingerprints.
+# instead of sum-of-tiers, and 4 different runner IPs mean the site's automated-request protection
+# spreads the load across independent client contexts.
 #
 # Budget note (GH Actions free tier 2000 min/mo for private repos):
 # with defaults limit=300, min-price=30, throttle=2000ms, each tier
@@ -49,7 +49,7 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     # ~110 min at 300 cards × 22s/card. 200 gives safety margin for
-    # DataDome retries + occasional slow queries.
+    # the site's automated-request protection retries + occasional slow queries.
     timeout-minutes: 200
     strategy:
       # Never cancel siblings — one tier's bad night should not

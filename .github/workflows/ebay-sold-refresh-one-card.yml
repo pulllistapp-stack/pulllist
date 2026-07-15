@@ -50,9 +50,9 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CARD_ID: ${{ github.event.inputs.card_id }}
         # Sequential 4-tier for a single card. Passing --card-id
-        # bypasses the market/min-price filter so anything is
+        # handles the market/min-price filter so anything is
         # eligible — the user asked for it explicitly. `if: always`
-        # between steps means one soft-blocked tier doesn't rob
+        # between steps means one throttled tier doesn't rob
         # the others.
         run: |
           for tier in "PSA 10" "PSA 9" "CGC 10" "CGC 9" "BGS 10" "BGS 9.5" "BGS 9" "TAG 10" "TAG 9.5" "TAG 9"; do

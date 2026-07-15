@@ -39,11 +39,11 @@ on:
       limit:
         description: "Cards PER TIER this sweep"
         required: false
-        default: "400"
+        default: "250"
       min_price:
-        description: "Skip cards below this market_price_usd"
+        description: "Skip cards below this market_price_usd (users self-serve the rest via Refresh)"
         required: false
-        default: "35"
+        default: "200"
       skip_if_recent_days:
         description: "Skip cards refreshed in last N days (14 default = rolling coverage)"
         required: false

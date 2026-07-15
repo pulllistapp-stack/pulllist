@@ -4,6 +4,11 @@ Pokémon TCG catalog + collection tracker.
 
 Live at [pulllist.org](https://pulllist.org).
 
+> **Repository notice.** This code is published for transparency during a
+> private-beta window. It is not open source. No permission is granted to
+> copy, fork for reuse, or run a derivative service. See [LICENSE](LICENSE)
+> for terms. All rights reserved by the copyright holder.
+
 Stack:
 - **Backend**: FastAPI + SQLAlchemy (async) + SQLite (swap to Postgres later)
 - **Frontend**: Next.js 15 (App Router) + TypeScript + Tailwind

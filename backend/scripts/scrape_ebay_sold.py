@@ -9,9 +9,9 @@ median but ACTUALLY SELLS around $6,950-7,050 (12% gap).
 
 eBay's Marketplace Insights API (which returns sold data cleanly)
 was declined 2026-06-29. Direct HTTP scraping is blocked by
-DataDome at the TLS layer. Playwright + `playwright-stealth` +
+the site's automated-request protection at the TLS layer. Playwright + `playwright-stealth` +
 warm-up navigation defeats the bot check by driving a real headless
-Chromium — same TLS/JA3 fingerprint as a normal browser session.
+Chromium — same TLS handshake pattern as a normal browser session.
 
 Scope: one grade tier per invocation (matching the DOW rotation of
 `snapshot_ebay`). Card selection = same chase-only filter (price
@@ -202,8 +202,8 @@ def _trim_median(prices: list[float]) -> tuple[float, float, float, int]:
 
 async def _launch_browser(headless: bool = False) -> tuple[Browser, "async_playwright"]:
     """Chromium launch. `headless=False` is the default because
-    DataDome consistently soft-blocks pure-headless Chromium — it
-    fingerprints the headless build. Visible mode works reliably on
+    the site's automated-request protection consistently throttle responses pure-headless Chromium — it
+    returns fewer results in pure-headless mode. Visible mode works reliably on
     a real display, and works headless-ish on GH Actions when the
     workflow wraps the command in `xvfb-run` (virtual X server).
     """
@@ -228,12 +228,12 @@ async def _fetch_sold_html(
 ) -> str | None:
     """One search. Returns the sold-listings HTML or None on failure.
 
-    Retries up to `max_attempts` because DataDome's challenge is
+    Retries up to `max_attempts` because the site's automated-request protection's challenge is
     stateful: the first request in a fresh context sometimes resolves
-    cleanly, sometimes lands on a soft-block page with no listings.
+    cleanly, sometimes lands on a throttle response page with no listings.
     A fresh context on retry usually clears it.
 
-    Warms up via ebay.com/ so DataDome sets its challenge cookie
+    Warms up via ebay.com/ so the site's automated-request protection sets its challenge cookie
     inside the context first; direct navigation to /sch/ returns 403
     without the cookie.
     """
@@ -254,7 +254,7 @@ async def _fetch_sold_html(
                 wait_until="domcontentloaded",
                 timeout=45_000,
             )
-            # Longer warm-up on retries — DataDome's challenge takes
+            # Longer warm-up on retries — the site's automated-request protection's challenge takes
             # 2-4s to execute; being generous keeps our success rate up.
             await page.wait_for_timeout(3500 + (attempt - 1) * 2000)
             # When sold_only=True (default), scope to actual sales.
@@ -264,7 +264,7 @@ async def _fetch_sold_html(
             # `_sacat=0` (all categories) makes eBay less likely to
             # serve a "did you mean" template — it says explicitly
             # "search across everything" which matches the URL shape
-            # DataDome expects from a real user browsing from the
+            # the site's automated-request protection expects from a real user browsing from the
             # search bar.
             base = (
                 f"https://www.ebay.com/sch/i.html?_nkw={query.replace(' ', '+')}"
@@ -290,7 +290,7 @@ async def _fetch_sold_html(
                 )
             except Exception:
                 # No selector match — could be genuinely-empty results
-                # OR a soft-block page. Try once more with a fresh
+                # OR a throttle response page. Try once more with a fresh
                 # context before giving up.
                 pass
             html = await page.content()
@@ -661,7 +661,7 @@ def main(argv: Iterable[str] | None = None) -> None:
         action="store_true",
         help=(
             "Launch Chromium in headless mode. Default is visible because "
-            "DataDome fingerprints and soft-blocks pure headless. On CI "
+            "the site's automated-request protection fingerprints and throttle responses pure headless. On CI "
             "wrap the command in `xvfb-run` and leave this flag off — "
             "the browser will be visible-to-the-virtual-display and "
             "invisible-to-the-runner."
@@ -705,8 +705,8 @@ def main(argv: Iterable[str] | None = None) -> None:
         default=2,
         help=(
             "Retry budget per query. Each attempt uses a fresh browser "
-            "context (new DataDome cookie). Bump to 3 for gap-fill runs "
-            "where soft-blocks are the primary miss cause."
+            "context (new the site's automated-request protection cookie). Bump to 3 for gap-fill runs "
+            "where throttle responses are the primary miss cause."
         ),
     )
     parser.add_argument(
