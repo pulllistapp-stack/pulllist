@@ -380,6 +380,17 @@ def _build_set_overview_prompt(item: NewsItem) -> str:
         )
     lines.append("")
     lines.append(
+        "Frame the post based on release_date relative to today: if the "
+        "date is in the past, this is a REVIEW ('what actually shipped, "
+        "what's holding value'); if the date is in the future, this is "
+        "a PREVIEW ('what to watch when it drops, based on card list "
+        "we've already indexed'). Title reflects that framing — e.g. "
+        "'Set Name: <angle>' for reviews, 'Set Name Preview — <angle>' "
+        "for previews. Angle = the notable thing (chase card / price "
+        "band / art / promo), never generic 'Overview of X'."
+    )
+    lines.append("")
+    lines.append(
         "Structure the post as: hook (name-drops the marquee card + a "
         "concrete price number) -> ## 📅 Release info (release date, "
         "series, card count, notable format context) -> ## 💎 Top cards "
@@ -389,10 +400,7 @@ def _build_set_overview_prompt(item: NewsItem) -> str:
         "-> ## 🎯 Set snapshot (2-3 sentence takeaway on what defines "
         "this set — chase concentration, price band, art style) -> "
         "## 💡 The takeaway (2-4 bullets) -> one-line PullList catalog "
-        "CTA -> ## Sources (just '- PullList catalog snapshot'). Title "
-        "should be concrete — 'Set Name: <angle>' where the angle is "
-        "the most notable thing about the set (chase card / price band / "
-        "art / promo), never a generic 'Overview of X'."
+        "CTA -> ## Sources (just '- PullList catalog snapshot')."
     )
     return "\n".join(lines) + "\n"
 

@@ -67,7 +67,8 @@ async def crawl() -> list[NewsItem]:
         return []
 
     today = date.today()
-    cutoff = today - timedelta(days=NEW_SET_WINDOW_DAYS)
+    lower = today - timedelta(days=NEW_SET_WINDOW_DAYS)
+    upper = today + timedelta(days=NEW_SET_WINDOW_DAYS)
     fresh_sets: list[dict] = []
     for s in all_sets:
         release_str = s.get("release_date")
@@ -77,10 +78,14 @@ async def crawl() -> list[NewsItem]:
             release = date.fromisoformat(release_str)
         except ValueError:
             continue
-        # Only sets that have already shipped (skip future releases —
-        # 'coming soon' posts belong to the regular news feed, not the
-        # overview stream).
-        if release > today or release < cutoff:
+        # Window covers BOTH directions — recent releases (overview
+        # of what just shipped) AND upcoming releases (preview of
+        # what's about to drop). Preview posts land in the collector
+        # sweet spot: card list already imported to our catalog, but
+        # the set hasn't hit shelves yet. The generator prompt
+        # inspects release_date to phrase the post as review vs.
+        # preview accordingly.
+        if release < lower or release > upper:
             continue
         # Skip empty catalog rows (JP-side TCGdex stubs sometimes ship
         # with a release date but no cards). No cards = no post.
