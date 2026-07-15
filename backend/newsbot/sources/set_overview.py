@@ -27,8 +27,12 @@ log = logging.getLogger("newsbot.sources.set_overview")
 REQUEST_TIMEOUT = 60.0
 
 # Set-overview tuning
-NEW_SET_WINDOW_DAYS = 14  # emit an overview for any set that shipped in this window
-TOP_CARDS_PER_SET = 12  # how many cards to feature in the post
+# 30 days = about one release cadence for EN mainline sets. Wider
+# than that risks overview posts landing weeks after the drop stole
+# the news window; tighter (was 14) missed the mid-July Pitch Black
+# window on first test.
+NEW_SET_WINDOW_DAYS = 30
+TOP_CARDS_PER_SET = 12
 MAX_SETS_PER_RUN = 3  # cap so a JP-catalog backfill day can't dump 30 posts
 
 
