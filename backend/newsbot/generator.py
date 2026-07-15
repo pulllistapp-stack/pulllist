@@ -45,7 +45,11 @@ class GenerateResult(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     body_markdown: str = Field(min_length=200)
     excerpt: str = Field(min_length=1, max_length=512)
-    reading_time: int = Field(ge=1, le=30)
+    # 1-60 minutes. Loosened from le=30 after the 2026-07-15 price-club
+    # run had Claude return 811 (it interpreted the field as word count
+    # on a long ranking post). 60 is still a hard sanity ceiling; a
+    # post that "takes an hour to read" is almost certainly wrong-typed.
+    reading_time: int = Field(ge=1, le=60)
     claims: list[str] = Field(default_factory=list, max_length=3)
 
 
@@ -298,7 +302,9 @@ prose around it, no markdown code fence, no preamble:
   "title": "short specific headline (<= 90 chars)",
   "body_markdown": "the full article body as described above",
   "excerpt": "1-2 sentence summary for the listing card (<= 220 chars)",
-  "reading_time": estimated minutes as integer (1-15),
+  "reading_time": estimated MINUTES to read as integer (1-15 for
+    short drops, up to 10-15 for set-lineup or ranking posts, NEVER
+    exceed 60 — this is minutes not word count),
   "claims": ["specific factual claim 1", "specific factual claim 2"]
 }
 """
