@@ -47,7 +47,12 @@ jobs:
           fi
           python -m scripts.import_jp_group_cards --pairs "24013:NPF1" --auto-number $args
 
-      - name: B — Replace Vending Machine placeholders with Bulbapedia scans
+      - name: B — Replace Vending Machine images from TCGCSV (hotlink-safe)
+        # Earlier Bulbapedia attempt landed correct filenames but
+        # archives.bulbagarden.net returns 403 for most of them with
+        # a www.pulllist.org Referer. TCGCSV hosts the same cards
+        # under groups 24206 (VM1) / 24207 (VM2) / 24208 (VM3) on
+        # tcgplayer-cdn — Referer-agnostic.
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOG_LEVEL: INFO
@@ -56,4 +61,4 @@ jobs:
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             args="$args --dry-run"
           fi
-          python -m scripts.backfill_vending_machine_images $args
+          python -m scripts.backfill_vending_from_tcgcsv $args
