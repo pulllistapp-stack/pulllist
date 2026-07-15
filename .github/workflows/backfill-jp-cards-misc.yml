@@ -1,0 +1,59 @@
+name: Backfill misc JP card gaps (NPF1 + Vending Machine)
+
+# Manual-only. Handles two content gaps LO reported after browsing:
+#   - NPF1 (Neo Premium File 1): stub created, 9 cards never imported
+#   - JPP-VM1/2/3 (Vending Machine): 72 cards showing card-back
+#     placeholder instead of the actual JP scan
+#
+# Runs against prod via secrets.DATABASE_URL. Both scripts idempotent.
+# Not wired into ingest-jp-sealed workflow because it's a one-shot
+# fix, not part of the ongoing pipeline.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (probe, don't write)"
+        required: false
+        default: "false"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: A — Import NPF1 cards from TCGCSV (group 24013)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.import_jp_group_cards --pairs "24013:NPF1" $args
+
+      - name: B — Replace Vending Machine placeholders with Bulbapedia scans
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.backfill_vending_machine_images $args
