@@ -160,6 +160,7 @@ async def import_pair(
     dry_run: bool,
     number_prefix: str = "",
     number_int_offset: int = 0,
+    auto_number: bool = False,
 ) -> dict[str, int]:
     """Import all singles from a TCGCSV group into ``target_set``.
 
@@ -217,11 +218,19 @@ async def import_pair(
 
             base_number = _normalize_number(ext.get("Number"))
             if base_number is None:
-                stats["skipped_no_number"] += 1
-                log.warning(
-                    f"tcg_pid={tcg_pid} name={name!r} has no Number → skip"
-                )
-                continue
+                if auto_number:
+                    # Vintage sets (NPF1, Neo Premium File, etc.) have
+                    # cards on TCGCSV but no "Number" field. Assign an
+                    # enumeration index in the order the group returns
+                    # them so we still get canonical ids like NPF1-1..N
+                    # instead of dropping the whole set.
+                    base_number = str(stats["cards_seen"])
+                else:
+                    stats["skipped_no_number"] += 1
+                    log.warning(
+                        f"tcg_pid={tcg_pid} name={name!r} has no Number → skip"
+                    )
+                    continue
 
             # Namespace the number for sub-set imports (see docstring
             # + S8a family merge). Blank prefix = base behavior.
@@ -313,6 +322,7 @@ async def run(
     pairs: list[tuple[int, str, str, int]],
     only_missing: bool,
     dry_run: bool,
+    auto_number: bool = False,
 ) -> None:
     await init_db()
     grand = defaultdict(int)
@@ -322,11 +332,14 @@ async def run(
             label = f"group {gid} → set {target}"
             if prefix:
                 label += f" [prefix={prefix!r} offset={offset}]"
+            if auto_number:
+                label += " [auto-number]"
             log.info(f"=== {label} ===")
             stats = await import_pair(
                 client, gid, target, only_missing, dry_run,
                 number_prefix=prefix,
                 number_int_offset=offset,
+                auto_number=auto_number,
             )
             for k, v in stats.items():
                 log.info(f"  {k}: {v}")
@@ -378,6 +391,16 @@ def main() -> None:
         action="store_true",
         help="Only insert cards absent from DB; skip existing (no UPDATE).",
     )
+    p.add_argument(
+        "--auto-number",
+        action="store_true",
+        help=(
+            "For sets whose TCGCSV cards don't carry a 'Number' field "
+            "(vintage promos like NPF1), assign an enumeration index in "
+            "the order the group returns them. Off by default so modern "
+            "sets don't invent bogus numbers for legitimately-untyped rows."
+        ),
+    )
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -392,7 +415,7 @@ def main() -> None:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    asyncio.run(run(pairs, args.only_missing, args.dry_run))
+    asyncio.run(run(pairs, args.only_missing, args.dry_run, args.auto_number))
 
 
 if __name__ == "__main__":

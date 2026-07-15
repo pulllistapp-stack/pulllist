@@ -45,7 +45,7 @@ jobs:
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             args="$args --dry-run"
           fi
-          python -m scripts.import_jp_group_cards --pairs "24013:NPF1" $args
+          python -m scripts.import_jp_group_cards --pairs "24013:NPF1" --auto-number $args
 
       - name: B — Replace Vending Machine placeholders with Bulbapedia scans
         env:
