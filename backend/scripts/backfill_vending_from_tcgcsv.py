@@ -96,17 +96,18 @@ async def _fetch_products(client: httpx.AsyncClient, gid: int) -> list[dict]:
 
 
 def _normalize_name(name: str) -> str:
-    """Two-tier normalisation:
-      * full: strip trailing "(...)" (Vending Sn / Wizards Promo N /
-        Gym Challenge N / artist tag), lowercase, gender-symbol map
-      * base: same but ALSO strip any residual parenthetical
-    Callers try full first, fall back to base if no hit. Keeps
-    tight matches from cross-collision (two "Kadabra (artist)"
-    variants) while still catching cross-set mismatches ("Pikachu
-    (Wizards Promo 27)" → "pikachu").
+    """Strip trailing '(...)' (Vending Sn / Wizards Promo N / artist
+    tag), lowercase, apply gender-symbol map, then collapse all
+    whitespace so 'Nidoran ♀' (our side) and 'Nidoran f' (TCGCSV
+    side) both land on 'nidoranf' — otherwise the space-vs-no-space
+    diff between the two encodings would leave those 2 rows
+    unmatched.
     """
     stripped = _strip_trailing_parens(name).strip()
-    return stripped.lower().translate(_SYMBOL_MAP)
+    lowered = stripped.lower().translate(_SYMBOL_MAP)
+    # Collapse *all* whitespace to '' so ' ' vs '' between the
+    # Pokemon name and its gender suffix stops mattering.
+    return re.sub(r"\s+", "", lowered)
 
 
 async def run(dry_run: bool) -> None:
