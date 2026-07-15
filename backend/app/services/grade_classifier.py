@@ -39,6 +39,9 @@ GRADE_CANONICAL = {
     "psa10", "psa9", "psa8",
     "cgc10", "cgc9.5", "cgc9",
     "bgs10", "bgs9.5", "bgs9",
+    # TAG Grading — newer service (2024+) hot with chase collectors.
+    # TAG 10 = Pristine, 9.5 = Gem Mint, 9 = Mint+.
+    "tag10", "tag9.5", "tag9",
     "other",
 }
 
@@ -55,6 +58,13 @@ _CGC_RE = re.compile(
 )
 _BGS_RE = re.compile(
     r"\bB\.?\s*G\.?\s*S\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
+    re.IGNORECASE,
+)
+# TAG Grading — must be followed by grade number to avoid false-
+# matching "tag team" cards, "auto tag", etc. Requires immediate
+# grade digit (optionally with common separators) after the token.
+_TAG_RE = re.compile(
+    r"\bT\.?\s*A\.?\s*G\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
     re.IGNORECASE,
 )
 # Other graders — SGC / GMA / ACE / ISA. Grouped so we can shortcut
@@ -99,15 +109,23 @@ def _bucket(prefix: str, num_str: str) -> str:
         if num == 9:
             return "bgs9"
         return "other"
+    if prefix == "tag":
+        if num == 10:
+            return "tag10"
+        if num == 9.5:
+            return "tag9.5"
+        if num == 9:
+            return "tag9"
+        return "other"
     return "other"
 
 
 def classify_grade(title: str) -> str:
     """Return the canonical grade tag for an eBay listing title.
 
-    Precedence: PSA > CGC > BGS (arbitrary but stable — nearly no listings
-    carry more than one grader). Other graders / off-vocab grades collapse
-    to 'other'. No grader mention at all → 'raw'.
+    Precedence: PSA > CGC > BGS > TAG (arbitrary but stable — nearly
+    no listings carry more than one grader). Other graders / off-vocab
+    grades collapse to 'other'. No grader mention at all → 'raw'.
     """
     if not title:
         return "raw"
@@ -123,6 +141,10 @@ def classify_grade(title: str) -> str:
     m = _BGS_RE.search(title)
     if m:
         return _bucket("bgs", m.group(1))
+
+    m = _TAG_RE.search(title)
+    if m:
+        return _bucket("tag", m.group(1))
 
     if _OTHER_GRADER_RE.search(title):
         return "other"

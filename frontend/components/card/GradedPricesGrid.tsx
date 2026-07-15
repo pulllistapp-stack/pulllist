@@ -27,7 +27,10 @@ type GradedTier =
   | "cgc9"
   | "bgs10"
   | "bgs9.5"
-  | "bgs9";
+  | "bgs9"
+  | "tag10"
+  | "tag9.5"
+  | "tag9";
 
 type GradedPoint = {
   latest_price_usd: number | null;
@@ -64,6 +67,11 @@ const TIER_META: {
   { key: "bgs10", label: "BGS 10", color: "text-indigo-400" },
   { key: "bgs9.5", label: "BGS 9.5", color: "text-indigo-300" },
   { key: "bgs9", label: "BGS 9", color: "text-indigo-200" },
+  // TAG family — rose accent so it reads as its own grader (PSA green,
+  // CGC teal, BGS indigo, TAG rose).
+  { key: "tag10", label: "TAG 10", color: "text-rose-400" },
+  { key: "tag9.5", label: "TAG 9.5", color: "text-rose-300" },
+  { key: "tag9", label: "TAG 9", color: "text-rose-200" },
 ];
 
 function fmtMoney(v: number | null | undefined): string {
