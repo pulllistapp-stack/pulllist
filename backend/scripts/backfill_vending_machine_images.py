@@ -126,18 +126,25 @@ async def run(dry_run: bool) -> None:
     async with httpx.AsyncClient(headers={"User-Agent": UA}) as client:
         results = await asyncio.gather(*[resolve(r) for r in rows])
 
-    async with SessionLocal() as db:
-        for card_id, img in results:
-            stats["scanned"] += 1
-            if img is None:
-                stats["not_matched"] += 1
-                continue
-            stats["resolved"] += 1
+    # Per-iteration commit — the earlier batch-then-commit pattern
+    # somehow returned rowcount=64 but the UPDATEs never persisted
+    # (two full workflow runs both reported the same 66 placeholders,
+    # neither reduced the count). Mirror the DECK phase 2 pattern
+    # (backfill_deck_logos_from_ebay.py) which does open a session
+    # per row and commits each time — that one is confirmed
+    # working end-to-end.
+    for card_id, img in results:
+        stats["scanned"] += 1
+        if img is None:
+            stats["not_matched"] += 1
+            continue
+        stats["resolved"] += 1
 
-            if dry_run:
-                log.info(f"  [would] {card_id} → {img[:80]}")
-                continue
+        if dry_run:
+            log.info(f"  [would] {card_id} → {img[:80]}")
+            continue
 
+        async with SessionLocal() as db:
             w = await db.execute(
                 text(
                     "UPDATE cards SET image_small = :i, image_large = :i "
@@ -147,8 +154,6 @@ async def run(dry_run: bool) -> None:
             )
             if w.rowcount:
                 stats["written"] += 1
-
-        if not dry_run:
             await db.commit()
 
     log.info("=== Vending Machine JP-scan restore ===")
