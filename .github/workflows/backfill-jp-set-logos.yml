@@ -52,3 +52,22 @@ jobs:
             args="$args --only ${{ inputs.only }}"
           fi
           python -m scripts.backfill_jp_set_logos_limitless $args
+
+      - name: Promote DECK sets to their sealed product photo
+        # LO's ask: for DECK-type sets (starter decks, build boxes,
+        # trainer boxes, preconstructed decks) the generic Limitless
+        # set logo shows the parent expansion mark — useless for
+        # picking out a specific product. Where we already have a
+        # sealed product image from TCGCSV, swap it in as the set
+        # tile so the browser matches how e-commerce sites (TCG
+        # Republic, eBay) show the same box. ~28/118 DECK sets
+        # covered by this pass; the rest need an eBay-search pass.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.backfill_deck_logos_from_sealed $args
