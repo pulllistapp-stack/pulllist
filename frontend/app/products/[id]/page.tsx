@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -9,6 +10,67 @@ import { ProductPriceChart } from "@/components/products/ProductPriceChart";
 import { getProduct } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+const SITE_URL = "https://www.pulllist.org";
+
+function fmtPriceInline(v: number | null | undefined): string {
+  if (v == null) return "";
+  if (v >= 1000) return `$${Math.round(v).toLocaleString()}`;
+  return `$${v.toFixed(2)}`;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  let product;
+  try {
+    product = await getProduct(id);
+  } catch {
+    return { title: "Product — PullList" };
+  }
+
+  const marketStr = fmtPriceInline(product.market_price_usd);
+  const msrpStr = fmtPriceInline(product.msrp_usd);
+  const evStr = product.ev?.box_ev_usd
+    ? fmtPriceInline(product.ev.box_ev_usd)
+    : product.ev?.pack_ev_usd
+    ? fmtPriceInline(product.ev.pack_ev_usd)
+    : "";
+
+  const title = `${product.name} Price + EV | PullList`;
+  const description =
+    `${product.name} current market ${marketStr || "n/a"}` +
+    (msrpStr ? ` (MSRP ${msrpStr})` : "") +
+    (evStr ? `. Pull EV ~${evStr}.` : ".") +
+    ` 90-day price history, live eBay listings, sealed product tracker on PullList.`;
+
+  const canonical = `${SITE_URL}/products/${product.id}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: canonical,
+      siteName: "PullList",
+      images: product.image_url
+        ? [{ url: product.image_url, alt: product.name }]
+        : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: product.image_url ? [product.image_url] : undefined,
+    },
+  };
+}
 
 const TYPE_LABEL: Record<string, string> = {
   booster_box: "Booster Box",
@@ -45,8 +107,39 @@ export default async function ProductDetailPage({
   const ev = product.ev;
   const premium = ev?.premium_pct;
 
+  const productSchema: Record<string, unknown> | null = product.market_price_usd
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: product.name,
+        description:
+          `${product.name} sealed Pokémon TCG product. ` +
+          `Current market $${product.market_price_usd.toFixed(2)}` +
+          (product.msrp_usd ? ` (MSRP $${product.msrp_usd.toFixed(2)})` : "") +
+          `. Live prices + 90-day history on PullList.`,
+        image: product.image_url || undefined,
+        sku: String(product.id),
+        brand: { "@type": "Brand", name: "Pokémon TCG" },
+        category: TYPE_LABEL[product.product_type ?? ""] ?? "Sealed Product",
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "USD",
+          price: product.market_price_usd.toFixed(2),
+          availability: "https://schema.org/InStock",
+          url: `${SITE_URL}/products/${product.id}`,
+          seller: { "@type": "Organization", name: "PullList" },
+        },
+      }
+    : null;
+
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+      {productSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+        />
+      )}
       <nav className="mb-6 text-sm text-text-secondary">
         <Link href="/" className="hover:text-text-primary">
           Home

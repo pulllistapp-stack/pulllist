@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { InMyMasterSetsBadge } from "@/components/card/InMyMasterSetsBadge";
@@ -10,6 +11,63 @@ export const dynamic = "force-dynamic";
 type Props = {
   params: Promise<{ id: string }>;
 };
+
+const SITE_URL = "https://www.pulllist.org";
+
+function fmtPrice(v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return "";
+  if (v >= 1000) return `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return `$${v.toFixed(2)}`;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  let card: Card;
+  try {
+    card = await getCard(id);
+  } catch {
+    return { title: "Card — PullList" };
+  }
+
+  const nameWithNumber = card.number
+    ? `${card.name} ${card.number}${card.set_printed_total ? `/${card.set_printed_total}` : ""}`
+    : card.name;
+  const setPart = card.set_name ? ` (${card.set_name})` : "";
+  const title = `${nameWithNumber}${setPart} — Sold + Live Prices | PullList`;
+
+  const priceLine = card.market_price_usd
+    ? `Market ${fmtPrice(card.market_price_usd)}`
+    : "";
+
+  const description =
+    `${card.name}${card.set_name ? ` from ${card.set_name}` : ""}. ` +
+    (priceLine ? `${priceLine}. ` : "") +
+    `PSA / CGC / BGS / TAG sold-listing medians, live eBay listings, ` +
+    `TCGplayer + Cardmarket prices, 90-day price history. Free on PullList.`;
+
+  const canonical = `${SITE_URL}/cards/${card.id}`;
+  const ogImage = card.image_large || card.image_small || undefined;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: canonical,
+      siteName: "PullList",
+      images: ogImage ? [{ url: ogImage, alt: card.name }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: ogImage ? [ogImage] : undefined,
+    },
+  };
+}
 
 /**
  * For each source, compute the latest price minus the value 7 days ago,
@@ -70,8 +128,42 @@ export default async function CardDetailPage({ params }: Props) {
   const ebaySpark7d = sparklineSeries(history7d, "ebay");
   const tcgSpark7d = sparklineSeries(history7d, "tcgplayer");
 
+  // Schema.org Product markup — lets Google display the card as a
+  // rich result (price shown in search) instead of a plain title link.
+  // Only emitted when we have a real market price to attach to `offers`.
+  const productSchema: Record<string, unknown> | null = card.market_price_usd
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: card.number
+          ? `${card.name} ${card.number}${card.set_printed_total ? `/${card.set_printed_total}` : ""}`
+          : card.name,
+        description: card.set_name
+          ? `${card.name} from the ${card.set_name} Pokémon TCG set. Real sold + live listing prices, graded slabs across PSA / CGC / BGS / TAG.`
+          : `${card.name} — Pokémon TCG card with live pricing on PullList.`,
+        image: card.image_large || card.image_small || undefined,
+        sku: card.id,
+        brand: { "@type": "Brand", name: "Pokémon TCG" },
+        category: card.rarity ?? "Trading Card",
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "USD",
+          price: card.market_price_usd.toFixed(2),
+          availability: "https://schema.org/InStock",
+          url: `${SITE_URL}/cards/${card.id}`,
+          seller: { "@type": "Organization", name: "PullList" },
+        },
+      }
+    : null;
+
   return (
     <>
+      {productSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+        />
+      )}
       <PullListCardDetail
         card={card}
         alternates={alternates}

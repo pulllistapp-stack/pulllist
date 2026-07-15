@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,6 +7,43 @@ import { Box } from "lucide-react";
 import { getSeries, SeriesProductPayload, SeriesSetPayload } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+const SITE_URL = "https://www.pulllist.org";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  let data;
+  try {
+    data = await getSeries(slug);
+  } catch {
+    return { title: "Series — PullList" };
+  }
+
+  const title = `${data.series} Card Prices & Sealed Products | PullList`;
+  const description =
+    `Live prices for every card in the ${data.series} Pokémon TCG era — ` +
+    `${data.card_count.toLocaleString()} cards across ${data.set_count} sets, ` +
+    `${data.product_count} sealed products tracked. Real PSA/CGC/BGS/TAG sold ` +
+    `medians, live eBay listings, TCGplayer prices, sealed EV calculators.`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: `${SITE_URL}/series/${slug}` },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: `${SITE_URL}/series/${slug}`,
+      siteName: "PullList",
+    },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 const TYPE_LABEL: Record<string, string> = {
   booster_box: "Booster Box",

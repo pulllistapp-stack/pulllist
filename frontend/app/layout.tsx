@@ -36,9 +36,23 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "PullList — Pokémon TCG catalog & collection tracker",
+  metadataBase: new URL("https://www.pulllist.org"),
+  title: {
+    default: "PullList — Real Pokémon TCG Sold Prices & Collection Tracker",
+    template: "%s | PullList",
+  },
   description:
-    "Track every Pokémon TCG pull. Live prices, daily history, instant scanning, every set indexed.",
+    "Real sold-listing PSA / CGC / BGS / TAG prices for every Pokémon TCG card. Live eBay + TCGplayer + Cardmarket, sealed EV, daily history, EN/JP/KR catalogs.",
+  keywords: [
+    "Pokemon TCG prices",
+    "Pokemon card sold prices",
+    "PSA 10 Pokemon",
+    "Pokemon card tracker",
+    "Pokemon TCG collection",
+    "sealed booster box EV",
+    "Prismatic Evolutions prices",
+    "포켓몬 TCG 시세",
+  ],
   manifest: "/manifest.json",
   applicationName: "PullList",
   appleWebApp: {
@@ -53,6 +67,26 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  // Site-wide OpenGraph + Twitter defaults. Per-page metadata (card, set,
+  // series, product) overrides these — root defaults show up on any
+  // route without its own generateMetadata (home, /trending, /drops, ...).
+  openGraph: {
+    type: "website",
+    siteName: "PullList",
+    url: "https://www.pulllist.org",
+    title: "PullList — Real Pokémon TCG Sold Prices & Collection Tracker",
+    description:
+      "Real sold-listing prices for every Pokémon TCG card. PSA / CGC / BGS / TAG, live eBay + TCGplayer, sealed EV, EN/JP/KR catalogs.",
+    images: [{ url: "/pullist-mascot-logo.png", alt: "PullList mascot" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@pulllist",
+    title: "PullList — Real Pokémon TCG Sold Prices & Collection Tracker",
+    description:
+      "Real sold PSA/CGC/BGS/TAG prices, live eBay + TCGplayer, sealed EV, EN/JP/KR — free.",
+    images: ["/pullist-mascot-logo.png"],
   },
   other: {
     // impact.com (TCGplayer affiliate program) website ownership verification.
