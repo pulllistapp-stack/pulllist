@@ -54,14 +54,9 @@ jobs:
           python -m scripts.backfill_jp_set_logos_limitless $args
 
       - name: Promote DECK sets to their sealed product photo
-        # LO's ask: for DECK-type sets (starter decks, build boxes,
-        # trainer boxes, preconstructed decks) the generic Limitless
-        # set logo shows the parent expansion mark — useless for
-        # picking out a specific product. Where we already have a
-        # sealed product image from TCGCSV, swap it in as the set
-        # tile so the browser matches how e-commerce sites (TCG
-        # Republic, eBay) show the same box. ~28/118 DECK sets
-        # covered by this pass; the rest need an eBay-search pass.
+        # Phase 1: LO's ask — swap the generic set logo for the actual
+        # product photo where we have a sealed TCGCSV image. Covers
+        # ~28/118 DECK sets. Phase 2 (eBay) picks up the rest.
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOG_LEVEL: INFO
@@ -71,3 +66,21 @@ jobs:
             args="$args --dry-run"
           fi
           python -m scripts.backfill_deck_logos_from_sealed $args
+
+      - name: Search eBay for remaining DECK box photos
+        # Phase 2: for DECK sets still on the Limitless generic logo
+        # (no TCGCSV sealed image), hit eBay Browse API with the
+        # set's name_en to pull a real listing photo. Uses the shared
+        # EbayClient — same App ID as daily-ebay-snapshot.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EBAY_ENV: production
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.backfill_deck_logos_from_ebay $args
