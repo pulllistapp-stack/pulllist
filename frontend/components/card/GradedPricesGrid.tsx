@@ -155,34 +155,58 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
           Graded Prices
         </h3>
         <div className="flex items-center gap-2">
-          {user && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={refreshing === "queuing" || refreshing === "queued"}
-              className={
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 " +
-                "text-[10px] font-mono uppercase tracking-wider " +
-                "border border-border bg-bg-surface hover:bg-bg-elevated " +
-                "text-text-secondary disabled:opacity-60 disabled:cursor-not-allowed " +
-                "transition-colors"
-              }
-              title="Fetch fresh sold-listing data for this card (2-3 min)"
-            >
-              {refreshing === "queuing" ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : refreshing === "queued" ? (
-                <CheckCircle2 className="h-3 w-3 text-accent-green" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
-              {refreshing === "queuing"
-                ? "Queuing..."
-                : refreshing === "queued"
-                ? "Queued"
-                : "Refresh"}
-            </button>
-          )}
+          {user &&
+            (() => {
+              // When most tiles are empty, promote the refresh button
+              // to a solid accent so users notice the escape hatch.
+              // Once data lands, drop back to the subtle outline chip.
+              const filledCount = data
+                ? TIER_META.filter(
+                    (t) =>
+                      data[t.key] && data[t.key]!.latest_price_usd != null,
+                  ).length
+                : 0;
+              const promoted = filledCount <= 2 && !loading;
+              const idleClass = promoted
+                ? "border-accent-green/60 bg-accent-green/10 hover:bg-accent-green/20 text-accent-green"
+                : "border-border bg-bg-surface hover:bg-bg-elevated text-text-secondary";
+              return (
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  disabled={
+                    refreshing === "queuing" || refreshing === "queued"
+                  }
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 " +
+                    "text-[10px] font-mono uppercase tracking-wider " +
+                    "border disabled:opacity-60 disabled:cursor-not-allowed " +
+                    "transition-colors " +
+                    idleClass
+                  }
+                  title={
+                    "Scrape fresh sold + active-listing data for this card " +
+                    "from eBay. Runs in the background (~2-3 min) — reload " +
+                    "the page after to see updated tiles."
+                  }
+                >
+                  {refreshing === "queuing" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : refreshing === "queued" ? (
+                    <CheckCircle2 className="h-3 w-3 text-accent-green" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  {refreshing === "queuing"
+                    ? "Queuing..."
+                    : refreshing === "queued"
+                    ? "Queued · Reload in ~3 min"
+                    : promoted
+                    ? "Refresh — get live data"
+                    : "Refresh"}
+                </button>
+              );
+            })()}
           <span className="text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
             Beta · sold-listing medians
           </span>
@@ -274,10 +298,12 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
               ) : (
                 <>
                   <div className="text-xl font-bold text-text-tertiary/60">
-                    —
+                    ·
                   </div>
                   <div className="mt-1 text-[10px] text-text-tertiary/70 leading-tight">
-                    No sold listings indexed yet.
+                    {user
+                      ? "Not tracked yet — hit Refresh above to check now."
+                      : "Not tracked yet — sign in and hit Refresh to check."}
                   </div>
                 </>
               )}
@@ -286,9 +312,16 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
         })}
       </div>
       <p className="mt-3 text-[10px] text-text-tertiary/60 leading-relaxed">
-        Median sold price across the last 90 days of graded eBay listings
-        matching the exact card + grade tier. Ungraded / raw prices live in
-        the chart above.
+        Median across the last 90 days of graded eBay listings matching the
+        exact card + tier.{" "}
+        <span className="text-accent-green">Sold</span> tiles come from
+        actually-cleared sales; <span className="text-amber-400">Asking</span>{" "}
+        tiles fall back to active-listing medians when sold data is thin
+        (common for vintage CGC / TAG). Missing a tier?{" "}
+        {user
+          ? "Hit Refresh above to scrape it right now — takes 2-3 minutes."
+          : "Sign in to trigger a live refresh for any card."}{" "}
+        Ungraded / raw prices live in the chart above.
       </p>
     </section>
   );
