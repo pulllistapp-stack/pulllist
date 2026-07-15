@@ -95,6 +95,15 @@ _YEAR_TO_GROUPS: dict[str, list[int]] = {
 _PAREN_TAIL_RE = re.compile(r"\s*\([^)]*\)\s*$")
 _SYMBOL_MAP = str.maketrans({"♀": "f", "♂": "m", "é": "e", "É": "e"})
 
+# TCGCSV JP catalog names cards as "Card Name - NNN/XX-P" (e.g.
+# "Pikachu - 003/SM-P", "Snorlax GX - 001/SM-P"). Strip everything
+# from the last " - " onwards, but only if the tail looks like a set
+# number (digits then optional /suffix) to avoid clipping legitimate
+# " - " in card names.
+_SET_NUMBER_TAIL_RE = re.compile(
+    r"\s+-\s+\d+[A-Za-z]?(?:\s*/\s*[\w\-]+)?\s*$"
+)
+
 
 def _strip_trailing_parens(name: str) -> str:
     prev = None
@@ -106,7 +115,8 @@ def _strip_trailing_parens(name: str) -> str:
 
 
 def _normalize_name(name: str) -> str:
-    stripped = _strip_trailing_parens(name).strip()
+    stripped = _SET_NUMBER_TAIL_RE.sub("", name)
+    stripped = _strip_trailing_parens(stripped).strip()
     lowered = stripped.lower().translate(_SYMBOL_MAP)
     return re.sub(r"\s+", "", lowered)
 
