@@ -124,6 +124,7 @@ async def close_stealth_session() -> None:
 from . import market_report  # noqa: E402,F401
 from . import pokebeach  # noqa: E402,F401
 from . import pokemoncenter  # noqa: E402,F401
+from . import price_club  # noqa: E402,F401
 from . import set_overview  # noqa: E402,F401
 from . import web_search  # noqa: E402,F401
 

@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     # nothing on days with no fresh set release.
     set_overview_enabled: bool = False
 
+    # ── Price-club source (Phase B Sprint 3) ──
+    # Off by default. Monthly workflow (1st of the month) flips it on.
+    price_club_enabled: bool = False
+
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.
     # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).

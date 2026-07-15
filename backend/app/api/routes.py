@@ -339,6 +339,71 @@ def _cards_match_predicate(pattern: str, dex_numbers: list[int]):
     )
 
 
+@router.get("/cards/top-priced")
+async def top_priced_cards(
+    db: AsyncSession = Depends(get_db),
+    min_usd: float = Query(
+        1000.0, ge=0,
+        description=(
+            "Lower price bound. Default matches the newsbot's monthly "
+            "'$1000+ club' ranking; set to 500 or 100 for smaller-scope "
+            "rankings."
+        ),
+    ),
+    limit: int = Query(20, ge=1, le=100),
+    language: str = Query("en", pattern="^(en|ja|ko)$"),
+) -> dict:
+    """Straight top-N cards by market_price_usd, filtered to a floor.
+
+    Data-driven newsbot uses this for the monthly '$1000 club' post
+    (Collectory-style ranking). Not paginated on purpose — the list
+    is meant to be a curated ranking, not a browse feed.
+
+    Returned rows carry everything the newsbot generator prompt
+    needs: card_id, name, image, rarity, artist, market price,
+    set name + release date + logo (so the post can attribute each
+    card to its set with a link).
+    """
+    stmt = (
+        select(Card, Set.name, Set.release_date, Set.logo_url)
+        .join(Set, Card.set_id == Set.id)
+        .where(
+            Card.language == language,
+            Card.market_price_usd.is_not(None),
+            Card.market_price_usd >= min_usd,
+        )
+        .order_by(Card.market_price_usd.desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(stmt)).all()
+    items = [
+        {
+            "card_id": c.id,
+            "name": c.name,
+            "number": c.number,
+            "rarity": c.rarity,
+            "artist": c.artist,
+            "image_small": c.image_small,
+            "image_large": c.image_large,
+            "market_price_usd": float(c.market_price_usd) if c.market_price_usd else None,
+            "set_id": c.set_id,
+            "set_name": set_name,
+            "set_release_date": (
+                set_release.isoformat() if set_release else None
+            ),
+            "set_logo_url": set_logo,
+        }
+        for c, set_name, set_release, set_logo in rows
+    ]
+    return {
+        "min_usd": min_usd,
+        "limit": limit,
+        "language": language,
+        "count": len(items),
+        "items": items,
+    }
+
+
 @router.get("/cards/search", response_model=CardList)
 async def search_cards(
     q: str = Query(..., min_length=1, description="Search query"),

@@ -337,6 +337,62 @@ def _is_set_overview(item: NewsItem) -> bool:
     return item.url.startswith("pulllist://set-overview/")
 
 
+def _is_price_club(item: NewsItem) -> bool:
+    """price_club source uses pulllist://price-club/<yyyy-mm>."""
+    return item.url.startswith("pulllist://price-club/")
+
+
+def _build_price_club_prompt(item: NewsItem) -> str:
+    """Payload -> monthly '$1000+ club' ranking prompt."""
+    try:
+        payload = json.loads(item.raw_text)
+    except Exception:
+        payload = {}
+    items = payload.get("items", []) or []
+    lines = [
+        "Source type: monthly $1000+ club ranking (data-driven, our own catalog)",
+        f"Month: {payload.get('month_id')}",
+        f"Price floor: ${payload.get('min_usd')}",
+        f"Rank count: {len(items)}",
+        "",
+        "Every card row carries card_id + set_id — link the card name "
+        "to /cards/{card_id} and the set name to /sets/{set_id} for "
+        "each entry. That's the catalog loop. No external URLs.",
+        "",
+        f"RANKED CARDS (highest → lowest market price):",
+    ]
+    for rank, c in enumerate(items, start=1):
+        price = c.get("market_price_usd")
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "n/a"
+        lines.append(
+            f"{rank}. card_id={c.get('card_id')} name={c.get('name')} "
+            f"#{c.get('number')} rarity={c.get('rarity')} "
+            f"artist={c.get('artist') or 'unknown'} "
+            f"market={price_str} "
+            f"set_id={c.get('set_id')} set={c.get('set_name')} "
+            f"released={c.get('set_release_date')} "
+            f"image={c.get('image_small', '') or c.get('image_large', '')}"
+        )
+    lines.append("")
+    lines.append(
+        "Structure the post as: hook (name-drops #1 with its price and "
+        "one striking comparison) -> ## 👑 Top 5 (each card = inline "
+        "image + linked name + rarity + linked set name + price + 1-2 "
+        "sentences on what's driving the price — set scarcity, art, "
+        "grade premium, etc.) -> ## 💎 The rest (ranks 6-N, tighter "
+        "one-liner per card, still with image + name link + price + "
+        "set link) -> ## 🎯 What the list tells us (2-3 sentence "
+        "meta-observation — set concentration, era skew, artist "
+        "overlap) -> ## 💡 The takeaway (2-4 bullets) -> one-line "
+        "PullList catalog CTA -> ## Sources (just '- PullList catalog "
+        "snapshot'). Title: '$1000+ Club — <month>: <notable angle>' "
+        "e.g. '$1000+ Club — 2026-07: Umbreon Owns 6 of the Top 10'. "
+        "Angle should be concrete, not generic 'The most expensive "
+        "cards this month'."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _build_set_overview_prompt(item: NewsItem) -> str:
     """Payload -> Collectory-style set overview prompt. Every card
     row carries id + image so the generator can render an inline
@@ -471,6 +527,8 @@ def _build_user_prompt(item: NewsItem) -> str:
         return _build_market_report_prompt(item)
     if _is_set_overview(item):
         return _build_set_overview_prompt(item)
+    if _is_price_club(item):
+        return _build_price_club_prompt(item)
     body = item.raw_text or item.summary or ""
     # 50k chars (~12k tokens) is enough to fit the longest editorial
     # articles we've seen end-to-end (30th Celebration set lineup
