@@ -47,6 +47,17 @@ jobs:
           fi
           python -m scripts.import_jp_group_cards --pairs "24013:NPF1" --auto-number $args
 
+      - name: C — Backfill JPP-U* missing images from era-scoped TCGCSV promos
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          python -m scripts.backfill_jpp_u_from_tcgcsv $args
+
       - name: B — Replace Vending Machine images from TCGCSV (hotlink-safe)
         # Earlier Bulbapedia attempt landed correct filenames but
         # archives.bulbagarden.net returns 403 for most of them with
