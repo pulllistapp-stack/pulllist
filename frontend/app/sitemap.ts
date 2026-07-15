@@ -63,11 +63,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  // Products endpoint hard-caps page_size at 60 regardless of the limit
+  // param, so we paginate through until a short page signals the end.
+  // 30 pages is a safety cap so a runaway backend can't drown the build.
+  async function pluckPaginated<T>(baseUrl: string, maxPages = 30): Promise<T[]> {
+    const all: T[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const batch = await pluck<T>(`${baseUrl}${baseUrl.includes("?") ? "&" : "?"}page=${page}`);
+      if (batch.length === 0) break;
+      all.push(...batch);
+      if (batch.length < 60) break; // last page short-circuit
+    }
+    return all;
+  }
+
   const [sets, products, series, news] = await Promise.all([
     pluck<SetLite>(`${API_BASE}/sets`),
-    pluck<ProductLite>(`${API_BASE}/products?limit=2000`),
+    pluckPaginated<ProductLite>(`${API_BASE}/products`),
     pluck<SeriesLite>(`${API_BASE}/series`),
-    pluck<NewsLite>(`${API_BASE}/news/posts?limit=500`),
+    // /news/posts caps limit at 100 (server-side validation, 422s over).
+    // Only ~56 published posts today so this covers everything with room.
+    pluck<NewsLite>(`${API_BASE}/news/posts?limit=100`),
   ]);
 
   const setPages = sets.map((s) => ({
