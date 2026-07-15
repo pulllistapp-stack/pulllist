@@ -332,6 +332,71 @@ def _is_market_report(item: NewsItem) -> bool:
     return item.url.startswith("pulllist://market-report/")
 
 
+def _is_set_overview(item: NewsItem) -> bool:
+    """set_overview source uses pulllist://set-overview/<set_id>."""
+    return item.url.startswith("pulllist://set-overview/")
+
+
+def _build_set_overview_prompt(item: NewsItem) -> str:
+    """Payload -> Collectory-style set overview prompt. Every card
+    row carries id + image so the generator can render an inline
+    ![](image) followed by [Name](/cards/{id}) link."""
+    try:
+        payload = json.loads(item.raw_text)
+    except Exception:
+        payload = {}
+    s = payload.get("set", {})
+    top_cards = payload.get("top_cards", []) or []
+    lines = [
+        "Source type: new-set overview (data-driven, our own catalog)",
+        "",
+        "SET METADATA:",
+        f"- id: {s.get('id')}",
+        f"- name: {s.get('name')}",
+        f"- series: {s.get('series')}",
+        f"- release_date: {s.get('release_date')}",
+        f"- card_count: {s.get('card_count')}",
+        f"- printed_total: {s.get('printed_total')}",
+        f"- total: {s.get('total')}",
+        f"- logo_url: {s.get('logo_url')}",
+        f"- total_value_usd: {s.get('total_value_usd')}",
+        "",
+        "You MUST link the set name in the body to /sets/{id} once "
+        "using [Set Name](/sets/{id}). Every card mention MUST link "
+        "to /cards/{card_id}. No external URLs for cards or sets — "
+        "the whole point of this post is to funnel readers into our "
+        "own catalog. Never invent slugs; use the ids given below.",
+        "",
+        f"TOP {len(top_cards)} CARDS BY MARKET PRICE:",
+    ]
+    for c in top_cards:
+        price = c.get("market_price_usd")
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "n/a"
+        lines.append(
+            f"- card_id={c.get('id')} name={c.get('name')} "
+            f"#{c.get('number')} rarity={c.get('rarity')} "
+            f"artist={c.get('artist') or 'unknown'} "
+            f"market={price_str} image={c.get('image_small', '') or c.get('image_large', '')}"
+        )
+    lines.append("")
+    lines.append(
+        "Structure the post as: hook (name-drops the marquee card + a "
+        "concrete price number) -> ## 📅 Release info (release date, "
+        "series, card count, notable format context) -> ## 💎 Top cards "
+        "(each card = inline image THEN a linked name + rarity + price, "
+        "1-2 sentence 'why it matters' per card for the top 3-5, then "
+        "quicker one-liners for the rest — don't just dump the list) "
+        "-> ## 🎯 Set snapshot (2-3 sentence takeaway on what defines "
+        "this set — chase concentration, price band, art style) -> "
+        "## 💡 The takeaway (2-4 bullets) -> one-line PullList catalog "
+        "CTA -> ## Sources (just '- PullList catalog snapshot'). Title "
+        "should be concrete — 'Set Name: <angle>' where the angle is "
+        "the most notable thing about the set (chase card / price band / "
+        "art / promo), never a generic 'Overview of X'."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _build_market_report_prompt(item: NewsItem) -> str:
     """Turn the JSON payload the market_report source packed into
     raw_text into a prompt Claude can reason about. Everything the
@@ -396,6 +461,8 @@ def _build_market_report_prompt(item: NewsItem) -> str:
 def _build_user_prompt(item: NewsItem) -> str:
     if _is_market_report(item):
         return _build_market_report_prompt(item)
+    if _is_set_overview(item):
+        return _build_set_overview_prompt(item)
     body = item.raw_text or item.summary or ""
     # 50k chars (~12k tokens) is enough to fit the longest editorial
     # articles we've seen end-to-end (30th Celebration set lineup

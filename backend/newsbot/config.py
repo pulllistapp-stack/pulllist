@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # the daily news bot keeps its regular shape.
     market_report_enabled: bool = False
 
+    # ── Set-overview source (Phase B Sprint 2) ──
+    # Off by default. Its own daily workflow flips it on and does
+    # nothing on days with no fresh set release.
+    set_overview_enabled: bool = False
+
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.
     # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).

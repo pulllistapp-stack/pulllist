@@ -233,6 +233,15 @@ async def list_cards_in_set(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=250),
+    sort: str = Query(
+        "number",
+        pattern="^(number|price_desc|price_asc)$",
+        description=(
+            "number (default) = the printed collector order. "
+            "price_desc / price_asc = sort by market_price_usd for the "
+            "'top cards in this set' feed used by the set-overview newsbot."
+        ),
+    ),
 ) -> CardList:
     offset = (page - 1) * page_size
 
@@ -243,17 +252,18 @@ async def list_cards_in_set(
     total_stmt = select(func.count(Card.id)).where(Card.set_id == set_id)
     total = (await db.execute(total_stmt)).scalar_one()
 
-    stmt = (
-        select(Card)
-        .where(Card.set_id == set_id)
-        .order_by(
+    stmt = select(Card).where(Card.set_id == set_id)
+    if sort == "price_desc":
+        stmt = stmt.order_by(Card.market_price_usd.desc().nullslast(), Card.name)
+    elif sort == "price_asc":
+        stmt = stmt.order_by(Card.market_price_usd.asc().nullsfirst(), Card.name)
+    else:
+        stmt = stmt.order_by(
             Card.number_int.is_(None),
             Card.number_int,
             Card.number,
         )
-        .offset(offset)
-        .limit(page_size)
-    )
+    stmt = stmt.offset(offset).limit(page_size)
     result = await db.execute(stmt)
     cards = result.scalars().all()
 
