@@ -93,6 +93,7 @@ _YEAR_TO_GROUPS: dict[str, list[int]] = {
 
 
 _PAREN_TAIL_RE = re.compile(r"\s*\([^)]*\)\s*$")
+_BRACKET_TAIL_RE = re.compile(r"\s*\[[^\]]*\]\s*$")
 _SYMBOL_MAP = str.maketrans({"♀": "f", "♂": "m", "é": "e", "É": "e"})
 
 # TCGCSV JP catalog names cards as "Card Name - NNN/XX-P" (e.g.
@@ -106,11 +107,14 @@ _SET_NUMBER_TAIL_RE = re.compile(
 
 
 def _strip_trailing_parens(name: str) -> str:
+    """Peel any tail like ' (…)', ' […]' — Bulbapedia / TCGCSV / our
+    own catalogs all use these interchangeably for variant tags."""
     prev = None
     out = name
     while prev != out:
         prev = out
         out = _PAREN_TAIL_RE.sub("", out)
+        out = _BRACKET_TAIL_RE.sub("", out)
     return out
 
 
