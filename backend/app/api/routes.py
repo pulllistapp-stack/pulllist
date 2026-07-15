@@ -757,7 +757,10 @@ async def get_card_graded_prices(
 # workflow 100× in a minute. Keyed by card_id → last-fire epoch.
 # One-process only, but that's fine — Render runs one instance.
 _REFRESH_LAST_FIRE: dict[str, float] = {}
-_REFRESH_COOLDOWN_SECONDS = 60 * 30  # 30 min per card
+# 5 min during beta while LO iterates on the data pipeline; bump
+# back to 30 min once the fallback flow is validated end-to-end
+# and we're worried about abuse rather than testing throughput.
+_REFRESH_COOLDOWN_SECONDS = 60 * 5
 
 # GitHub workflow_dispatch target for the "refresh one card" flow.
 # The token needs `actions: write` scope on this repo. Set via
