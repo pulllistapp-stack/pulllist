@@ -26,6 +26,25 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-15 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-15",
+    emoji: "🔄",
+    kr: "카드 페이지에 'Refresh' 버튼 추가 — Graded Prices 섹션에서 사인인 상태로 클릭하면 해당 카드의 eBay 실 판매 + 매물 데이터를 즉시 다시 스크랩. 약 2-3분 걸리고 페이지 새로고침하면 tile 갱신됨. 데이터 얇은 카드 (특히 vintage CGC / TAG) 는 버튼이 초록으로 강조돼서 눈에 잘 띔. 카드당 30분 쿨다운 (베타 중엔 5분).",
+    en: "Card pages now have a 'Refresh' button — signed-in users can click it in the Graded Prices section to trigger a fresh eBay scrape for that specific card (both sold and active-listing data). Takes ~2-3 minutes; reload the page after to see updated tiles. On thin-data cards (especially vintage CGC / TAG), the button glows green so it's hard to miss. Per-card 30-min cooldown (5 min during beta).",
+  },
+  {
+    date: "2026-07-15",
+    emoji: "🏅",
+    kr: "그레이딩 tile 10종으로 확장 — 기존 PSA 10/9, CGC 10/9 에 BGS 10/9.5/9 와 TAG 10/9.5/9 추가. TAG (Technical Authentication & Grading) 는 요즘 chase 카드에서 급부상 중이라 우선 지원. 각 grader 는 고유 색상 (PSA 초록 / CGC 티얼 / BGS 인디고 / TAG 로즈) 으로 시각 구분. 데이터는 자동 sweep + 유저 Refresh 로 순차 채워짐. 데이터 얇은 카드는 sold 대신 매물 median (Asking) 을 황색으로 표시 — 헷갈리지 않게 항상 라벨링.",
+    en: "Graded Prices grid expanded from 4 to 10 tiles — added BGS 10/9.5/9 and TAG 10/9.5/9 alongside existing PSA and CGC tiers. TAG (Technical Authentication & Grading) is a hot newer service on modern chases so it gets first-class support. Each grader family has its own accent color (PSA green / CGC teal / BGS indigo / TAG rose). When sold data is thin (common for vintage CGC), tiles fall back to active-listing medians shown in amber and clearly labeled 'Asking' — sold and asking never get blended into one number.",
+  },
+  {
+    date: "2026-07-15",
+    emoji: "💰",
+    kr: "PSA/CGC 등급 시세가 실제 낙찰가 기준으로 자동 정제됨 — 셀러들이 매물을 시세보다 10-30% 위로 올리는 경향 때문에 기존 매물 median 은 부풀려져 있었음. 이제 실 판매가 (sold) 데이터가 있으면 초록 tile 로 표시되고, 없으면 매물 median (Asking) 을 황색으로 안내. Sold 초록 tile 하단에는 판매 건수도 함께 표시 (예: '18 sales').",
+    en: "Graded tier prices now refined against actual clearing prices — sellers routinely list slabs 10-30% above the true market so the old asking-median tiles ran hot. Sold-based medians (real clearing price) render as green tiles; when no sold data exists yet, the tile falls back to an amber Asking median with a clear label. Green sold tiles show the sample size too (e.g. '18 sales') so you can gauge confidence at a glance.",
+  },
   // ── 2026-07-14 ─────────────────────────────────────────────────
   {
     date: "2026-07-14",
