@@ -48,9 +48,11 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    # ~110 min at 300 cards × 22s/card. 200 gives safety margin for
-    # the site's automated-request protection retries + occasional slow queries.
-    timeout-minutes: 200
+    # GH-hosted runners cap at 6h per job. 350 leaves a ~10 min
+    # safety margin against runner cleanup overhead. At ~30s/card
+    # with asking fallback, this lets a single tier chew through
+    # ~700 cards before hitting the wall.
+    timeout-minutes: 350
     strategy:
       # Never cancel siblings — one tier's bad night should not
       # blow away the other three's data.
