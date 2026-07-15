@@ -76,7 +76,7 @@ export default async function NewsPage({
   }, {});
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
+    <main className="mx-auto max-w-7xl px-4 py-10 sm:py-14">
       <header className="mb-8">
         <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
           News
@@ -113,10 +113,10 @@ export default async function NewsPage({
         <div className="space-y-10">
           {Object.entries(groups).map(([date, dayPosts]) => (
             <section key={date}>
-              <h2 className="mb-3 text-sm font-bold text-text-secondary">
+              <h2 className="mb-4 text-sm font-bold text-text-secondary">
                 {formatDate(date)}
               </h2>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {dayPosts.map((p) => (
                   <ArticleCard
                     key={p.slug}
@@ -189,10 +189,31 @@ function ArticleCard({
   return (
     <Link
       href={`/news/${post.slug}`}
-      className="group flex gap-4 rounded-2xl border border-border bg-bg-surface p-4 transition-all hover:border-accent-yellow/40 hover:-translate-y-0.5"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-bg-surface transition-all hover:border-accent-yellow/40 hover:-translate-y-0.5"
     >
-      <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-center gap-2 text-xs">
+      {/* Vertical card layout — thumbnail on top, content below. Grid
+          layout above renders these 1 / 2 / 3 columns responsively so
+          the feed can breathe on wide screens instead of pinning to a
+          narrow single column. */}
+      {post.thumbnail_url ? (
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-bg">
+          <Image
+            src={post.thumbnail_url}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+            unoptimized
+          />
+        </div>
+      ) : (
+        // Keep the aspect box even without a thumbnail so cards stay
+        // the same height in a grid row — a missing image shouldn't
+        // shrink one card and desync the row.
+        <div className="aspect-[16/10] w-full bg-bg" />
+      )}
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <div className="mb-2 flex items-center gap-2 text-xs">
           {post.category && (
             <span className="rounded-full bg-accent-yellow/15 px-2 py-0.5 font-semibold text-accent-yellow">
               {categoryLabel(post.category)}
@@ -203,11 +224,11 @@ function ArticleCard({
           {post.title}
         </h3>
         {post.excerpt && (
-          <p className="mt-1 text-sm text-text-secondary line-clamp-2">
+          <p className="mt-1 text-sm text-text-secondary line-clamp-3">
             {post.excerpt}
           </p>
         )}
-        <div className="mt-2 flex items-center gap-3 text-xs font-mono text-text-tertiary">
+        <div className="mt-auto pt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono text-text-tertiary">
           <span className="inline-flex items-center gap-1">
             <Calendar className="h-3 w-3" />
             {formatShortDate(post.published_at)}
@@ -216,22 +237,9 @@ function ArticleCard({
             <Eye className="h-3 w-3" />
             {viewCount.toLocaleString()}
           </span>
-          {post.author && <span>· {post.author}</span>}
-          {post.reading_time && <span>· {post.reading_time} min read</span>}
+          {post.reading_time && <span>· {post.reading_time} min</span>}
         </div>
       </div>
-      {post.thumbnail_url && (
-        <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-xl bg-bg">
-          <Image
-            src={post.thumbnail_url}
-            alt=""
-            fill
-            sizes="128px"
-            className="object-cover"
-            unoptimized
-          />
-        </div>
-      )}
     </Link>
   );
 }
