@@ -119,6 +119,20 @@ async def run(dry_run: bool) -> None:
         )
         log.info(f"S8a total updated to 70: {r.rowcount}")
 
+        # 5. Promote S8a from STUB → MAIN. The set was tagged STUB when
+        # only the shell row existed (no cards seeded). Now that the
+        # import pass filled it with 70 cards + 4 sealed products,
+        # STUB is wrong — and the JP set browser (/sets?region=ja)
+        # hides STUB rows, which meant /sets/S8a was unreachable
+        # through the UI even though the detail page worked.
+        r = await db.execute(
+            text(
+                "UPDATE sets SET set_type = 'MAIN' "
+                "WHERE id = 'S8a' AND set_type = 'STUB'"
+            )
+        )
+        log.info(f"S8a set_type STUB→MAIN: {r.rowcount}")
+
         await db.commit()
 
 
