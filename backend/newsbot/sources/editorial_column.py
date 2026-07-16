@@ -94,14 +94,25 @@ async def crawl() -> list[NewsItem]:
 
     base = settings.pulllist_api_base.rstrip("/") + "/"
 
-    # Card gallery — search our own catalog for cards matching the
-    # topic. Sort by price so the gallery leads with cards actually
-    # worth talking about (bulk hits from a broad topic like
-    # 'Charizard' would drown the essay in commons otherwise).
+    # Card gallery — search our own catalog. /cards/search matches
+    # against card NAMES, which are short ('Charizard', 'Umbreon
+    # VMAX'). A full essay-title topic ('30th Celebration Preview:
+    # What 25th Taught Us') will match zero cards. Pick a concise
+    # search query — either the explicit override or the first 2-3
+    # words of the topic as a heuristic ('30th Celebration Preview
+    # ...' -> '30th Celebration').
+    override_q = (
+        getattr(settings, "editorial_column_search_query", "") or ""
+    ).strip()
+    if override_q:
+        card_query = override_q
+    else:
+        words = re.findall(r"\S+", topic)
+        card_query = " ".join(words[:3]) if words else topic
     cards_data = await _fetch_json(
         urljoin(base, "cards/search"),
         {
-            "q": topic,
+            "q": card_query,
             "sort": "price_desc",
             "page_size": CARD_GALLERY_SIZE,
             "language": "en",
@@ -167,10 +178,25 @@ async def crawl() -> list[NewsItem]:
                 "caption": (c.get("name") or "")[:120],
             })
 
-    hero = (
-        (cards[0].get("image_large") or cards[0].get("image_small"))
-        if cards else None
-    )
+    # Hero image priority: catalog card > news imageUrl > web
+    # imageUrl > None. Falls back through the material we actually
+    # have so a card-less topic still gets a thumbnail from one of
+    # the Serper hits.
+    hero = None
+    if cards:
+        hero = cards[0].get("image_large") or cards[0].get("image_small")
+    if not hero:
+        for h in news_hits:
+            candidate = (h.get("imageUrl") or "").strip()
+            if candidate.startswith(("http://", "https://")):
+                hero = candidate
+                break
+    if not hero:
+        for h in web_hits:
+            candidate = (h.get("imageUrl") or "").strip()
+            if candidate.startswith(("http://", "https://")):
+                hero = candidate
+                break
 
     log.info(
         "editorial_column: topic=%r cards=%d news=%d web=%d",

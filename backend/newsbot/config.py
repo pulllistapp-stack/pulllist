@@ -100,6 +100,12 @@ class Settings(BaseSettings):
     # and Claude drafts a long-form column (1500-2500 words).
     editorial_column_enabled: bool = False
     editorial_column_topic: str = ""
+    # Optional override — when the topic string is verbose ('30th
+    # Celebration Preview: What 25th Taught Us') the auto-picked
+    # search query ('30th Celebration' — first 3 words) may still
+    # miss. This lets LO explicitly set what to grep the catalog
+    # for, independent of the essay title.
+    editorial_column_search_query: str = ""
 
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.

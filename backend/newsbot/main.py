@@ -437,18 +437,31 @@ async def _process_item(
     # Center runs that ate tokens for posts later deleted manually).
     # The proxied URL is what actually gets published, so verifying
     # *that* matches the user-browser fetch path exactly.
+    #
+    # Exception: editorial_column is human-triggered on a specific
+    # topic — LO explicitly wants the draft even without a hero
+    # image (they'll swap in a Vercel Blob upload before publishing).
+    # Skipping this gate for editorial columns keeps that trigger
+    # meaningful even for card-less topics.
     candidate_thumb = _proxy_image(item.hero_image_url)
-    if not await _verify_thumbnail(candidate_thumb):
-        log.warning(
-            "skip %s — no usable thumbnail (hero=%s)",
-            item.url, (item.hero_image_url or "")[:80],
-        )
-        if token:
-            await mark_processed(
-                api_base, token, item.url, "thumbnail_failed",
-                title_tokens=" ".join(sorted(_title_tokens(item.title))),
+    if item.source_name != "editorial_column":
+        if not await _verify_thumbnail(candidate_thumb):
+            log.warning(
+                "skip %s — no usable thumbnail (hero=%s)",
+                item.url, (item.hero_image_url or "")[:80],
             )
-        return None
+            if token:
+                await mark_processed(
+                    api_base, token, item.url, "thumbnail_failed",
+                    title_tokens=" ".join(sorted(_title_tokens(item.title))),
+                )
+            return None
+    elif candidate_thumb and not await _verify_thumbnail(candidate_thumb):
+        log.info(
+            "editorial_column %s — verify rejected hero, publishing without one",
+            item.url,
+        )
+        item = item.model_copy(update={"hero_image_url": None})
 
     try:
         article = await generate_article(item)
