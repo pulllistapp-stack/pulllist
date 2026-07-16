@@ -477,10 +477,22 @@ async def _scrape_pass(
     if not html:
         stats["errors"] += 1
         return 0
+    # Detect eBay's silent search-relaxation. When our query is too
+    # narrow (e.g. "Latias & Latios 170 PSA 10" for a card that has
+    # zero sold PSA 10 in the sample window) eBay drops tokens and
+    # returns broader matches — sometimes with a banner, sometimes
+    # without. If we detect the banner we still parse (the results
+    # aren't for our exact card but the download wasn't free) and
+    # log so a debugger can see it.
+    auto_relaxed = (
+        "No exact matches found" in html
+        or "Results matching fewer words" in html
+    )
     listings = _parse_sold(html)
     stats["listings_parsed"] += len(listings)
     label = "sold" if sold_only else "ask"
-    log.info(f"  [{label}] html len={len(html)}, parsed={len(listings)}")
+    relax_note = " AUTO-RELAXED" if auto_relaxed else ""
+    log.info(f"  [{label}] html len={len(html)}, parsed={len(listings)}{relax_note}")
 
     prices: list[float] = []
     rej = {"number": 0, "name": 0, "grade": 0}
@@ -597,13 +609,26 @@ async def run(
             # Build query: card name + number + set name (cleaned) + tier.
             # eBay's search hits work best on natural language — strip
             # SET-code prefixes we use ("SV: ", "SWSH: ", "SM - ") that
-            # collectors rarely type. Also drop the /Y denominator from
-            # the card number so "161/131" becomes "161", matching how
-            # sellers title their listings.
+            # collectors rarely type.
+            #
+            # Card number is WRAPPED IN QUOTES so eBay treats it as a
+            # required phrase. Without quotes eBay silently drops the
+            # number token when few results exist and returns broadly
+            # matching cards of the same character — "Latias & Latios
+            # GX PSA 10 170" gets relaxed to just "Latias & Latios GX
+            # PSA 10" which pulls #116/181 base prints ($50) mixed
+            # with our #170 alt-art SIR ($15k) and destroys the
+            # median. This behavior is stronger from datacenter IPs
+            # (GH Actions runners) than home IPs, so it's invisible
+            # in local testing but wrecks CI runs.
             parts = [card.name]
             if card.number:
                 num = card.number.split("/")[0]
-                parts.append(num)
+                # Just the numerator quoted — allows "170", "#170",
+                # and "170/181" to all match. Quoting the full
+                # "170/181" would drop the ~half of listings that
+                # only include "#170".
+                parts.append(f'"{num}"')
             if set_obj is not None:
                 set_name = re.sub(
                     r"^(?:SV|SWSH|SM|XY|BW|HGSS|DP|EX|ME)\s*[:\-]\s*",
