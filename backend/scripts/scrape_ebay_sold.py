@@ -496,6 +496,7 @@ async def _scrape_pass(
 
     prices: list[float] = []
     rej = {"number": 0, "name": 0, "grade": 0}
+    rej_samples = {"number": [], "name": [], "grade": []}
     # Both passes now use the same number matcher. The matcher's
     # Layer-2 fallback (bare-number match when title has no slash
     # format) already handles the "Shining Charizard PSA 10 Neo
@@ -507,14 +508,28 @@ async def _scrape_pass(
     for title, price in listings:
         if not _card_number_match(title, card.number):
             rej["number"] += 1
+            if len(rej_samples["number"]) < 5:
+                rej_samples["number"].append(title[:100])
             continue
         if not _card_name_match(title, card.name):
             rej["name"] += 1
+            if len(rej_samples["name"]) < 5:
+                rej_samples["name"].append(title[:100])
             continue
         if classify_grade(title) != wanted_grade:
             rej["grade"] += 1
+            if len(rej_samples["grade"]) < 5:
+                rej_samples["grade"].append(title[:100])
             continue
         prices.append(price)
+
+    # When rejection rate is >80%, log sample titles so we can
+    # diagnose whether the scraper is seeing wrong-print listings
+    # (eBay auto-relaxed) or its own parser is misbehaving.
+    if listings and (rej["number"] + rej["name"] + rej["grade"]) / len(listings) > 0.8:
+        for kind, samples in rej_samples.items():
+            for i, t in enumerate(samples):
+                log.info(f"    reject.{kind}[{i}]: {t}")
 
     min_needed = _min_for(wanted_grade)
     if len(prices) < min_needed:
