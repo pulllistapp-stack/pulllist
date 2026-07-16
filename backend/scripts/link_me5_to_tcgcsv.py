@@ -155,13 +155,27 @@ async def run(dry_run: bool) -> None:
             # Prefer Holofoil > Normal > Reverse Holofoil for the
             # headline market price shown in the card grid; store the
             # full per-subtype dict in tcgplayer_prices JSON.
+            #
+            # Pre-release chase cards (SIRs, Mega Hyper Rare) often
+            # have low/mid/high populated but marketPrice=None — TCGCSV
+            # only computes a `market` value once enough sales have
+            # cleared. Fall back to midPrice as the headline in that
+            # case so the tile shows something useful instead of blank.
             headline_sub = None
             for candidate in ("Holofoil", "Normal", "Reverse Holofoil"):
-                if candidate in pr_by_sub and pr_by_sub[candidate].get("marketPrice"):
+                p = pr_by_sub.get(candidate)
+                if p and (p.get("marketPrice") or p.get("midPrice") or p.get("lowPrice")):
                     headline_sub = candidate
                     break
 
             headline = pr_by_sub.get(headline_sub) if headline_sub else None
+            headline_market = (
+                headline.get("marketPrice")
+                or headline.get("midPrice")
+                or headline.get("lowPrice")
+                if headline
+                else None
+            )
 
             # Build the tcgplayer_prices JSON in the shape the rest of
             # the app already reads (per-variant low/mid/high/market/
@@ -198,14 +212,14 @@ async def run(dry_run: bool) -> None:
             if not dry_run:
                 card.tcgplayer_product_id = pid
                 if headline:
-                    card.market_price_usd = headline.get("marketPrice")
+                    card.market_price_usd = headline_market
                     card.low_price_usd = headline.get("lowPrice")
                     card.mid_price_usd = headline.get("midPrice")
                     card.high_price_usd = headline.get("highPrice")
                 card.tcgplayer_prices = pricing_json
 
             updates_link += 1
-            if headline:
+            if headline and headline_market is not None:
                 updates_price += 1
                 snapshot_rows.append(
                     {
@@ -213,7 +227,7 @@ async def run(dry_run: bool) -> None:
                         "source": "tcgplayer",
                         "variant": headline_sub.lower().replace(" ", "_"),
                         "grade": "raw",
-                        "market_price_usd": headline.get("marketPrice"),
+                        "market_price_usd": headline_market,
                         "low_price_usd": headline.get("lowPrice"),
                         "mid_price_usd": headline.get("midPrice"),
                         "high_price_usd": headline.get("highPrice"),

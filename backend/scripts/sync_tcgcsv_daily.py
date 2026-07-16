@@ -66,7 +66,13 @@ log.setLevel(logging.INFO)
 
 
 TCGCSV_BASE = "https://tcgcsv.com/tcgplayer"
-POKEMON_CATEGORY = "3"
+POKEMON_CATEGORY = "3"       # Pokémon (English)
+POKEMON_CATEGORY_JP = "85"   # Pokemon Japan — added 2026-07-16 so JP
+                              # cards with tcgplayer_product_id (S8a
+                              # family, JPP-VM, plus anything the
+                              # backfill_jp_card_tcgcsv_ids pass adds)
+                              # refresh on the same daily cadence.
+POKEMON_CATEGORIES = (POKEMON_CATEGORY, POKEMON_CATEGORY_JP)
 USER_AGENT = "PullList/1.0 (https://pulllist.org; LO)"
 SOURCE_TCGPLAYER = "tcgplayer"
 
@@ -267,14 +273,18 @@ async def _fetch_json(client: httpx.AsyncClient, url: str) -> dict:
     return r.json()
 
 
-async def _list_pokemon_groups(client: httpx.AsyncClient) -> list[dict]:
-    data = await _fetch_json(client, f"{TCGCSV_BASE}/{POKEMON_CATEGORY}/groups")
+async def _list_pokemon_groups(
+    client: httpx.AsyncClient, category: str = POKEMON_CATEGORY
+) -> list[dict]:
+    data = await _fetch_json(client, f"{TCGCSV_BASE}/{category}/groups")
     return data.get("results", [])
 
 
-async def _group_prices(client: httpx.AsyncClient, group_id: int) -> list[dict]:
+async def _group_prices(
+    client: httpx.AsyncClient, group_id: int, category: str = POKEMON_CATEGORY
+) -> list[dict]:
     data = await _fetch_json(
-        client, f"{TCGCSV_BASE}/{POKEMON_CATEGORY}/{group_id}/prices"
+        client, f"{TCGCSV_BASE}/{category}/{group_id}/prices"
     )
     return data.get("results", [])
 
@@ -369,19 +379,31 @@ async def sync(
     }
 
     async with httpx.AsyncClient(headers={"User-Agent": USER_AGENT}) as client:
-        groups = await _list_pokemon_groups(client)
+        # Iterate the EN Pokémon category (3) AND the JP Pokemon Japan
+        # category (85). Group IDs don't collide between categories on
+        # TCGCSV and product_to_card is keyed on the global product_id
+        # only, so a JP price refresh naturally matches JP cards
+        # (whose tcgplayer_product_id came from category 85) without
+        # touching EN rows.
+        groups: list[tuple[str, dict]] = []
+        for category in POKEMON_CATEGORIES:
+            cat_groups = await _list_pokemon_groups(client, category=category)
+            for g in cat_groups:
+                groups.append((category, g))
         if only_groups:
-            groups = [g for g in groups if g.get("groupId") in only_groups]
+            groups = [(c, g) for c, g in groups if g.get("groupId") in only_groups]
         if group_limit:
             groups = groups[:group_limit]
-        log.info(f"{len(groups)} pokemon groups to sync")
+        log.info(f"{len(groups)} pokemon groups to sync (EN + JP)")
 
-        for idx, group in enumerate(groups, 1):
+        for idx, (category, group) in enumerate(groups, 1):
             group_id = group.get("groupId")
             group_name = group.get("name") or str(group_id)
             stats["groups_seen"] += 1
             try:
-                price_rows = await _group_prices(client, group_id)
+                price_rows = await _group_prices(
+                    client, group_id, category=category
+                )
             except Exception as exc:
                 log.warning(f"[{idx}/{len(groups)}] {group_name}: fetch failed ({exc})")
                 stats["group_errors"] += 1

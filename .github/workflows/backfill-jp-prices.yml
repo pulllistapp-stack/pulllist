@@ -1,0 +1,67 @@
+name: Backfill JP card prices (tcg_pid + first sync)
+
+# One-shot. First pass populates tcgplayer_product_id on every JP
+# card we can name-match to a TCGCSV JP group product; second pass
+# runs the (patched) daily TCGCSV sync so those cards get their
+# first market/low/high/mid prices in the same trigger.
+#
+# After this workflow succeeds the nightly daily-tcgplayer-sync cron
+# takes over — it now loops both category 3 (EN) and category 85
+# (JP), so any JP card with tcgplayer_product_id refreshes daily
+# alongside EN cards.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (probe, don't write)"
+        required: false
+        default: "false"
+      only_set:
+        description: "Limit backfill to a single set id (e.g. SVHK). Blank = all JP sets."
+        required: false
+        default: ""
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Phase 2 — Backfill tcgplayer_product_id on JP cards
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          if [ -n "${{ inputs.only_set }}" ]; then
+            args="$args --set ${{ inputs.only_set }}"
+          fi
+          python -m scripts.backfill_jp_card_tcgcsv_ids $args
+
+      - name: Phase 3 — First TCGCSV price sync (EN + JP, tier=daily)
+        # sync_tcgcsv_daily now loops both category 3 and 85. This
+        # populates market_price_usd on every JP card that just got a
+        # tcgplayer_product_id in the previous step. Skips when
+        # dry-run is on so the probe stays read-only.
+        if: inputs.dry_run != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: python -m scripts.sync_tcgcsv_daily --tier daily
