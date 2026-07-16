@@ -358,6 +358,107 @@ def _is_auction_highlights(item: NewsItem) -> bool:
     return item.url.startswith("pulllist://auction-highlights/")
 
 
+def _is_editorial_column(item: NewsItem) -> bool:
+    """editorial_column source uses pulllist://editorial-column/<slug>-<date>."""
+    return item.url.startswith("pulllist://editorial-column/")
+
+
+def _build_editorial_column_prompt(item: NewsItem) -> str:
+    try:
+        payload = json.loads(item.raw_text)
+    except Exception:
+        payload = {}
+    topic = payload.get("topic", "")
+    cards = payload.get("cards", []) or []
+    news_hits = payload.get("news_hits", []) or []
+    web_hits = payload.get("web_hits", []) or []
+
+    lines = [
+        "Source type: long-form editorial column (deep essay, human-triggered)",
+        f"Topic: {topic}",
+        f"Related cards from our catalog: {len(cards)}",
+        f"Recent news snippets: {len(news_hits)}",
+        f"Web/historical snippets: {len(web_hits)}",
+        "",
+        "This is a Collectory-style 'reads' piece — not a news post. "
+        "Target length: 1500-2500 words. Voice: reflective, curious, "
+        "specific. Think 'longform collector essay' or 'anniversary "
+        "retrospective', not press release. If the topic points at "
+        "an upcoming event, contextualize it with the closest past "
+        "analogue (e.g. 30th Celebration lands? Weave in what 25th "
+        "did with Celebrations 2021 — pull cards, prices, and "
+        "collector patterns from your training). If the topic is "
+        "historical, close with what the modern echo looks like.",
+        "",
+        "Every card row carries card_id + set_id — link the card name "
+        "to /cards/{card_id} and the set name to /sets/{set_id}. "
+        "Every citation from the news_hits / web_hits should link "
+        "to its source URL as a Markdown link within the paragraph "
+        "that uses it (never a bare URL, never a footnote).",
+        "",
+        "RELATED CARDS FROM OUR CATALOG:",
+    ]
+    for c in cards:
+        price = c.get("market_price_usd")
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "n/a"
+        lines.append(
+            f"- card_id={c.get('id')} name={c.get('name')} "
+            f"#{c.get('number')} rarity={c.get('rarity')} "
+            f"artist={c.get('artist') or 'unknown'} "
+            f"market={price_str} "
+            f"set_id={c.get('set_id')} set={c.get('set_name')} "
+            f"image={c.get('image_small', '') or c.get('image_large', '')}"
+        )
+    lines.append("")
+
+    if news_hits:
+        lines.append("RECENT NEWS SNIPPETS (weave in for current context):")
+        for h in news_hits:
+            lines.append(
+                f"- date={h.get('date')} source={h.get('source')} "
+                f"title={h.get('title')} link={h.get('link')} "
+                f"snippet={(h.get('snippet') or '')[:200]}"
+            )
+        lines.append("")
+
+    if web_hits:
+        lines.append("WEB / HISTORICAL SNIPPETS (use for retrospective + context):")
+        for h in web_hits:
+            lines.append(
+                f"- title={h.get('title')} link={h.get('link')} "
+                f"snippet={(h.get('snippet') or '')[:200]}"
+            )
+        lines.append("")
+
+    lines.append(
+        "Structure the essay roughly as: cold-open hook (a specific "
+        "moment / scene / stat that puts the reader inside the story) "
+        "-> ## 📖 The story so far (historical grounding — pull from "
+        "the web snippets AND your own training, cite what you use) "
+        "-> ## 💎 What's on the table (the cards that actually matter, "
+        "each = inline image + linked name + linked set + a paragraph "
+        "on why the card is central to this story — not a specs "
+        "dump; a mini-narrative) -> ## 🎯 What to watch (current-"
+        "collector angle — what the recent news signals, where to "
+        "watch prices, which cards will move) -> ## 💡 The takeaway "
+        "(3-5 bullets, ~10 words each, real substance) -> one-line "
+        "PullList catalog CTA -> ## Sources (bullet each cited link "
+        "with its title, plus '- PullList catalog snapshot' at the "
+        "bottom). Section headings can shift with the topic; the "
+        "emoji anchors above are defaults, override with a better "
+        "one where a specific emoji maps to the section content."
+    )
+    lines.append("")
+    lines.append(
+        f"Title should be evocative + specific, mentioning {topic} "
+        "and hinting at the essay's angle. NOT 'A Look at X' or "
+        "'Everything About X' — those are AI defaults. Real editorial "
+        "titles carry a point of view ('Celebrations Cost $X in 2021, "
+        "$Y Today. 30th Celebration Will Do This.')."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _build_auction_highlights_prompt(item: NewsItem) -> str:
     try:
         payload = json.loads(item.raw_text)
@@ -662,6 +763,8 @@ def _build_user_prompt(item: NewsItem) -> str:
         return _build_illustrator_feature_prompt(item)
     if _is_auction_highlights(item):
         return _build_auction_highlights_prompt(item)
+    if _is_editorial_column(item):
+        return _build_editorial_column_prompt(item)
     body = item.raw_text or item.summary or ""
     # 50k chars (~12k tokens) is enough to fit the longest editorial
     # articles we've seen end-to-end (30th Celebration set lineup

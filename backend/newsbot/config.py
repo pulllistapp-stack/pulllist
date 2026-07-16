@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     # cards by aggregate eBay sold count over the last 7 days.
     auction_highlights_enabled: bool = False
 
+    # ── Editorial-column source (Phase B Sprint 6) ──
+    # Human-triggered deep-essay pipeline. LO passes a topic via
+    # workflow_dispatch; the source pulls related cards + web context
+    # and Claude drafts a long-form column (1500-2500 words).
+    editorial_column_enabled: bool = False
+    editorial_column_topic: str = ""
+
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.
     # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).
