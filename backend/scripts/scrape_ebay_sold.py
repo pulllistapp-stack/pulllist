@@ -90,8 +90,15 @@ TIER_MIN_OVERRIDES: dict[str, int] = {
 }
 
 
-def _min_for(grade: str) -> int:
-    return TIER_MIN_OVERRIDES.get(grade, MIN_LISTINGS_PER_GRADE)
+def _min_for(grade: str, card_raw_usd: float | None = None) -> int:
+    """Base MIN by tier, halved for high-value cards where liquidity
+    is inherently thin. A $15k SIR that clears 3-4 PSA 10s per 90
+    days deserves those medians shown, not gated behind a threshold
+    designed for mass-print $50 chases."""
+    base = TIER_MIN_OVERRIDES.get(grade, MIN_LISTINGS_PER_GRADE)
+    if card_raw_usd and card_raw_usd >= 500:
+        return max(2, base // 2 or 1)
+    return base
 
 # Trim the top/bottom TRIM_PCT of listings before taking the median,
 # but only when the sample is large enough for a trim to make sense.
@@ -547,7 +554,7 @@ async def _scrape_pass(
             for i, t in enumerate(samples):
                 log.info(f"    reject.{kind}[{i}]: {t}")
 
-    min_needed = _min_for(wanted_grade)
+    min_needed = _min_for(wanted_grade, float(card.market_price_usd or 0))
     if len(prices) < min_needed:
         stats["empty_pages"] += 1
         log.info(
@@ -698,7 +705,7 @@ async def run(
             # the flag is enabled. Same query but without LH_Sold=1 —
             # broader pool for vintage / thin-liquidity tiers.
             wanted = classify_grade(f"dummy {graded_tier}")
-            if include_asking_fallback and n_sold < _min_for(wanted):
+            if include_asking_fallback and n_sold < _min_for(wanted, float(card.market_price_usd or 0)):
                 log.info(f"  (fallback → asking pass)")
                 await _scrape_pass(
                     browser=browser,
