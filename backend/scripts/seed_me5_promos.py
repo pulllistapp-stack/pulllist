@@ -153,11 +153,14 @@ async def run(dry_run: bool) -> None:
                 log.warning(f"  product {pid} missing from MEP TCGCSV")
                 continue
 
-            # TCGCSV image url shape (verified via curl)
+            # Direct TCGplayer CDN URL matches the pattern the existing
+            # mep set already uses (mep-034 etc.). weserv proxy rejects
+            # tcgplayer.com with "Domain or TLD blocked by policy" so
+            # we don't wrap this source — the direct URL loads fine in
+            # browsers because TCGplayer allows hot-linking.
             image_url = product.get("imageUrl") or (
-                f"https://tcgplayer-cdn.tcgplayer.com/product/{pid}_in_1000x1000.jpg"
+                f"https://tcgplayer-cdn.tcgplayer.com/product/{pid}_200w.jpg"
             )
-            image_wrapped = _weserv_wrap(image_url)
 
             pr_by_sub = prices_by_pid.get(pid, {})
             # Promos are usually single-sub-type; take whichever exists
