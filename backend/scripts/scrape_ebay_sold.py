@@ -67,38 +67,21 @@ SOURCE = "ebay_sold"
 # graded-prices endpoint can prefer real sold data when both exist.
 SOURCE_ASKING = "ebay_asking"
 VARIANT = "active"  # sold snapshots share the variant-key space with asking rows
-# Bumped from 2 → 5 after the first prod run. n=3-4 buckets produced
-# unstable medians (Charizard δ n=3 → $3,737 with $19,500 hi). n≥5
-# tightens signal-to-noise at the cost of dropping a few thin cards
-# per run — those tend to have wide asks anyway.
-MIN_LISTINGS_PER_GRADE = 5
-
-# Per-tier overrides for markets where pop is inherently thin —
-# insisting on n>=5 would drop nearly all data. Black Label slabs
-# in particular usually have 1-3 physical copies existing on eBay
-# at any moment; any signal is better than a blank tile there.
-# TAG and vintage BGS also trade thinly enough to warrant a lower
-# floor.
+# Universal MIN=2. The _udlo price floor added upstream now filters
+# ~95% of the noise that the older MIN=5 gate was defending against
+# (Booster Bundles, wrong-set Latias, fan art, unrelated cheap
+# Pokemon). With that upstream filter in place, any two listings
+# that pass number+name+grade are almost certainly legit signal —
+# and demanding 5+ was throwing away real data on thin-market cards.
+# BGS 10 Black Label kept at 1 (Pop of 3-10 globally on most SIRs).
+MIN_LISTINGS_PER_GRADE = 2
 TIER_MIN_OVERRIDES: dict[str, int] = {
-    "bgs10bl": 1,   # BGS 10 Black Label — famously thin pop
-    "bgs10":   2,
-    "bgs9.5":  2,
-    "bgs9":    2,
-    "tag10":   2,
-    "tag9.5":  2,
-    "tag9":    2,
+    "bgs10bl": 1,
 }
 
 
 def _min_for(grade: str, card_raw_usd: float | None = None) -> int:
-    """Base MIN by tier, halved for high-value cards where liquidity
-    is inherently thin. A $15k SIR that clears 3-4 PSA 10s per 90
-    days deserves those medians shown, not gated behind a threshold
-    designed for mass-print $50 chases."""
-    base = TIER_MIN_OVERRIDES.get(grade, MIN_LISTINGS_PER_GRADE)
-    if card_raw_usd and card_raw_usd >= 500:
-        return max(2, base // 2 or 1)
-    return base
+    return TIER_MIN_OVERRIDES.get(grade, MIN_LISTINGS_PER_GRADE)
 
 # Trim the top/bottom TRIM_PCT of listings before taking the median,
 # but only when the sample is large enough for a trim to make sense.
