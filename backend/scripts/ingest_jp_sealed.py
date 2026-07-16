@@ -211,12 +211,22 @@ _TCGCSV_ALIASES: dict[str, str] = {
 
 
 # Overrides keyed on TCGCSV groupId, applied *before* the abbr map.
-# Only used when a TCGCSV abbreviation is shared across multiple
-# distinct groups (e.g., "Pt" fronts every Pt-era Platinum expansion
-# and every Pt-era deck), so an abbr → set mapping can't disambiguate.
+# Two use cases:
+#  (a) TCGCSV abbreviation collides across multiple groups (e.g. "Pt"
+#      fronts every Pt-era expansion AND every Pt-era deck).
+#  (b) Group has no abbreviation at all (TCGCSV occasionally omits it
+#      for umbrella / promo groups). Without an override the current
+#      code's `not abbr → skip` would drop them silently.
 _GROUP_ID_OVERRIDES: dict[int, str] = {
     24054: "PtA-GF",  # Pt Arceus LV.X Deck: Grass & Fire
     24055: "PtA-LP",  # Pt Arceus LV.X Deck: Lightning & Psychic
+    24324: "SVM",     # SVM: Generations Start Decks (no abbr on TCGCSV
+                      # side; 10 sealed SKUs all belong to Starter Decks
+                      # Generations = our SVM DECK set).
+    24567: "MC",      # Start Deck 100 Battle Collection (no abbr; the
+                      # sealed deck box belongs to our MC "Starter Decks
+                      # 100 Battle Collection" set. MP1 is a separate
+                      # CoroCiao variant that keeps its own abbr).
 }
 
 
