@@ -172,6 +172,11 @@ _"See live prices on PullList."_ / _"Compare rarities on PullList."_
   rendered as a 6-bullet summary is a failure mode — readers came
   to find out about THIS product, and the post must mention it.
 - Drop post: 150-250 words (see drop branch below).
+- Long-form editorial column (Collectory-reads style): 1500-2500
+  words. **Hard ceiling 2500** — anything longer gets clipped
+  mid-JSON by the token budget, so tighten before hitting the wall.
+  Every paragraph must earn its space; if a section runs long,
+  cut a sentence, don't add another.
 
 Always end with a Sources section linking the original article.
 
@@ -821,7 +826,11 @@ async def generate_article(item: NewsItem) -> GenerateResult:
     # the same JSON envelope at the end.
     common_kwargs = dict(
         model=settings.claude_model,
-        max_tokens=32000,
+        # 48k lets the deep editorial-column path (Sprint 6, 1500-
+        # 2500 target words plus JSON envelope) finish even on the
+        # essays that were still clipping at 32k. Streaming API is
+        # required at either ceiling.
+        max_tokens=48000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
         extra_body={
@@ -858,6 +867,22 @@ async def generate_article(item: NewsItem) -> GenerateResult:
     # but the model occasionally still wraps in ```json fences. The
     # greedy {…} extractor handles both shapes.
     payload = _extract_json(raw)
+    # Defensive clamps — Claude occasionally returns fields outside the
+    # schema bounds (2026-07-16: excerpt >512 chars on a Charizard
+    # essay, reading_time=-1 on the same run). Rather than fail the
+    # whole run, coerce the offending fields to legal values so the
+    # essay ships with a slightly-trimmed excerpt or a sensible
+    # reading-time estimate. Anything the schema still rejects after
+    # clamp is a real generation issue worth failing on.
+    if isinstance(payload.get("excerpt"), str):
+        payload["excerpt"] = payload["excerpt"][:512].strip()
+    try:
+        rt = int(payload.get("reading_time", 5))
+    except (TypeError, ValueError):
+        rt = 5
+    payload["reading_time"] = max(1, min(60, rt))
+    if isinstance(payload.get("title"), str):
+        payload["title"] = payload["title"][:256].strip()
     try:
         return GenerateResult.model_validate(payload)
     except ValidationError as exc:
