@@ -24,7 +24,11 @@ router = APIRouter(prefix="/news", tags=["news"])
 
 _SLUG_MAX_LEN = 128
 
-NewsStatus = Literal["draft", "published"]
+# 'hidden' is post-publish soft-delete: the row stays intact (edit
+# history preserved, admin can re-publish anytime) but public
+# endpoints treat it like a draft — invisible to non-admins. Lets
+# LO retire a post from the feed without permanently deleting it.
+NewsStatus = Literal["draft", "published", "hidden"]
 
 
 def _validate_slug(slug: str) -> str:
@@ -105,6 +109,14 @@ def _post_to_dict(p: NewsPost) -> dict:
 async def list_posts(
     category: str | None = None,
     region: str | None = None,
+    status: str | None = Query(
+        default=None,
+        description=(
+            "Admin-only status filter. Ignored for anonymous callers "
+            "(they always see published-only). Values: 'draft' / "
+            "'published' / 'hidden' / omit for all admin-visible."
+        ),
+    ),
     limit: int = Query(
         default=100, ge=1, le=100,
         description="Max posts per page. Response shape stays a bare list so old clients keep working.",
@@ -115,7 +127,7 @@ async def list_posts(
     ),
     include_drafts: bool = Query(
         default=False,
-        description="Admin-only. When true and caller is admin, returns drafts too.",
+        description="Admin-only. When true and caller is admin, returns drafts + hidden too.",
     ),
     admin: Annotated[User | None, Depends(get_current_admin_optional)] = None,
     db: AsyncSession = Depends(get_db),
@@ -137,11 +149,15 @@ async def list_posts(
         # Region kept for forward flexibility (e.g. region-specific
         # event posts later). Not currently in the UI.
         stmt = stmt.where(NewsPost.region.in_([region, "all"]))
-    # Drafts are admin-only. Anonymous + non-admin traffic only ever
-    # sees published rows; flipping include_drafts as a non-admin is a
-    # silent no-op (don't 403 — keeps the public endpoint forgiving).
+    # Drafts and hidden posts are admin-only. Anonymous + non-admin
+    # traffic only ever sees published rows; flipping include_drafts
+    # as a non-admin is a silent no-op (don't 403 — keeps the public
+    # endpoint forgiving).
     if not (admin and include_drafts):
         stmt = stmt.where(NewsPost.status == "published")
+    elif status in ("draft", "published", "hidden"):
+        # Admin-only status filter narrows the admin view further.
+        stmt = stmt.where(NewsPost.status == status)
     stmt = stmt.limit(limit).offset(offset)
     rows = (await db.execute(stmt)).scalars().all()
     return [_post_to_dict(p) for p in rows]
@@ -254,7 +270,7 @@ async def get_post(
     p = await db.get(NewsPost, slug)
     if not p:
         raise HTTPException(status_code=404, detail="post not found")
-    if p.status == "draft" and not admin:
+    if p.status in ("draft", "hidden") and not admin:
         # Hide draft existence from non-admins — same 404 as a missing
         # slug so the URL space doesn't leak which slugs are reserved
         # for unpublished work.

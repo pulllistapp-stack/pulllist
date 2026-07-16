@@ -17,7 +17,15 @@ export type NewsCategory =
   | "guide"
   | "news";
 
-export type NewsStatus = "draft" | "published";
+export type NewsStatus = "draft" | "published" | "hidden";
+
+// Admin listing page size — larger than the public NEWS_PAGE_SIZE
+// because the admin card is a compact row and LO wants a batch view
+// for triage. 10 keeps each page short enough that a full sweep of
+// the pending drafts fits on one screen.
+export const ADMIN_PAGE_SIZE = 10;
+
+export type AdminStatusFilter = "all" | NewsStatus;
 
 export type NewsPost = {
   slug: string;
@@ -61,14 +69,25 @@ export async function fetchPosts(
 }
 
 /**
- * Admin-only — includes drafts. Sends the bearer token so the API can
- * authorise the include_drafts toggle; without the token the endpoint
- * silently strips drafts (it does NOT 403), so a missing token here
- * means the admin sees a partial list instead of a hard failure.
+ * Admin-only — includes drafts + hidden. Sends the bearer token so
+ * the API can authorise include_drafts; without the token the
+ * endpoint silently strips drafts (it does NOT 403), so a missing
+ * token here means the admin sees a partial list instead of a hard
+ * failure. Now supports pagination + optional status filter.
  */
-export async function fetchPostsAdmin(token: string): Promise<NewsPost[]> {
+export async function fetchPostsAdmin(
+  token: string,
+  page: number = 1,
+  status: AdminStatusFilter = "all",
+): Promise<NewsPost[]> {
+  const params = new URLSearchParams({
+    include_drafts: "true",
+    limit: String(ADMIN_PAGE_SIZE),
+    offset: String((Math.max(1, page) - 1) * ADMIN_PAGE_SIZE),
+  });
+  if (status !== "all") params.set("status", status);
   try {
-    const r = await fetch(`${API_BASE}/news/posts?include_drafts=true`, {
+    const r = await fetch(`${API_BASE}/news/posts?${params}`, {
       cache: "no-store",
       headers: { Authorization: `Bearer ${token}` },
     });
