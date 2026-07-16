@@ -158,9 +158,19 @@ async def run(dry_run: bool) -> None:
             # tcgplayer.com with "Domain or TLD blocked by policy" so
             # we don't wrap this source — the direct URL loads fine in
             # browsers because TCGplayer allows hot-linking.
-            image_url = product.get("imageUrl") or (
-                f"https://tcgplayer-cdn.tcgplayer.com/product/{pid}_200w.jpg"
+            #
+            # imageCount==0 signals TCGCSV knows the URL pattern but
+            # TCGplayer hasn't uploaded the actual JPEG yet (brand-new
+            # promos, days after seeding). Store None so the tile
+            # renders the "no image" placeholder instead of a broken
+            # image icon; a re-run in a few days will pick up the
+            # image once TCGplayer catches up.
+            image_url = (
+                product.get("imageUrl")
+                or f"https://tcgplayer-cdn.tcgplayer.com/product/{pid}_200w.jpg"
             )
+            if product.get("imageCount", 0) < 1:
+                image_url = None
 
             pr_by_sub = prices_by_pid.get(pid, {})
             # Promos are usually single-sub-type; take whichever exists
@@ -202,8 +212,8 @@ async def run(dry_run: bool) -> None:
                 number=spec["number"],
                 supertype="Pokémon" if spec["name"] not in ("Zarude",) else "Pokémon",
                 rarity="Promo",
-                image_small=image_wrapped,
-                image_large=image_wrapped,
+                image_small=image_url,
+                image_large=image_url,
                 set_id="me5",
                 language="en",
                 tcgplayer_product_id=pid,
