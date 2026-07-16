@@ -60,6 +60,15 @@ _CGC_RE = re.compile(
     r"\bC\.?\s*G\.?\s*C\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
     re.IGNORECASE,
 )
+# CGC Pristine 10 — CGC's premium perfect-10 designation. Actually
+# rarer than a regular CGC 10 and can command a 30-50% premium, but
+# for our tile-level bucketing we treat it as cgc10 (buyers looking
+# at "CGC 10 median" want to see clearing prices for the top tier).
+# Same for the rarely-used "CGC PERFECT 10".
+_CGC_PRISTINE_RE = re.compile(
+    r"\bC\.?\s*G\.?\s*C\.?\s*(?:GEM\s*MINT\s*)?(?:PRISTINE|PERFECT)\s*10\b",
+    re.IGNORECASE,
+)
 _BGS_RE = re.compile(
     r"\bB\.?\s*G\.?\s*S\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
     re.IGNORECASE,
@@ -158,6 +167,14 @@ def classify_grade(title: str) -> str:
     m = _PSA_RE.search(title)
     if m:
         return _bucket("psa", m.group(1))
+
+    # CGC Pristine 10 pattern first — "CGC 10" regex would fail on
+    # "CGC PRISTINE 10" (needs digit adjacent to CGC) so we check
+    # the pristine-specific pattern before falling to the general
+    # one. Otherwise the listing would leak into 'raw' and blow
+    # right past our graded-price filter.
+    if _CGC_PRISTINE_RE.search(title):
+        return "cgc10"
 
     m = _CGC_RE.search(title)
     if m:
