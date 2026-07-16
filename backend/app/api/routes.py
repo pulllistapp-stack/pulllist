@@ -4,7 +4,7 @@ import time
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import distinct, func, or_, select, text
+from sqlalchemy import delete, distinct, func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1340,6 +1340,24 @@ async def refresh_card_prices(
         raw_result = await _refresh_raw_price_from_tcgcsv(db, card)
     except Exception:
         pass
+
+    # Step 1.5 — nuke stale graded eBay snapshots for this card so the
+    # UI stops showing contaminated numbers while the new scrape runs.
+    # Why: Refresh means "user thinks the data is wrong." Even if the
+    # fresh scrape only lands 2-3 tiers, whatever it lands is trusted
+    # NEW data. Anything left over is stale/noisy. We only delete rows
+    # older than 15 min (safety window against races if Refresh is
+    # spammed) and only ebay* sources — TCGCSV/raw stay untouched.
+    from datetime import timedelta as _td
+    cutoff = datetime.utcnow() - _td(minutes=15)
+    await db.execute(
+        delete(CardPriceSnapshot).where(
+            CardPriceSnapshot.card_id == card_id,
+            CardPriceSnapshot.source.in_(["ebay_sold", "ebay_asking", "ebay"]),
+            CardPriceSnapshot.snapshot_at < cutoff,
+        )
+    )
+    await db.commit()
 
     # Step 2 — async graded scrape via GH workflow
     payload = {"ref": "main", "inputs": {"card_id": card_id}}

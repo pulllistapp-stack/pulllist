@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-16 ─────────────────────────────────────────────────
   {
     date: "2026-07-16",
+    emoji: "🔁",
+    kr: "카드 페이지 Refresh 버튼 로직 재작업 — (1) 한 번 클릭에 raw 시세 (TCGCSV) 와 graded 시세 (eBay sold) 를 동시에 갱신. Raw 는 즉시 반영되고 graded 는 2-3분 후 랜딩. (2) 오래된 오염 데이터 자동 청소 — Refresh 시점에 15분보다 오래된 eBay 스냅샷을 먼저 삭제해서, 새 스크레이프가 필터에 걸려 뭐 못 써도 예전에 잘못 매칭됐던 숫자 (예: sm9-170 Latias & Latios SIR 가 $1,169 로 잘못 뜨던 케이스) 는 즉시 사라짐. (3) 쿨다운 5분 → 24시간 (TCGplayer 자체가 하루 1-2번만 갱신하니까 그 이상 자주해도 같은 숫자, GH Actions 부담만 늘어남). raw 는 여전히 즉시 반응, graded 는 하루 1회로 안정.",
+    en: "Refresh button on card pages reworked — (1) One click now updates BOTH raw prices (TCGCSV, instant) AND graded prices (eBay sold, ~3 min via GitHub workflow). (2) Stale contaminated data now gets nuked on refresh — snapshots older than 15 min from eBay sources are deleted before the new scrape fires, so cases where an old bad match (e.g. sm9-170 Latias & Latios SIR reading $1,169 because '170 HP' in the title got mis-parsed as card #170) get cleared immediately even if the new scrape can't find enough sold copies to replace them. (3) Cooldown bumped from 5 min to 24 hours per card — TCGplayer only updates its market price 1-2×/day and eBay sold history doesn't move faster than that either, so more frequent clicks just cost GH Actions minutes without changing the numbers.",
+  },
+  {
+    date: "2026-07-16",
     emoji: "🎁",
     kr: "デッキ商品 (Deck Products) 섹션 세트 타일에 'Sealed value' 표시 추가 — 스타터 덱 / 빌드박스 / 트레이너 박스는 실제로 카드가 아니라 sealed 상품 자체가 세트이기 때문에 기존 'Set value' 는 항상 비어있었음. 이제 세트에 붙어있는 sealed 상품들의 가격 합계를 'Sealed value' 로 표시. 현재 118 개 DECK 세트 중 21 개에 sealed 상품 데이터가 붙어있어 라벨이 뜸 (SI, SMP2, WCS23, SK, SVG, SVD, SVHK 등). 나머지 97 개는 sealed 상품 row 백필 필요 (별도 작업 예정)",
     en: "Deck Products section now shows a 'Sealed value' pill on set tiles — starter decks, build boxes, and trainer boxes have no card rows on our side (the SKU IS the whole set) so the existing 'Set value' line was blank on every DECK tile. Backend now sums the market prices of sealed products attached to each set and the frontend surfaces it as a new pill, DECK-type only (regular sets keep hiding it so it doesn't double-count against completion price). Live on 21 of 118 JP DECK sets today (SI, SMP2, WCS23, SK, SVG, SVD, SVHK, etc.); the remaining 97 need product-row backfill",
