@@ -27,6 +27,7 @@ export type SetWithCardCount = {
   total_value_mid_usd: number | null;
   total_value_low_usd: number | null;
   total_value_high_usd: number | null;
+  sealed_value_usd: number | null;
   owned_unique: number | null;
 };
 

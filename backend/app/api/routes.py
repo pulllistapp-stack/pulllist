@@ -168,6 +168,24 @@ async def list_sets(
         for set_id, owned in (await db.execute(owned_stmt)).all():
             owned_map[set_id] = int(owned)
 
+    # Sealed-product value per set — single GROUP BY, results are dict-
+    # looked-up during response assembly. DECK-type sets have zero card
+    # rows (the SKUs themselves ARE the set) so Set value is null on
+    # those tiles; this fills that gap with the sum of their sealed
+    # products' market prices.
+    sealed_map: dict[str, float] = {}
+    sealed_stmt = (
+        select(
+            Product.set_id,
+            func.sum(Product.market_price_usd).label("sealed_total"),
+        )
+        .where(Product.set_id.is_not(None))
+        .group_by(Product.set_id)
+    )
+    for set_id, sealed_total in (await db.execute(sealed_stmt)).all():
+        if sealed_total is not None:
+            sealed_map[set_id] = float(sealed_total)
+
     return [
         SetWithCardCount(
             **SetRead.model_validate(set_row).model_dump(),
@@ -176,6 +194,7 @@ async def list_sets(
             total_value_mid_usd=float(total_mid) if total_mid is not None else None,
             total_value_low_usd=float(total_low) if total_low is not None else None,
             total_value_high_usd=float(total_high) if total_high is not None else None,
+            sealed_value_usd=sealed_map.get(set_row.id),
             owned_unique=owned_map.get(set_row.id) if current_user else None,
         )
         for set_row, count, total_value, total_mid, total_low, total_high in rows
@@ -204,6 +223,11 @@ async def get_set(
     if not row:
         raise HTTPException(status_code=404, detail="Set not found")
     set_row, count, total_value, total_mid, total_low, total_high = row
+    sealed_total = (await db.execute(
+        select(func.sum(Product.market_price_usd)).where(
+            Product.set_id == set_id
+        )
+    )).scalar_one_or_none()
     return SetWithCardCount(
         **SetRead.model_validate(set_row).model_dump(),
         card_count=count,
@@ -211,6 +235,9 @@ async def get_set(
         total_value_mid_usd=float(total_mid) if total_mid is not None else None,
         total_value_low_usd=float(total_low) if total_low is not None else None,
         total_value_high_usd=float(total_high) if total_high is not None else None,
+        sealed_value_usd=(
+            float(sealed_total) if sealed_total is not None else None
+        ),
     )
 
 

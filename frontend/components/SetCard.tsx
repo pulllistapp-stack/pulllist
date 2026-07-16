@@ -39,6 +39,13 @@ export function SetCard({ set }: Props) {
   // market_usd only when mid total is missing (e.g. set of cards
   // imported pre-mid-backfill that haven't synced yet).
   const valueLabel = fmtPrice(set.total_value_mid_usd ?? set.total_value_usd);
+  // DECK-type sets carry no cards on our side — the SKUs themselves are
+  // the whole set. Surface the sum of sealed product prices as "Sealed
+  // value" so those tiles aren't blank. Non-DECK sets keep hiding this
+  // (their Sealed tab has its own aggregate and double-counting the
+  // sealed sum against the singles completion cost would confuse users).
+  const sealedLabel =
+    set.set_type === "DECK" ? fmtPrice(set.sealed_value_usd) : null;
   const progress = set.owned_unique != null && set.card_count > 0
     ? (set.owned_unique / set.card_count) * 100
     : null;
@@ -133,6 +140,19 @@ export function SetCard({ set }: Props) {
           </span>
           <span className="font-mono font-bold text-accent-yellow">
             {valueLabel}
+          </span>
+        </div>
+      )}
+
+      {sealedLabel && (
+        <div
+          className={`${valueLabel ? "mt-1" : "mt-3"} flex items-center justify-between text-xs px-1`}
+        >
+          <span className="font-mono uppercase tracking-wider text-text-tertiary">
+            Sealed value
+          </span>
+          <span className="font-mono font-bold text-accent-yellow">
+            {sealedLabel}
           </span>
         </div>
       )}

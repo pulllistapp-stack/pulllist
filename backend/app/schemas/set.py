@@ -56,5 +56,13 @@ class SetWithCardCount(SetBase):
     """Sum of every card's `high_price_usd` (rarity-ceiling capped) — the
     most expensive set completion. Pairs with `total_value_low_usd` to
     render a "$X – $Y" completion-cost band on the set card."""
+    sealed_value_usd: float | None = None
+    """Sum of `products.market_price_usd` for every sealed product
+    attached to this set. DECK-type sets (starter decks, build boxes,
+    trainer boxes) have no cards on our side — the SKUs themselves are
+    the value — so the frontend surfaces this on DECK tiles in place of
+    Set value. Non-DECK sets can also carry a positive number when they
+    have a Sealed tab; the current DECK-only frontend chooses to hide it
+    there to avoid double-counting against the completion price."""
     owned_unique: int | None = None
     """Distinct cards from this set in the requesting user's collection. None if anonymous."""
