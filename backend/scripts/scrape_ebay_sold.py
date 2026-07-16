@@ -145,26 +145,48 @@ def _parse_sold(html: str) -> list[tuple[str, float]]:
     return out
 
 
-def _card_number_match(title: str, card_number: str | None) -> bool:
-    """Strict card-number match — the card's number MUST appear in
-    the title (word-bounded, zero-pad tolerant). Reject listings that
-    reference a DIFFERENT explicit number, AND reject listings that
-    have no matching number at all when the card has one.
+_SLASH_NUM_RE = re.compile(r"\b(\d{1,3})\s*/\s*\d{1,3}\b")
 
-    Tightened after the first prod run: the previous fallback ("no
-    digit-slash-digit anywhere → keep") let generic bulk lots slip
-    through — "Pokemon PSA 10 Gem Mint Lot" would pass even when
-    scraping Shining Charizard 107. We give up a few promo-style
-    hits without printed numbers, but for numbered cards this is
-    the right trade — that's the vast majority of chase inventory.
+
+def _card_number_match(title: str, card_number: str | None) -> bool:
+    """Match a listing title to the card we're scraping, using a
+    two-layer check that survives common false-positive traps like
+    "170 HP" (the printed HP of Latias & Latios GX) leaking into
+    scrapes for card #170.
+
+    Layer 1 — slash-format wins: if the title contains any
+    `NN/TTT` card-number pattern (the format sellers use to
+    disambiguate prints), then OUR number MUST appear in one of
+    those slash pairs. Otherwise it's a different print of the
+    same character and we reject.
+
+    Layer 2 — bare-number fallback: if the title has no slash
+    pattern anywhere, accept when our number appears as a word.
+    This keeps promo listings ("Umbreon Prerelease") that never
+    print a card-number format from getting dropped.
+
+    Bulk lot / accessory titles with no number and no slash still
+    have to pass the separate name filter, so pure noise still
+    gets caught downstream.
     """
     if not card_number:
         return True
     num = card_number.split("/")[0].lstrip("0") or card_number.split("/")[0]
     if not num:
         return True
-    # Explicit number in title (word-bounded). Zero-pad tolerant so
-    # "161" matches "0161", "00161".
+    try:
+        our_num_int = int(num)
+    except ValueError:
+        our_num_int = None
+
+    # Layer 1: does the title use slash-format card numbers?
+    slash_matches = _SLASH_NUM_RE.findall(title)
+    if slash_matches:
+        slash_ints = [int(s) for s in slash_matches]
+        # Our number MUST be one of the slash numerators.
+        return our_num_int is not None and our_num_int in slash_ints
+
+    # Layer 2: no slash pattern → fallback to word-bounded bare number.
     return bool(re.search(rf"\b0*{re.escape(num)}\b", title))
 
 
@@ -462,14 +484,16 @@ async def _scrape_pass(
 
     prices: list[float] = []
     rej = {"number": 0, "name": 0, "grade": 0}
-    # Asking pass: relax the strict number match. Active listings
-    # for niche vintage tiers already return few results; if the
-    # seller wrote "Shining Charizard PSA 10 Neo Destiny" without
-    # the "#107" in the title, we still want to count it. Name +
-    # grade still filter the obvious wrong-card noise.
-    strict_number = sold_only
+    # Both passes now use the same number matcher. The matcher's
+    # Layer-2 fallback (bare-number match when title has no slash
+    # format) already handles the "Shining Charizard PSA 10 Neo
+    # Destiny" no-slash case that the old asking-only relaxation
+    # was aimed at. Meanwhile Layer-1 (slash pattern present →
+    # MUST include ours) prevents wrong-print contamination we
+    # discovered with Latias & Latios GX #170 pulling #116 UR
+    # listings via a false "170 HP" match in the title.
     for title, price in listings:
-        if strict_number and not _card_number_match(title, card.number):
+        if not _card_number_match(title, card.number):
             rej["number"] += 1
             continue
         if not _card_name_match(title, card.name):
