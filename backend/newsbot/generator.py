@@ -815,16 +815,13 @@ async def generate_article(item: NewsItem) -> GenerateResult:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     resp = await client.messages.create(
         model=settings.claude_model,
-        # 4096 was clipping long editorials (LEGO Pokémon feature +
-        # Pitch Black deck strategy both truncated mid-JSON on the
-        # 2026-07-14 run — no closing brace, generator raised 'no
-        # JSON object found'). 16k is roughly 12k output words —
-        # comfortably above the 800-1500 word set-lineup ceiling
-        # from the prompt, with headroom for the JSON envelope and
-        # the takeaway block. max_tokens is only a cap: short posts
-        # still bill for their actual output length, so bumping this
-        # doesn't raise cost on normal drop / news posts.
-        max_tokens=16000,
+        # 32k covers the deep editorial-column path (Sprint 6 targets
+        # 1500-2500 words plus JSON envelope; 16k truncated on the
+        # 30th Celebration UPC essay). max_tokens is only a cap —
+        # short drop / news posts still bill for their actual output
+        # length, so bumping this doesn't raise cost on the daily
+        # feed. Sonnet 4.6's 200k context easily accommodates it.
+        max_tokens=32000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
         thinking={"type": "adaptive"},
@@ -846,7 +843,29 @@ async def generate_article(item: NewsItem) -> GenerateResult:
         if getattr(block, "type", None) == "text":
             text_parts.append(block.text)
     if not text_parts:
-        raise RuntimeError("Claude returned no text content")
+        # Adaptive-thinking sometimes returns a thinking-only response
+        # with no text block (nondeterministic — seen on long-form
+        # editorial requests). Retry once with a plain non-thinking
+        # request so we get deterministic text output.
+        log.warning("Claude returned no text content, retrying without adaptive thinking")
+        resp = await client.messages.create(
+            model=settings.claude_model,
+            max_tokens=32000,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": _build_user_prompt(item)}],
+            extra_body={
+                "output_config": {
+                    "format": {"type": "json_schema", "schema": _RESPONSE_SCHEMA},
+                }
+            },
+        )
+        text_parts = [
+            block.text
+            for block in resp.content
+            if getattr(block, "type", None) == "text"
+        ]
+        if not text_parts:
+            raise RuntimeError("Claude returned no text content after retry")
     raw = "".join(text_parts)
 
     # Belt + suspenders: server-side format SHOULD give clean JSON,
