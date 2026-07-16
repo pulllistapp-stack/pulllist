@@ -89,6 +89,11 @@ class Settings(BaseSettings):
     illustrator_feature_enabled: bool = False
     illustrator_feature_artist: str = ""
 
+    # ── Auction-highlights source (Phase B Sprint 5) ──
+    # Off by default. Weekly workflow (Thursday) flips it on. Ranks
+    # cards by aggregate eBay sold count over the last 7 days.
+    auction_highlights_enabled: bool = False
+
     # ── Web-search source (Phase 2 Track A) ──
     # Off by default while we tune query design and domain allowlist.
     # Flip via WEB_SEARCH_ENABLED=1 env (e.g. in workflow inputs).

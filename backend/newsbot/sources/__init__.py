@@ -121,6 +121,7 @@ async def close_stealth_session() -> None:
 
 # Import side-effects register sources + their enrichers. Add new
 # source modules below.
+from . import auction_highlights  # noqa: E402,F401
 from . import illustrator_feature  # noqa: E402,F401
 from . import market_report  # noqa: E402,F401
 from . import pokebeach  # noqa: E402,F401

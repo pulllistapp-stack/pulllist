@@ -339,6 +339,113 @@ def _cards_match_predicate(pattern: str, dex_numbers: list[int]):
     )
 
 
+@router.get("/cards/top-ebay-sales")
+async def top_ebay_sales(
+    db: AsyncSession = Depends(get_db),
+    days: int = Query(
+        7, ge=1, le=90,
+        description="Window for the sales-count aggregation.",
+    ),
+    min_price_usd: float = Query(
+        50.0, ge=0,
+        description=(
+            "Only count cards priced at or above this floor. Filters out "
+            "the eBay bulk churn (Common/Uncommon flip lots that trade "
+            "hundreds of times a week at $3) so the ranking surfaces "
+            "actual collectible-tier activity."
+        ),
+    ),
+    limit: int = Query(15, ge=1, le=50),
+    language: str = Query("en", pattern="^(en|ja|ko)$"),
+) -> dict:
+    """Weekly eBay auction highlights — cards with the highest sold
+    activity in the window.
+
+    Sums sales_count across every eBay snapshot for each card in the
+    window (Mon+Thu cadence means 1-3 snapshots per card typically),
+    joins with the latest known market_price_usd for context, orders
+    by total sales_count. Newsbot Sprint 5 uses this for the weekly
+    'what actually traded' post.
+    """
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    stmt = (
+        select(
+            CardPriceSnapshot.card_id,
+            func.sum(CardPriceSnapshot.sales_count).label("total_sales"),
+            func.max(CardPriceSnapshot.market_price_usd).label("recent_price"),
+        )
+        .where(
+            CardPriceSnapshot.source == "ebay",
+            CardPriceSnapshot.snapshot_date >= cutoff,
+            CardPriceSnapshot.sales_count.is_not(None),
+            CardPriceSnapshot.market_price_usd.is_not(None),
+            CardPriceSnapshot.market_price_usd >= min_price_usd,
+        )
+        .group_by(CardPriceSnapshot.card_id)
+        .order_by(func.sum(CardPriceSnapshot.sales_count).desc())
+        .limit(limit * 3)  # over-fetch — some rows may drop out on the
+                           # card-language filter below.
+    )
+    rows = (await db.execute(stmt)).all()
+    if not rows:
+        return {
+            "days": days,
+            "min_price_usd": min_price_usd,
+            "limit": limit,
+            "language": language,
+            "count": 0,
+            "items": [],
+        }
+
+    card_ids = [r[0] for r in rows]
+    card_rows = (
+        await db.execute(
+            select(Card, Set.name, Set.release_date, Set.logo_url)
+            .join(Set, Card.set_id == Set.id)
+            .where(Card.id.in_(card_ids), Card.language == language)
+        )
+    ).all()
+    card_map = {c.id: (c, set_name, set_release, set_logo)
+                for c, set_name, set_release, set_logo in card_rows}
+
+    items = []
+    for card_id, total_sales, recent_price in rows:
+        entry = card_map.get(card_id)
+        if not entry:
+            continue  # snapshot exists but card row was filtered out by language
+        c, set_name, set_release, set_logo = entry
+        items.append({
+            "card_id": c.id,
+            "name": c.name,
+            "number": c.number,
+            "rarity": c.rarity,
+            "artist": c.artist,
+            "image_small": c.image_small,
+            "image_large": c.image_large,
+            "total_sales_count": int(total_sales) if total_sales else 0,
+            "recent_price_usd": (
+                float(recent_price) if recent_price is not None else None
+            ),
+            "set_id": c.set_id,
+            "set_name": set_name,
+            "set_release_date": (
+                set_release.isoformat() if set_release else None
+            ),
+            "set_logo_url": set_logo,
+        })
+        if len(items) >= limit:
+            break
+
+    return {
+        "days": days,
+        "min_price_usd": min_price_usd,
+        "limit": limit,
+        "language": language,
+        "count": len(items),
+        "items": items,
+    }
+
+
 @router.get("/cards/top-artists")
 async def top_artists(
     db: AsyncSession = Depends(get_db),

@@ -353,6 +353,71 @@ def _is_illustrator_feature(item: NewsItem) -> bool:
     return item.url.startswith("pulllist://illustrator-feature/")
 
 
+def _is_auction_highlights(item: NewsItem) -> bool:
+    """auction_highlights source uses pulllist://auction-highlights/<iso-week>."""
+    return item.url.startswith("pulllist://auction-highlights/")
+
+
+def _build_auction_highlights_prompt(item: NewsItem) -> str:
+    try:
+        payload = json.loads(item.raw_text)
+    except Exception:
+        payload = {}
+    items = payload.get("items", []) or []
+    lines = [
+        "Source type: weekly eBay auction highlights (data-driven, our own snapshot pipeline)",
+        f"Week: {payload.get('week_id')}",
+        f"Window: last {payload.get('days')} days",
+        f"Price floor: ${payload.get('min_price_usd')}",
+        f"Card count: {len(items)}",
+        "",
+        "Every row carries card_id + set_id — link the card name to "
+        "/cards/{card_id} and the set name to /sets/{set_id}. Never "
+        "external URLs.",
+        "",
+        f"MOST-TRADED CARDS ON EBAY (last {payload.get('days')} days, "
+        "ranked by aggregate sold count):",
+    ]
+    for rank, c in enumerate(items, start=1):
+        price = c.get("recent_price_usd")
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "n/a"
+        lines.append(
+            f"{rank}. card_id={c.get('card_id')} name={c.get('name')} "
+            f"#{c.get('number')} rarity={c.get('rarity')} "
+            f"sold_count={c.get('total_sales_count')} "
+            f"recent_price={price_str} "
+            f"set_id={c.get('set_id')} set={c.get('set_name')} "
+            f"released={c.get('set_release_date')} "
+            f"image={c.get('image_small', '') or c.get('image_large', '')}"
+        )
+    lines.append("")
+    lines.append(
+        "This is the 'what people are actually buying' report — the "
+        "sold-count column matters MORE than the price column. Frame "
+        "the post around volume signals: which sets are churning, "
+        "which era readers are hunting right now, whether the list "
+        "skews chase or bulk."
+    )
+    lines.append("")
+    lines.append(
+        "Structure the post as: hook (name-drops the #1 card + its "
+        "sold count + a concrete comparison — 'more than double #2') "
+        "-> ## 🔨 Top 5 by volume (each = inline image + linked name "
+        "+ linked set + sold_count + price + a 1-2 sentence 'who's "
+        "buying this and why') -> ## 📊 The rest of the leaderboard "
+        "(ranks 6-N, one-liner per card with image + name link + set "
+        "link + sold count + price) -> ## 🎯 What the volume tells us "
+        "(2-3 sentence pattern observation — set concentration, era "
+        "skew, rarity mix) -> ## 💡 The takeaway (2-4 bullets) -> "
+        "one-line PullList catalog CTA -> ## Sources (just "
+        "'- PullList eBay snapshot pipeline'). Title: 'eBay This Week: "
+        "<angle>' where the angle is the sharpest volume-driven "
+        "observation you can pull from the list ('Umbreon Set Owns "
+        "6 Slots' / 'Vintage Charizards Dominate The Top 5' / etc.)."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def _build_illustrator_feature_prompt(item: NewsItem) -> str:
     try:
         payload = json.loads(item.raw_text)
@@ -595,6 +660,8 @@ def _build_user_prompt(item: NewsItem) -> str:
         return _build_price_club_prompt(item)
     if _is_illustrator_feature(item):
         return _build_illustrator_feature_prompt(item)
+    if _is_auction_highlights(item):
+        return _build_auction_highlights_prompt(item)
     body = item.raw_text or item.summary or ""
     # 50k chars (~12k tokens) is enough to fit the longest editorial
     # articles we've seen end-to-end (30th Celebration set lineup
