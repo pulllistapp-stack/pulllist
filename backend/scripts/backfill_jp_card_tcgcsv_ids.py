@@ -15,14 +15,14 @@ Algorithm per JP set:
          (case-insensitive)
   2. Fetch the group's products, filter to cards
      (extendedData has 'Number' or 'HP' or 'Attack 1' etc.)
-  3. Match each of our set's cards by normalized name against the
-     TCGCSV product list. Uses the same normalizer battle-tested on
-     the Vending Machine backfill:
-       - strip trailing '(...)' and '[...]'
-       - strip trailing ' - NNN/XX-P' set-number tail
-       - lowercase + gender-symbol translate + whitespace collapse
-  4. Save tcgplayer_product_id + tcgplayer_group_id + tcgplayer_url
-     on the card row.
+  3. Match each of our set's cards by CARD NUMBER against the
+     TCGCSV product list. Our JP catalog stores JP names ('ストラ
+     イク') while TCGCSV JP category stores English names
+     ('Scyther') so name matching returns zero. Numbers are
+     language-invariant and unique within a set, so they're the
+     reliable join key. Parses TCGCSV's 'NNN/YYY' extendedData
+     Number into an int for cross-comparison with our number_int.
+  4. Save tcgplayer_product_id + tcgplayer_url on the card row.
 
 Only fires for cards where tcgplayer_product_id IS NULL — never
 overwrites an existing mapping.
@@ -69,32 +69,22 @@ _CARD_ATTR_KEYS = {
 }
 
 
-# Normalisation regexes / maps — same rules as the Vending + JPP-U
-# scripts. Consolidated because the same shape recurs across every
-# TCGCSV name-matching pass.
-_PAREN_TAIL_RE = re.compile(r"\s*\([^)]*\)\s*$")
-_BRACKET_TAIL_RE = re.compile(r"\s*\[[^\]]*\]\s*$")
-_SET_NUMBER_TAIL_RE = re.compile(
-    r"\s+-\s+\d+[A-Za-z]?(?:\s*/\s*[\w\-]+)?\s*$"
-)
-_SYMBOL_MAP = str.maketrans({"♀": "f", "♂": "m", "é": "e", "É": "e"})
+# TCGCSV's Number field looks like "003/068" or "005a/068" or just
+# "SM-P 27". We only want the leading integer — that's what our
+# number_int stores. Regex takes the first digit run in the string.
+_LEADING_INT_RE = re.compile(r"(\d+)")
 
 
-def _strip_trailing_wraps(name: str) -> str:
-    prev = None
-    out = name
-    while prev != out:
-        prev = out
-        out = _PAREN_TAIL_RE.sub("", out)
-        out = _BRACKET_TAIL_RE.sub("", out)
-    return out
-
-
-def _normalize_name(name: str) -> str:
-    stripped = _SET_NUMBER_TAIL_RE.sub("", name)
-    stripped = _strip_trailing_wraps(stripped).strip()
-    lowered = stripped.lower().translate(_SYMBOL_MAP)
-    return re.sub(r"\s+", "", lowered)
+def _extract_number(raw: str | None) -> int | None:
+    if not raw:
+        return None
+    m = _LEADING_INT_RE.search(raw)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
 
 
 async def _fetch_json(client: httpx.AsyncClient, path: str) -> list[dict]:
@@ -195,21 +185,25 @@ async def run(only_set: str | None, dry_run: bool) -> None:
                 log.warning(f"  ! {set_id} gid={gid} fetch failed: {exc}")
                 continue
 
-            # Build normalized name → TCGCSV product info map. First-seen
-            # wins if the group has multiple prints under the same name;
-            # the daily sync's per-variant tcgplayer_prices JSON captures
-            # the rest.
-            tcg_by_name: dict[str, tuple[int, str]] = {}
+            # Build number_int → TCGCSV product info map. Numbers are
+            # language-invariant and unique per printed set, which is
+            # the only reliable join key when TCGCSV stores EN names
+            # (Scyther) and our JP catalog stores JP names (ストラ
+            # イク). First-seen wins if a group lists variants under
+            # the same number — the daily sync's per-variant
+            # tcgplayer_prices JSON captures the rest.
+            tcg_by_num: dict[int, tuple[int, str]] = {}
             for p in cards:
-                key = _normalize_name(p.get("name") or "")
+                ext = {e.get("name"): e.get("value") for e in (p.get("extendedData") or [])}
+                num = _extract_number(ext.get("Number"))
                 pid = p.get("productId")
-                if key and pid is not None:
-                    tcg_by_name.setdefault(key, (int(pid), p.get("name") or ""))
+                if num is not None and pid is not None:
+                    tcg_by_num.setdefault(num, (int(pid), p.get("name") or ""))
 
             async with SessionLocal() as db:
                 rows = (await db.execute(
                     text(
-                        "SELECT id, name, tcgplayer_product_id "
+                        "SELECT id, name, number_int, tcgplayer_product_id "
                         "FROM cards WHERE set_id = :s"
                     ),
                     {"s": set_id},
@@ -222,8 +216,9 @@ async def run(only_set: str | None, dry_run: bool) -> None:
                     stats["cards_already"] += 1
                     local_stats["already"] += 1
                     continue
-                key = _normalize_name(r.name or "")
-                hit = tcg_by_name.get(key)
+                if r.number_int is None:
+                    continue
+                hit = tcg_by_num.get(r.number_int)
                 if hit is None:
                     continue
                 pid, tcg_name = hit
