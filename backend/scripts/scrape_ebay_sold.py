@@ -73,6 +73,26 @@ VARIANT = "active"  # sold snapshots share the variant-key space with asking row
 # per run — those tend to have wide asks anyway.
 MIN_LISTINGS_PER_GRADE = 5
 
+# Per-tier overrides for markets where pop is inherently thin —
+# insisting on n>=5 would drop nearly all data. Black Label slabs
+# in particular usually have 1-3 physical copies existing on eBay
+# at any moment; any signal is better than a blank tile there.
+# TAG and vintage BGS also trade thinly enough to warrant a lower
+# floor.
+TIER_MIN_OVERRIDES: dict[str, int] = {
+    "bgs10bl": 1,   # BGS 10 Black Label — famously thin pop
+    "bgs10":   2,
+    "bgs9.5":  2,
+    "bgs9":    2,
+    "tag10":   2,
+    "tag9.5":  2,
+    "tag9":    2,
+}
+
+
+def _min_for(grade: str) -> int:
+    return TIER_MIN_OVERRIDES.get(grade, MIN_LISTINGS_PER_GRADE)
+
 # Trim the top/bottom TRIM_PCT of listings before taking the median,
 # but only when the sample is large enough for a trim to make sense.
 # Filters out obvious scam listings ($174k Pikachu, $85k Mewtwo) and
@@ -460,11 +480,13 @@ async def _scrape_pass(
             continue
         prices.append(price)
 
-    if len(prices) < MIN_LISTINGS_PER_GRADE:
+    min_needed = _min_for(wanted_grade)
+    if len(prices) < min_needed:
         stats["empty_pages"] += 1
         log.info(
             f"  [{idx}/{total}] {card.id} ({card.name[:30]}) "
-            f"{graded_tier} [{source_tag}]: n={len(prices)} (rej {rej}) — below MIN"
+            f"{graded_tier} [{source_tag}]: n={len(prices)} "
+            f"(rej {rej}) — below MIN({min_needed})"
         )
         return len(prices)
 
@@ -592,10 +614,11 @@ async def run(
             )
 
             # === Asking fallback ===
-            # Only fires when sold data didn't clear MIN_LISTINGS and
+            # Only fires when sold data didn't clear the tier's MIN and
             # the flag is enabled. Same query but without LH_Sold=1 —
             # broader pool for vintage / thin-liquidity tiers.
-            if include_asking_fallback and n_sold < MIN_LISTINGS_PER_GRADE:
+            wanted = classify_grade(f"dummy {graded_tier}")
+            if include_asking_fallback and n_sold < _min_for(wanted):
                 log.info(f"  (fallback → asking pass)")
                 await _scrape_pass(
                     browser=browser,
