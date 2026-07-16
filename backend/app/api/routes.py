@@ -1095,48 +1095,214 @@ async def get_card_graded_prices(
     return {tier: latest.get(tier) for tier in ui_tiers}
 
 
-# In-memory refresh cooldown so a single user can't fire the
-# workflow 100× in a minute. Keyed by card_id → last-fire epoch.
-# One-process only, but that's fine — Render runs one instance.
+# In-memory refresh cooldown so a single user can't fire the workflow
+# 100× in a minute. Keyed by card_id → last-fire epoch. One-process
+# only, but that's fine — Render runs one instance. Cache resets on
+# Render restart (users get one extra refresh in that edge case;
+# acceptable).
 _REFRESH_LAST_FIRE: dict[str, float] = {}
-# 5 min during beta while LO iterates on the data pipeline; bump
-# back to 30 min once the fallback flow is validated end-to-end
-# and we're worried about abuse rather than testing throughput.
-_REFRESH_COOLDOWN_SECONDS = 60 * 5
+
+# 24 hours per card. TCGplayer market price only updates 1-2×/day, so
+# more frequent raw refreshes wouldn't return different numbers. Sold
+# listings can move faster but the operational cost (GH workflow ~15
+# min billed) makes 24h the right ceiling for user-triggered runs.
+_REFRESH_COOLDOWN_SECONDS = 60 * 60 * 24
+
+# TCGCSV productId → groupId cache. Populated lazily on first raw
+# refresh; entries live until process restart. Building the full map
+# (~200 groups × ~150 products each) takes ~5s in parallel and
+# saves ~10s on every subsequent lookup.
+_PRODUCT_TO_GROUP_CACHE: dict[int, int] = {}
+_PRODUCT_CACHE_BUILT_AT: float | None = None
+_PRODUCT_CACHE_TTL_S = 60 * 60 * 24  # 1 day
+
+TCGCSV_BASE = "https://tcgcsv.com/tcgplayer"
+POKEMON_CATEGORY_ID = 3
+TCGCSV_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/130.0.0.0 Safari/537.36"
+)
 
 # GitHub workflow_dispatch target for the "refresh one card" flow.
-# The token needs `actions: write` scope on this repo. Set via
-# GH_ACTIONS_TOKEN env var on Render — surfaced as a 503 if missing
-# so the frontend can hide the button gracefully.
 _GH_REFRESH_WORKFLOW_URL = (
     "https://api.github.com/repos/pulllistapp-stack/pulllist/"
     "actions/workflows/ebay-sold-refresh-one-card.yml/dispatches"
 )
 
 
+async def _build_product_group_cache(client) -> None:
+    """Walk all TCGCSV Pokemon groups in parallel and populate the
+    productId → groupId cache. Called on first cache miss."""
+    import asyncio as _asyncio
+
+    global _PRODUCT_CACHE_BUILT_AT
+    groups_r = await client.get(f"{TCGCSV_BASE}/{POKEMON_CATEGORY_ID}/groups")
+    groups_r.raise_for_status()
+    groups = groups_r.json().get("results", [])
+
+    async def _one(gid: int):
+        try:
+            r = await client.get(f"{TCGCSV_BASE}/{POKEMON_CATEGORY_ID}/{gid}/products")
+            r.raise_for_status()
+            for p in r.json().get("results", []):
+                _PRODUCT_TO_GROUP_CACHE[p["productId"]] = gid
+        except Exception:
+            pass
+
+    await _asyncio.gather(*[_one(g["groupId"]) for g in groups])
+    import time as _time
+    _PRODUCT_CACHE_BUILT_AT = _time.time()
+
+
+async def _refresh_raw_price_from_tcgcsv(
+    db: AsyncSession, card: Card
+) -> dict | None:
+    """Fetch fresh TCGplayer prices for one card via TCGCSV, update
+    the card row + insert today's tcgplayer snapshot. Returns
+    {market, headline_sub} on success, None if no pricing available."""
+    import time as _time
+
+    import httpx as _httpx
+
+    pid = card.tcgplayer_product_id
+    if not pid:
+        return None
+
+    headers = {"User-Agent": TCGCSV_UA}
+    async with _httpx.AsyncClient(timeout=30.0, headers=headers) as client:
+        # Warm the productId → groupId cache if empty or stale
+        stale = (
+            _PRODUCT_CACHE_BUILT_AT is None
+            or (_time.time() - _PRODUCT_CACHE_BUILT_AT) > _PRODUCT_CACHE_TTL_S
+        )
+        if pid not in _PRODUCT_TO_GROUP_CACHE or stale:
+            await _build_product_group_cache(client)
+
+        gid = _PRODUCT_TO_GROUP_CACHE.get(pid)
+        if not gid:
+            return None
+
+        pr = await client.get(f"{TCGCSV_BASE}/{POKEMON_CATEGORY_ID}/{gid}/prices")
+        pr.raise_for_status()
+        prices_by_sub: dict[str, dict] = {}
+        for row in pr.json().get("results", []):
+            if row["productId"] == pid:
+                prices_by_sub[row.get("subTypeName") or "Normal"] = row
+
+    if not prices_by_sub:
+        return None
+
+    # Prefer Holofoil > Normal > Reverse Holofoil for the headline;
+    # store all subtypes in the JSON blob.
+    headline_sub = None
+    for candidate in ("Holofoil", "Normal", "Reverse Holofoil"):
+        p = prices_by_sub.get(candidate)
+        if p and (p.get("marketPrice") or p.get("midPrice") or p.get("lowPrice")):
+            headline_sub = candidate
+            break
+
+    headline = prices_by_sub.get(headline_sub) if headline_sub else None
+    headline_market = (
+        headline.get("marketPrice")
+        or headline.get("midPrice")
+        or headline.get("lowPrice")
+        if headline
+        else None
+    )
+
+    pricing_json: dict = {}
+    for sub, p in prices_by_sub.items():
+        key_map = {
+            "Normal": "normal",
+            "Holofoil": "holofoil",
+            "Reverse Holofoil": "reverseHolofoil",
+            "1st Edition": "1stEdition",
+            "1st Edition Holofoil": "1stEditionHolofoil",
+            "Unlimited": "unlimited",
+            "Unlimited Holofoil": "unlimitedHolofoil",
+        }
+        key = key_map.get(sub, sub.lower().replace(" ", ""))
+        pricing_json[key] = {
+            "low": p.get("lowPrice"),
+            "mid": p.get("midPrice"),
+            "high": p.get("highPrice"),
+            "market": p.get("marketPrice"),
+            "directLow": p.get("directLowPrice"),
+        }
+
+    if headline_market is None:
+        return None
+
+    # Update card row
+    card.market_price_usd = headline_market
+    card.low_price_usd = headline.get("lowPrice")
+    card.mid_price_usd = headline.get("midPrice")
+    card.high_price_usd = headline.get("highPrice")
+    card.tcgplayer_prices = pricing_json
+
+    # Upsert today's tcgplayer snapshot
+    today = date.today().isoformat()
+    dialect = db.bind.dialect.name
+    ins_cls = pg_insert if dialect == "postgresql" else sqlite_insert
+    stmt = ins_cls(CardPriceSnapshot).values(
+        [
+            {
+                "card_id": card.id,
+                "source": "tcgplayer",
+                "variant": (headline_sub or "normal").lower().replace(" ", "_"),
+                "grade": "raw",
+                "market_price_usd": headline_market,
+                "low_price_usd": headline.get("lowPrice"),
+                "mid_price_usd": headline.get("midPrice"),
+                "high_price_usd": headline.get("highPrice"),
+                "sales_count": None,
+                "snapshot_at": datetime.utcnow(),
+                "snapshot_date": today,
+            }
+        ]
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["card_id", "source", "variant", "grade", "snapshot_date"],
+        set_={
+            "market_price_usd": stmt.excluded.market_price_usd,
+            "low_price_usd": stmt.excluded.low_price_usd,
+            "mid_price_usd": stmt.excluded.mid_price_usd,
+            "high_price_usd": stmt.excluded.high_price_usd,
+            "snapshot_at": stmt.excluded.snapshot_at,
+        },
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+    return {"market": headline_market, "sub": headline_sub}
+
+
 @router.post("/cards/{card_id}/refresh-graded-prices")
-async def refresh_card_graded_prices(
+async def refresh_card_prices(
     card_id: str,
     db: AsyncSession = Depends(get_db),
     user: User | None = Depends(get_current_user_optional),
 ) -> dict:
-    """User-triggered refresh: fires the `ebay-sold-refresh-one-card`
-    GH workflow via `workflow_dispatch` API. The workflow scrapes all
-    4 grade tiers for this single card and writes new sold snapshots.
-    Takes ~2-3 minutes end-to-end; caller should show a spinner and
-    reload the card after a couple of minutes.
+    """User-triggered UNIFIED refresh — pulls both raw price (fast,
+    from TCGCSV) AND queues the graded sold-listing scrape (slow,
+    via GH workflow). One button, one cooldown.
 
-    Rate limits:
-      * Card must exist (404 if not).
-      * Signed-in only (401 if not). Prevents anonymous flood.
-      * 30-minute cooldown per card_id across all users. Cheaper than
-        per-user + card since PSA/CGC data doesn't change hour-to-hour.
+    Sequence:
+      1. Auth + cooldown check
+      2. Sync raw price refresh (~1-5s): fetches TCGCSV, writes
+         cards.market_price_usd + today's tcgplayer snapshot
+      3. Fires GH workflow_dispatch for the graded scrape (async)
+      4. Returns 202; graded data lands 2-3 min later
 
-    Returns:
-      * 202 with `{status: "queued", cooldown_until: ts}` on success.
-      * 429 if the cooldown is active — the client should display the
-        remaining wait time.
-      * 503 if the backend has no GH token configured (misconfig).
+    Cooldowns:
+      * 24 hours per card_id (in-memory). TCGplayer market only
+        updates 1-2×/day so more frequent raw refreshes wouldn't
+        return different numbers; graded workflow burns ~15 min of
+        GH Actions per click so once/day is the right ceiling.
+      * Signed-in only (401 if not).
+      * 404 if card missing.
+      * 503 if backend has no GH_ACTIONS_TOKEN configured.
     """
     import os
     import time
@@ -1153,10 +1319,10 @@ async def refresh_card_graded_prices(
     now = time.time()
     last = _REFRESH_LAST_FIRE.get(card_id, 0.0)
     if now - last < _REFRESH_COOLDOWN_SECONDS:
-        wait = int(_REFRESH_COOLDOWN_SECONDS - (now - last))
+        wait_h = int((_REFRESH_COOLDOWN_SECONDS - (now - last)) / 3600) + 1
         raise HTTPException(
             status_code=429,
-            detail=f"Cooldown active for this card ({wait}s remaining)",
+            detail=f"Already refreshed today — try again in {wait_h}h",
         )
 
     token = os.getenv("GH_ACTIONS_TOKEN")
@@ -1166,10 +1332,17 @@ async def refresh_card_graded_prices(
             detail="Refresh not configured (missing GH_ACTIONS_TOKEN)",
         )
 
-    payload = {
-        "ref": "main",
-        "inputs": {"card_id": card_id},
-    }
+    # Step 1 — sync raw refresh via TCGCSV. Failures here don't block
+    # the graded refresh; they just mean we couldn't reach TCGCSV
+    # (rare) or the card has no tcgplayer_product_id (some vintage).
+    raw_result: dict | None = None
+    try:
+        raw_result = await _refresh_raw_price_from_tcgcsv(db, card)
+    except Exception:
+        pass
+
+    # Step 2 — async graded scrape via GH workflow
+    payload = {"ref": "main", "inputs": {"card_id": card_id}}
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/vnd.github+json",
@@ -1178,7 +1351,6 @@ async def refresh_card_graded_prices(
     async with httpx.AsyncClient(timeout=15.0) as client:
         r = await client.post(_GH_REFRESH_WORKFLOW_URL, json=payload, headers=headers)
     if r.status_code >= 400:
-        # 401 = bad token, 404 = wrong workflow, 422 = bad ref
         raise HTTPException(
             status_code=502,
             detail=f"GitHub dispatch failed: {r.status_code} {r.text[:200]}",
@@ -1187,7 +1359,13 @@ async def refresh_card_graded_prices(
     _REFRESH_LAST_FIRE[card_id] = now
     return {
         "status": "queued",
-        "message": "Refresh queued — check back in 2-3 minutes",
+        "raw_refreshed": raw_result is not None,
+        "raw_market_price_usd": raw_result.get("market") if raw_result else None,
+        "message": (
+            "Raw price updated. Graded data queued — reload in 2-3 min."
+            if raw_result
+            else "Graded refresh queued — reload in 2-3 min."
+        ),
         "cooldown_until": int(now + _REFRESH_COOLDOWN_SECONDS),
     }
 
