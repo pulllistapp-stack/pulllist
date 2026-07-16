@@ -813,23 +813,17 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 async def generate_article(item: NewsItem) -> GenerateResult:
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    resp = await client.messages.create(
+    # Streaming API is REQUIRED whenever max_tokens is high enough
+    # that the SDK estimates the request could exceed 10 minutes
+    # (Anthropic's non-streaming HTTP timeout). At max_tokens=32000
+    # the SDK refuses the non-streaming path outright. Streaming is
+    # otherwise a drop-in — we just concat the text stream and parse
+    # the same JSON envelope at the end.
+    common_kwargs = dict(
         model=settings.claude_model,
-        # 32k covers the deep editorial-column path (Sprint 6 targets
-        # 1500-2500 words plus JSON envelope; 16k truncated on the
-        # 30th Celebration UPC essay). max_tokens is only a cap —
-        # short drop / news posts still bill for their actual output
-        # length, so bumping this doesn't raise cost on the daily
-        # feed. Sonnet 4.6's 200k context easily accommodates it.
         max_tokens=32000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": _build_user_prompt(item)}],
-        thinking={"type": "adaptive"},
-        # output_config.format = server-side schema enforcement.
-        # output_config.effort = adaptive-thinking depth (low/medium/
-        # high/xhigh/max). Both live under one output_config dict.
-        # extra_body forwards them since older SDK versions may not
-        # type these as top-level kwargs.
         extra_body={
             "output_config": {
                 "format": {"type": "json_schema", "schema": _RESPONSE_SCHEMA},
@@ -838,35 +832,27 @@ async def generate_article(item: NewsItem) -> GenerateResult:
         },
     )
 
-    text_parts: list[str] = []
-    for block in resp.content:
-        if getattr(block, "type", None) == "text":
-            text_parts.append(block.text)
-    if not text_parts:
-        # Adaptive-thinking sometimes returns a thinking-only response
-        # with no text block (nondeterministic — seen on long-form
-        # editorial requests). Retry once with a plain non-thinking
-        # request so we get deterministic text output.
-        log.warning("Claude returned no text content, retrying without adaptive thinking")
-        resp = await client.messages.create(
-            model=settings.claude_model,
-            max_tokens=32000,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": _build_user_prompt(item)}],
-            extra_body={
-                "output_config": {
-                    "format": {"type": "json_schema", "schema": _RESPONSE_SCHEMA},
-                }
-            },
+    async def _stream_text(with_thinking: bool) -> str:
+        kwargs = dict(common_kwargs)
+        if with_thinking:
+            kwargs["thinking"] = {"type": "adaptive"}
+        pieces: list[str] = []
+        async with client.messages.stream(**kwargs) as stream:
+            async for text_chunk in stream.text_stream:
+                pieces.append(text_chunk)
+        return "".join(pieces)
+
+    raw = await _stream_text(with_thinking=True)
+    if not raw.strip():
+        # Adaptive-thinking sometimes streams a thinking-only response
+        # with zero text chunks. Retry once without adaptive thinking
+        # so the output is deterministic.
+        log.warning(
+            "Claude streamed no text with adaptive thinking, retrying plain"
         )
-        text_parts = [
-            block.text
-            for block in resp.content
-            if getattr(block, "type", None) == "text"
-        ]
-        if not text_parts:
-            raise RuntimeError("Claude returned no text content after retry")
-    raw = "".join(text_parts)
+        raw = await _stream_text(with_thinking=False)
+        if not raw.strip():
+            raise RuntimeError("Claude streamed no text content after retry")
 
     # Belt + suspenders: server-side format SHOULD give clean JSON,
     # but the model occasionally still wraps in ```json fences. The
