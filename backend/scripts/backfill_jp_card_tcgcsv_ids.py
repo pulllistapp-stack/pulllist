@@ -210,6 +210,12 @@ async def run(only_set: str | None, dry_run: bool) -> None:
                 )).all()
 
             local_stats = defaultdict(int)
+            # Build a batch of updates first, then commit per-SET in
+            # one transaction. Per-row commit on 15k rows blew past
+            # the 45-min workflow timeout — per-set (30-80 rows each)
+            # is ~200x faster and still gives fine-grained recovery
+            # if a run gets cancelled midway.
+            pending: list[tuple[str, int]] = []
             for r in rows:
                 stats["cards_seen"] += 1
                 if r.tcgplayer_product_id is not None:
@@ -221,30 +227,30 @@ async def run(only_set: str | None, dry_run: bool) -> None:
                 hit = tcg_by_num.get(r.number_int)
                 if hit is None:
                     continue
-                pid, tcg_name = hit
+                pid, _ = hit
                 stats["cards_matched"] += 1
                 local_stats["matched"] += 1
+                pending.append((r.id, pid))
 
-                if dry_run:
-                    continue
-
+            if pending and not dry_run:
                 async with SessionLocal() as db:
-                    w = await db.execute(
-                        text(
-                            "UPDATE cards SET "
-                            "  tcgplayer_product_id = :pid, "
-                            "  tcgplayer_url = :url "
-                            "WHERE id = :id AND tcgplayer_product_id IS NULL"
-                        ),
-                        {
-                            "pid": pid,
-                            "url": f"https://www.tcgplayer.com/product/{pid}",
-                            "id": r.id,
-                        },
-                    )
-                    if w.rowcount:
-                        stats["cards_written"] += 1
-                        local_stats["written"] += 1
+                    for cid, pid in pending:
+                        w = await db.execute(
+                            text(
+                                "UPDATE cards SET "
+                                "  tcgplayer_product_id = :pid, "
+                                "  tcgplayer_url = :url "
+                                "WHERE id = :id AND tcgplayer_product_id IS NULL"
+                            ),
+                            {
+                                "pid": pid,
+                                "url": f"https://www.tcgplayer.com/product/{pid}",
+                                "id": cid,
+                            },
+                        )
+                        if w.rowcount:
+                            stats["cards_written"] += 1
+                            local_stats["written"] += 1
                     await db.commit()
 
             log.info(
