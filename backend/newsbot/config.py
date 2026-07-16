@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     # ── Price-club source (Phase B Sprint 3) ──
     # Off by default. Monthly workflow (1st of the month) flips it on.
     price_club_enabled: bool = False
+    # Optional per-run floor override — when set, skips the month %
+    # 4 rotation and locks the ranking to a specific USD floor. Used
+    # by workflow_dispatch to force a specific angle for a rerun.
+    price_club_min_usd: float = 0.0
 
     # ── Illustrator-feature source (Phase B Sprint 4) ──
     # Off by default. Auto-rotates on the top artist among chase-tier

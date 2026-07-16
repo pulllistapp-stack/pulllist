@@ -24,6 +24,8 @@ from urllib.parse import urljoin
 import httpx
 
 from ..config import settings
+from ..dedupe import fetch_seen
+from ..publisher import login, PublisherError
 from . import NewsItem, register
 
 log = logging.getLogger("newsbot.sources.illustrator_feature")
@@ -32,6 +34,11 @@ REQUEST_TIMEOUT = 60.0
 TOP_CARDS = 15  # gallery size
 AUTO_MIN_PRICE = 100.0  # min card price to count toward top-artists ranking
 FEATURE_MIN_PRICE = 5.0  # min per-card price in the actual gallery
+# When auto-picking, skip any artist we've featured in the last N
+# months. 6 covers a half-year rotation — long enough that the same
+# name doesn't feel spammy, short enough that active illustrators
+# can come back in a reasonable window.
+AUTO_SKIP_MONTHS = 6
 
 
 def _artist_slug(artist: str) -> str:
@@ -81,11 +88,57 @@ async def crawl() -> list[NewsItem]:
         if not artists:
             log.warning("illustrator_feature: /cards/top-artists returned no rows")
             return []
-        artist = artists[0]["artist"]
-        log.info(
-            "illustrator_feature: auto-picked %r (%d cards >= $%s)",
-            artist, artists[0].get("card_count"), AUTO_MIN_PRICE,
-        )
+        # Skip artists featured within the last AUTO_SKIP_MONTHS. Uses
+        # the persistent dedupe log — every published illustrator
+        # feature lands at pulllist://illustrator-feature/<slug>-<yyyy-mm>,
+        # so peeling the slug back gives us the artist history.
+        recent_slugs: set[str] = set()
+        try:
+            token = await login(
+                settings.pulllist_api_base,
+                settings.newsbot_admin_email,
+                settings.newsbot_admin_password,
+            )
+            seen_urls, _ = await fetch_seen(settings.pulllist_api_base, token)
+            prefix = "pulllist://illustrator-feature/"
+            for url in seen_urls:
+                if not url.startswith(prefix):
+                    continue
+                tail = url[len(prefix):]  # <slug>-<yyyy-mm>
+                # Strip trailing '-yyyy-mm' if present.
+                m = re.match(r"^(.*)-(\d{4}-\d{2})$", tail)
+                if m:
+                    recent_slugs.add(m.group(1))
+                else:
+                    recent_slugs.add(tail)
+        except (PublisherError, Exception) as exc:
+            log.warning(
+                "illustrator_feature: history fetch failed (%s), "
+                "falling back to first-place pick", exc,
+            )
+        artist = None
+        for row in artists:
+            candidate = row["artist"]
+            if _artist_slug(candidate) not in recent_slugs:
+                artist = candidate
+                log.info(
+                    "illustrator_feature: auto-picked %r "
+                    "(%d cards >= $%s, %d artists skipped as recently featured)",
+                    artist, row.get("card_count"), AUTO_MIN_PRICE,
+                    len(recent_slugs),
+                )
+                break
+        if artist is None:
+            # Every top-10 artist has been featured within the window.
+            # Fall back to the highest-ranked one — user preference is
+            # that we always publish rather than sitting silent for a
+            # month waiting for a fresh name to show up.
+            artist = artists[0]["artist"]
+            log.info(
+                "illustrator_feature: rotation exhausted (%d recent), "
+                "reusing top pick %r",
+                len(recent_slugs), artist,
+            )
 
     # Pull the gallery.
     gallery = await _fetch_json(

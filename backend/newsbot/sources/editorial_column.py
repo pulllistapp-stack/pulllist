@@ -146,18 +146,17 @@ async def crawl() -> list[NewsItem]:
                     seen_ids.add(cid)
                     cards.append(c)
 
-    # Path B: card-name search. Uses ONE keyword by default (was 3);
-    # /cards/search is a substring match, so 'Charizard Retrospective
-    # Every' matches zero cards but 'Charizard' pulls hundreds.
-    # Override with EDITORIAL_COLUMN_SEARCH_QUERY when the topic's
-    # first content word isn't the best pick.
+    # Path B: card-name search. Prefer proper nouns (capitalized) so
+    # a topic like 'Charizard Anniversary Retrospective' hits
+    # 'Charizard' first — not 'Anniversary'. Fall through to any
+    # keyword, then to the raw topic if neither is available.
     override_q = (
         getattr(settings, "editorial_column_search_query", "") or ""
     ).strip()
     if override_q:
         card_query = override_q
-    elif keywords:
-        card_query = keywords[0]
+    elif ranked_keywords:
+        card_query = ranked_keywords[0]
     else:
         card_query = topic
     cards_data = await _fetch_json(
