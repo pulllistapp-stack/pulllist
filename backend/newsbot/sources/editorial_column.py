@@ -94,21 +94,66 @@ async def crawl() -> list[NewsItem]:
 
     base = settings.pulllist_api_base.rstrip("/") + "/"
 
-    # Card gallery — search our own catalog. /cards/search matches
-    # against card NAMES, which are short ('Charizard', 'Umbreon
-    # VMAX'). A full essay-title topic ('30th Celebration Preview:
-    # What 25th Taught Us') will match zero cards. Pick a concise
-    # search query — either the explicit override or the first 2-3
-    # words of the topic as a heuristic ('30th Celebration Preview
-    # ...' -> '30th Celebration').
+    # Card gallery — TWO paths, then dedupe and cap:
+    #
+    # (A) Set name expansion. /cards/search matches on card names,
+    # not set names, so a topic like '30th Celebration' won't hit
+    # cards whose names are 'Pikachu ex #21' etc. We first look up
+    # sets whose NAME contains any topic keyword, then pull the
+    # top-priced cards from each matched set.
+    #
+    # (B) Card name search. Runs on either an explicit override
+    # (EDITORIAL_COLUMN_SEARCH_QUERY) or the first 3 topic words.
+    # This is what catches character-driven topics ('Charizard
+    # Retrospective') that don't correspond to a set.
+    #
+    # Union of both, deduped by card id, sorted by price desc,
+    # capped at CARD_GALLERY_SIZE.
+    STOP = {
+        "the", "and", "or", "of", "for", "in", "on", "at", "to",
+        "vs", "what", "why", "how", "with", "a", "an", "is", "it",
+        "we", "our", "your", "about", "preview", "review",
+        "retrospective", "guide", "anniversary", "collection",
+        "column", "essay",
+    }
+    keywords = [
+        w for w in re.findall(r"[a-zA-Z0-9']+", topic)
+        if w.lower() not in STOP and len(w) >= 2
+    ]
+
+    cards: list[dict] = []
+    seen_ids: set[str] = set()
+
+    # Path A: set-name expansion.
+    sets_data = await _fetch_json(urljoin(base, "sets"), {"language": "en"})
+    if isinstance(sets_data, list):
+        matched_set_ids: list[str] = []
+        for s in sets_data:
+            name = (s.get("name") or "").lower()
+            if any(kw.lower() in name for kw in keywords):
+                matched_set_ids.append(s.get("id"))
+        # Cap set expansion so a broad topic keyword ('Pokemon') doesn't
+        # pull 100 sets worth of cards. Two matched sets is plenty for
+        # an anniversary or subset topic.
+        for set_id in matched_set_ids[:2]:
+            top = await _fetch_json(
+                urljoin(base, f"sets/{set_id}/cards"),
+                {"sort": "price_desc", "page_size": CARD_GALLERY_SIZE},
+            )
+            for c in (top or {}).get("items", []) if isinstance(top, dict) else []:
+                cid = c.get("id")
+                if cid and cid not in seen_ids:
+                    seen_ids.add(cid)
+                    cards.append(c)
+
+    # Path B: card-name search.
     override_q = (
         getattr(settings, "editorial_column_search_query", "") or ""
     ).strip()
     if override_q:
         card_query = override_q
     else:
-        words = re.findall(r"\S+", topic)
-        card_query = " ".join(words[:3]) if words else topic
+        card_query = " ".join(keywords[:3]) if keywords else topic
     cards_data = await _fetch_json(
         urljoin(base, "cards/search"),
         {
@@ -118,7 +163,20 @@ async def crawl() -> list[NewsItem]:
             "language": "en",
         },
     )
-    cards = (cards_data or {}).get("items", []) if isinstance(cards_data, dict) else []
+    for c in (cards_data or {}).get("items", []) if isinstance(cards_data, dict) else []:
+        cid = c.get("id")
+        if cid and cid not in seen_ids:
+            seen_ids.add(cid)
+            cards.append(c)
+
+    # Sort union by market price so the top of the gallery is
+    # actually the top-priced card in the union, not whichever
+    # path emitted it first.
+    cards.sort(
+        key=lambda c: (c.get("market_price_usd") or 0),
+        reverse=True,
+    )
+    cards = cards[:CARD_GALLERY_SIZE]
 
     # Web context — Serper /news for recent framing + /search for
     # timeless / historical / retrospective material. Both are
