@@ -1092,7 +1092,32 @@ async def get_card_graded_prices(
             "sales_count": sales_count,
         }
 
-    return {tier: latest.get(tier) for tier in ui_tiers}
+    # Freshness marker — the max snapshot_date across ANY eBay snapshot
+    # for this card (not just filled tiers). Frontend uses this to
+    # distinguish empty tiles: if the card was scraped in the last
+    # week, empty means "0 recent sales in this tier" (real signal);
+    # otherwise empty means "not tracked yet — hit Refresh".
+    #
+    # Query is separate + tiny (index-only on card_id + source) so it
+    # doesn't affect the main tier response payload latency.
+    scrape_stmt = (
+        select(func.max(CardPriceSnapshot.snapshot_date))
+        .where(
+            CardPriceSnapshot.card_id == card_id,
+            CardPriceSnapshot.source.in_(("ebay_sold", "ebay_asking", "ebay")),
+        )
+    )
+    last_scraped = (await db.execute(scrape_stmt)).scalar_one_or_none()
+
+    result: dict = {tier: latest.get(tier) for tier in ui_tiers}
+    # Underscore-prefixed so it never collides with a canonical tier
+    # slug and existing frontend consumers that iterate known keys
+    # don't stumble on it.
+    result["_meta"] = {
+        "last_scraped_at": last_scraped,
+        "days_window": days,
+    }
+    return result
 
 
 # In-memory refresh cooldown so a single user can't fire the workflow

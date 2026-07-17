@@ -29,6 +29,18 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-16 ─────────────────────────────────────────────────
   {
     date: "2026-07-16",
+    emoji: "🎁",
+    kr: "sv09 Journey Together / sv10 Destined Rivals Sealed 탭에 Triple Whammy Tin 3종 (Tyranitar / Darkrai / Slaking) 추가. 이 상품은 TCGCSV 에서 특정 세트 소속이 아니라 'Miscellaneous Cards & Products' 그룹에 있어서 기존 세트별 sealed 인제스트가 놓쳤음. 두 세트 다 미러 배치 — sv09 canonical / sv10 mirror. 실제 마켓 $23-25 반영. 30주년 Pokemon Center ETB 도 별도 SKU 로 추가 (일반 ETB 와 이미지 공유, TCGCSV 미추적이라 수동 seed).",
+    en: "Added the 3 Triple Whammy Tin variants (Tyranitar / Darkrai / Slaking) to both sv09 Journey Together and sv10 Destined Rivals sealed tabs — TCGCSV files these under 'Miscellaneous Cards & Products' rather than either set, so the per-set sealed ingest was skipping them. Mirrored across both sets (sv09 canonical, sv10 mirror) with real TCGCSV market prices ($23-25). Also added the 30th Celebration Pokemon Center ETB as a separate SKU sharing the regular ETB's image — TCGCSV doesn't track the PC exclusive variant so the row is synthetic.",
+  },
+  {
+    date: "2026-07-16",
+    emoji: "🎯",
+    kr: "eBay Sold 스크레이퍼 대공사 — 정확도 대폭 개선. 오늘 발견된 issue 5개 다 픽스: (1) 카드 번호 오탐 (예: '170 HP' 를 카드 #170 로 오해) → 슬래시 포맷 (170/181) 우선 매치로 방지. (2) eBay 가 datacenter IP (GH Actions) 에 검색어를 조용히 완화해서 관련 없는 booster/타 세트 카드 반환 → URL 에 최소 가격 파라미터 `_udlo=raw×0.3` 추가로 필터. (3) MIN=5 임계가 얇은 시세 카드 (BGS Black Label, TAG grader 등) 다 폐기 → 유니버설 MIN=2 (BGS 10 BL 은 1). (4) CGC PRISTINE 10 등급이 'raw' 로 오분류 → 전용 패턴 추가. (5) Refresh 클릭 시 옛날 오염 데이터 자동 청소. 결과: sm9-170 Latias & Latios SIR 는 기존 $1,169 (잘못) → $15,949 PSA 10 실 sold median 으로 정확 반영.",
+    en: "Major eBay sold-scraper overhaul — 5 issues fixed today: (1) card number false-positives (e.g. '170 HP' matching card #170) prevented via slash-format (170/181) priority matching; (2) eBay silently substituting our search on datacenter IPs (GH Actions runners) with unrelated Booster Bundles / wrong-set Latias cards — fixed by injecting `_udlo=raw×0.3` price floor into the search URL, killing 95% of the noise upstream; (3) MIN=5 threshold was throwing away real data on thin-market tiers (BGS Black Label, TAG grader) — universal MIN=2 (BGS 10 BL kept at 1); (4) CGC PRISTINE 10 slabs were classified as 'raw' — added dedicated pattern (was silently missing $17k sold listings); (5) old contaminated snapshots now cleaned up on Refresh. Result: sm9-170 Latias & Latios SIR PSA 10 went from $1,169 wrong → $15,949 real sold median.",
+  },
+  {
+    date: "2026-07-16",
     emoji: "🏠",
     kr: "홈페이지 카탈로그 통계 업데이트 — Cards 31,000+ → 43,000+ (실측 43,087장: EN 21,250 + JA 21,837), Sets 340+ → 500+ (실측 503개: EN 187 + JA 316). about / pricing / signup 페이지도 함께 반영",
     en: "Homepage catalog stats refreshed — Cards 31,000+ → 43,000+ (actual 43,087: EN 21,250 + JA 21,837), Sets 340+ → 500+ (actual 503: EN 187 + JA 316). Also updated on about / pricing / signup pages",

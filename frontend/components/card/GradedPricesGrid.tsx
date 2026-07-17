@@ -54,7 +54,28 @@ function sourceMeta(source: string | null | undefined): {
   return { label: source ?? "—", tone: "unknown" };
 }
 
-type GradedResponse = Partial<Record<GradedTier, GradedPoint>>;
+type GradedMeta = {
+  last_scraped_at: string | null; // ISO date — max snapshot_date across ANY eBay row
+  days_window: number;
+};
+
+type GradedResponse = Partial<Record<GradedTier, GradedPoint>> & {
+  _meta?: GradedMeta;
+};
+
+// A card is "recently scraped" when at least one eBay snapshot for
+// it landed in the last 14 days — long enough to cover the weekly
+// sweep + a couple of missed days. Empty tiers on a recently-scraped
+// card mean "we tried, no clearing sales exist"; empty tiers on a
+// never-scraped card mean "user should hit Refresh to trigger one."
+const RECENTLY_SCRAPED_DAYS = 14;
+function wasRecentlyScraped(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return false;
+  const ageMs = Date.now() - then;
+  return ageMs < RECENTLY_SCRAPED_DAYS * 24 * 60 * 60 * 1000;
+}
 
 const TIER_META: {
   key: GradedTier;
@@ -306,7 +327,9 @@ export function GradedPricesGrid({ cardId }: { cardId: string }) {
                     ·
                   </div>
                   <div className="mt-1 text-[10px] text-text-tertiary/70 leading-tight">
-                    {user
+                    {wasRecentlyScraped(data?._meta?.last_scraped_at)
+                      ? `No ${tier.label} sold in the last ${data?._meta?.days_window ?? 90} days`
+                      : user
                       ? "Not tracked yet — hit Refresh above to check now."
                       : "Not tracked yet — sign in and hit Refresh to check."}
                   </div>
