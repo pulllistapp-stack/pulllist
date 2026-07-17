@@ -131,7 +131,7 @@ function SignupPageInner() {
           <ul className="grid grid-cols-1 gap-2 text-left w-full max-w-xs">
             <ValuePill
               icon={<Library className="h-4 w-4 text-accent-yellow" />}
-              label="31,000+ cards in EN · JP · KR"
+              label="43,000+ cards in EN · JP · KR"
             />
             <ValuePill
               icon={<TrendingUp className="h-4 w-4 text-accent-green" />}

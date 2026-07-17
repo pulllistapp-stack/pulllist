@@ -31,7 +31,7 @@ Free 온리. Pro 티어는 PROJECT_STATUS §4에 선언만 되어 있고 실제 
 이 목록은 PROJECT_STATUS §4 + 지금까지 빌드된 것 기반. Pro에 넘길 후보 아님.
 
 ### 카탈로그 & 검색
-- EN / JP / KR 통합 카탈로그 (31,000+ cards / 340+ sets)
+- EN / JP / KR 통합 카탈로그 (43,000+ cards / 500+ sets)
 - 크로스 랭귀지 검색 (Charizard ↔ リザードン ↔ 리자몽)
 - Rarity / Set / Artist / HP / Price / Condition / Owned 필터 사이드바
 - 카드 디테일 페이지 전체 (히어로, 이미지 매그니파이어, 가격 차트, 라이브 매물, 이웃 카드, variant 탭)

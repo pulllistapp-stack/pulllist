@@ -108,8 +108,8 @@ export default async function HomePage() {
 
             {/* Stats strip */}
             <dl className="mt-10 flex flex-wrap items-end gap-x-10 gap-y-4">
-              <Stat value="31,000+" label="cards indexed" />
-              <Stat value="340+" label="sets covered" />
+              <Stat value="43,000+" label="cards indexed" />
+              <Stat value="500+" label="sets covered" />
               <Stat value="Daily" label="price snapshots" />
             </dl>
           </div>
@@ -195,7 +195,7 @@ export default async function HomePage() {
             iconBg="bg-accent-yellow/15"
             icon={<Library className="h-6 w-6 text-accent-yellow" />}
             title="Every card indexed"
-            body="31,000+ cards across 340+ sets in English, Japanese, and Korean — Base Set through the latest Mega Evolution drops."
+            body="43,000+ cards across 500+ sets in English, Japanese, and Korean — Base Set through the latest Mega Evolution drops."
             href="/cards"
           />
           <FeatureCard

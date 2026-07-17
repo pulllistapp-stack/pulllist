@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-16 ─────────────────────────────────────────────────
   {
     date: "2026-07-16",
+    emoji: "🏠",
+    kr: "홈페이지 카탈로그 통계 업데이트 — Cards 31,000+ → 43,000+ (실측 43,087장: EN 21,250 + JA 21,837), Sets 340+ → 500+ (실측 503개: EN 187 + JA 316). about / pricing / signup 페이지도 함께 반영",
+    en: "Homepage catalog stats refreshed — Cards 31,000+ → 43,000+ (actual 43,087: EN 21,250 + JA 21,837), Sets 340+ → 500+ (actual 503: EN 187 + JA 316). Also updated on about / pricing / signup pages",
+  },
+  {
+    date: "2026-07-16",
     emoji: "🔁",
     kr: "카드 페이지 Refresh 버튼 로직 재작업 — (1) 한 번 클릭에 raw 시세 (TCGCSV) 와 graded 시세 (eBay sold) 를 동시에 갱신. Raw 는 즉시 반영되고 graded 는 2-3분 후 랜딩. (2) 오래된 오염 데이터 자동 청소 — Refresh 시점에 15분보다 오래된 eBay 스냅샷을 먼저 삭제해서, 새 스크레이프가 필터에 걸려 뭐 못 써도 예전에 잘못 매칭됐던 숫자 (예: sm9-170 Latias & Latios SIR 가 $1,169 로 잘못 뜨던 케이스) 는 즉시 사라짐. (3) 쿨다운 5분 → 24시간 (TCGplayer 자체가 하루 1-2번만 갱신하니까 그 이상 자주해도 같은 숫자, GH Actions 부담만 늘어남). raw 는 여전히 즉시 반응, graded 는 하루 1회로 안정.",
     en: "Refresh button on card pages reworked — (1) One click now updates BOTH raw prices (TCGCSV, instant) AND graded prices (eBay sold, ~3 min via GitHub workflow). (2) Stale contaminated data now gets nuked on refresh — snapshots older than 15 min from eBay sources are deleted before the new scrape fires, so cases where an old bad match (e.g. sm9-170 Latias & Latios SIR reading $1,169 because '170 HP' in the title got mis-parsed as card #170) get cleared immediately even if the new scrape can't find enough sold copies to replace them. (3) Cooldown bumped from 5 min to 24 hours per card — TCGplayer only updates its market price 1-2×/day and eBay sold history doesn't move faster than that either, so more frequent clicks just cost GH Actions minutes without changing the numbers.",
