@@ -1,4 +1,4 @@
-"""Add the 3 Triple Whammy Tin variants to sv09 (Journey Together)
+"""Add the 3 Triple Whammy Tin variants to sv9 (Journey Together)
 and sv10 (Destined Rivals) sealed product lists.
 
 Triple Whammy Tin is a cross-set supplemental release (TCGCSV
@@ -9,8 +9,8 @@ in 3 flavors distinguished by cover art:
   * Darkrai    (pid 591146)
   * Slaking    (pid 591147)
 
-LO wants all 3 visible on BOTH sv09 and sv10 Sealed tabs. Since
-`Product.tcgplayer_product_id` is unique, the sv09 rows keep the
+LO wants all 3 visible on BOTH sv9 and sv10 Sealed tabs. Since
+`Product.tcgplayer_product_id` is unique, the sv9 rows keep the
 real TCGplayer id (future price syncs update them) and the sv10
 rows are mirrors with tcgplayer_product_id=NULL. Both carry the
 same image + price so users don't see a discrepancy.
@@ -47,7 +47,7 @@ WHAMMY_TINS = [
 ]
 
 MIRROR_SETS = [
-    ("sv09", ""),      # canonical rows (keep tcgplayer_product_id)
+    ("sv9", ""),      # canonical rows (keep tcgplayer_product_id)
     ("sv10", "-dri"),  # mirror rows (null tcgplayer_product_id)
 ]
 
@@ -107,7 +107,7 @@ async def main() -> None:
                     description=(
                         "Triple Whammy Tin — 3 booster packs from recent "
                         "Scarlet & Violet sets. Cross-set supplemental "
-                        "release; mirrored under sv09 and sv10 for "
+                        "release; mirrored under sv9 and sv10 for "
                         "browsing convenience."
                     ),
                 )
