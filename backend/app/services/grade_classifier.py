@@ -73,6 +73,16 @@ _BGS_RE = re.compile(
     r"\bB\.?\s*G\.?\s*S\.?\s*[-:# ]?\s*(\d{1,2}(?:\.\d)?)\b",
     re.IGNORECASE,
 )
+# Beckett is BGS's parent company; a meaningful fraction of eBay
+# sellers list slabs as "Beckett 10" instead of "BGS 10" (or use
+# both). The scraper runs a fallback Beckett-variant query for BGS
+# tiers when the BGS pass returns too few, and this regex bucket
+# those titles correctly. Same numeric grade schema as BGS.
+_BECKETT_RE = re.compile(
+    r"\bBECKETT\b\s*(?:GRADING(?:\s*SERVICES)?)?\s*[-:# ]?\s*"
+    r"(\d{1,2}(?:\.\d)?)\b",
+    re.IGNORECASE,
+)
 # BGS Black Label / Pristine 10 signals — all four subgrades == 10
 # means Beckett stamps the slab with a black label. Different physical
 # slab, meaningfully different market price (2-10× a regular BGS 10 on
@@ -186,6 +196,17 @@ def classify_grade(title: str) -> str:
         # Promote BGS 10 to Black Label when the listing carries
         # the marker keywords. Only applies to grade 10 (Black
         # Label doesn't exist below BGS 10).
+        if bucket == "bgs10" and _BGS_BLACK_LABEL_RE.search(title):
+            return "bgs10bl"
+        return bucket
+
+    # Beckett synonym — routes to the same bgs* buckets. Checked
+    # AFTER _BGS_RE so a "Beckett BGS 9.5" listing (both keywords)
+    # picks up the primary BGS match first, which is fine either
+    # way since they resolve to the same tier.
+    m = _BECKETT_RE.search(title)
+    if m:
+        bucket = _bucket("bgs", m.group(1))
         if bucket == "bgs10" and _BGS_BLACK_LABEL_RE.search(title):
             return "bgs10bl"
         return bucket

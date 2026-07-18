@@ -67,21 +67,51 @@ SOURCE = "ebay_sold"
 # graded-prices endpoint can prefer real sold data when both exist.
 SOURCE_ASKING = "ebay_asking"
 VARIANT = "active"  # sold snapshots share the variant-key space with asking rows
-# Universal MIN=2. The _udlo price floor added upstream now filters
-# ~95% of the noise that the older MIN=5 gate was defending against
-# (Booster Bundles, wrong-set Latias, fan art, unrelated cheap
-# Pokemon). With that upstream filter in place, any two listings
-# that pass number+name+grade are almost certainly legit signal —
-# and demanding 5+ was throwing away real data on thin-market cards.
-# BGS 10 Black Label kept at 1 (Pop of 3-10 globally on most SIRs).
+# Universal MIN=2 for PSA/CGC — the _udlo price floor filters ~95%
+# of the pre-existing noise upstream, so any two listings that pass
+# number+name+grade are almost certainly legit signal.
+#
+# BGS + TAG universally at MIN=1 (LO ask): those graders trade thinly
+# enough that "at least one recent clean match" is more useful than
+# an empty tile. eBay auto-relaxes BGS/TAG queries much harder than
+# PSA (Round 4: BGS 10 auto-relaxed 886×, TAG 10 862×, vs PSA 10
+# 374×) so recall matters more than precision at the MIN gate.
 MIN_LISTINGS_PER_GRADE = 2
 TIER_MIN_OVERRIDES: dict[str, int] = {
+    "bgs10": 1,
     "bgs10bl": 1,
+    "bgs9.5": 1,
+    "bgs9": 1,
+    "tag10": 1,
+    "tag9.5": 1,
+    "tag9": 1,
 }
 
 
 def _min_for(grade: str, card_raw_usd: float | None = None) -> int:
     return TIER_MIN_OVERRIDES.get(grade, MIN_LISTINGS_PER_GRADE)
+
+
+def _max_attempts_for(grade: str) -> int:
+    """BGS/TAG queries hit eBay's silent auto-relaxation more often
+    than PSA/CGC (different result-density heuristics on eBay's side).
+    Extra retry with a fresh Playwright context clears the throttle
+    response in most cases. Cost: +1 context spin per BGS/TAG card
+    when needed, ~15s extra worst case."""
+    if grade.startswith(("bgs", "tag")):
+        return 3
+    return 2
+
+
+def _bgs_beckett_variant(query: str) -> str | None:
+    """Return an alternate query that swaps 'BGS' → 'Beckett'. Sellers
+    who list slabs with 'Beckett 10' instead of 'BGS 10' are common
+    enough that a fallback pass on the Beckett variant meaningfully
+    lifts BGS recall. Returns None if the query has no 'BGS' token to
+    swap, so the caller can skip the extra pass."""
+    import re as _re
+    swapped = _re.sub(r"\bBGS\b", "Beckett", query)
+    return swapped if swapped != query else None
 
 # Trim the top/bottom TRIM_PCT of listings before taking the median,
 # but only when the sample is large enough for a trim to make sense.
@@ -312,10 +342,17 @@ async def _fetch_sold_html(
             price_param = ""
             if min_price and min_price > 0:
                 price_param = f"&_udlo={int(min_price)}"
+            # `_sop=13` = "End Time: soonest ended" — on LH_Sold=1 pages
+            # this means most-recently-sold on top, which prevents
+            # old (>60 day) sales from squeezing recent clean matches
+            # off the first page. Round 4 log showed sm9-170 CGC 10
+            # missed the May 7/8 $6,500 sales because Best Match sort
+            # pushed them to page 2 while noise filled page 1.
+            sort_param = "&_sop=13"
             url = (
-                f"{base}&LH_Sold=1&LH_Complete=1&_ipg={ipg}{price_param}"
+                f"{base}&LH_Sold=1&LH_Complete=1&_ipg={ipg}{price_param}{sort_param}"
                 if sold_only
-                else f"{base}&_ipg={ipg}{price_param}"
+                else f"{base}&_ipg={ipg}{price_param}{sort_param}"
             )
             resp = await page.goto(
                 url, wait_until="domcontentloaded", timeout=45_000
@@ -664,6 +701,11 @@ async def run(
 
             log.info(f"query: {query!r}")
             wanted_grade = classify_grade(f"dummy {graded_tier}")
+            # BGS/TAG queries are more prone to eBay's silent auto-
+            # relaxation, so we bump per-pass retries specifically
+            # for those tiers (helper handles the routing).
+            tier_max_attempts = _max_attempts_for(wanted_grade)
+            per_card_min = _min_for(wanted_grade, float(card.market_price_usd or 0))
 
             # === Sold pass ===
             n_sold = await _scrape_pass(
@@ -676,19 +718,47 @@ async def run(
                 snapshot_date=snapshot_date,
                 dry_run=dry_run,
                 ipg=ipg,
-                max_attempts=max_attempts,
+                max_attempts=tier_max_attempts,
                 stats=stats,
                 idx=stats["cards_seen"],
                 total=len(cards),
                 graded_tier=graded_tier,
             )
 
+            # === Beckett synonym pass (BGS tiers only) ===
+            # BGS = Beckett Grading Services. A meaningful fraction of
+            # sellers write "Beckett 10" instead of "BGS 10" (or list
+            # under both). Only fires when the BGS pass didn't clear
+            # MIN, and only for BGS-family tiers where the swap makes
+            # sense. Adds ~1 query per BGS card when needed, ~0 impact
+            # on PSA/CGC tiers.
+            if wanted_grade.startswith("bgs") and n_sold < per_card_min:
+                beckett_query = _bgs_beckett_variant(query)
+                if beckett_query:
+                    log.info(f"  (fallback → beckett variant) {beckett_query!r}")
+                    n_beckett = await _scrape_pass(
+                        browser=browser,
+                        query=beckett_query,
+                        card=card,
+                        wanted_grade=wanted_grade,
+                        source_tag=SOURCE,
+                        sold_only=True,
+                        snapshot_date=snapshot_date,
+                        dry_run=dry_run,
+                        ipg=ipg,
+                        max_attempts=tier_max_attempts,
+                        stats=stats,
+                        idx=stats["cards_seen"],
+                        total=len(cards),
+                        graded_tier=graded_tier,
+                    )
+                    n_sold = max(n_sold, n_beckett)
+
             # === Asking fallback ===
             # Only fires when sold data didn't clear the tier's MIN and
             # the flag is enabled. Same query but without LH_Sold=1 —
             # broader pool for vintage / thin-liquidity tiers.
-            wanted = classify_grade(f"dummy {graded_tier}")
-            if include_asking_fallback and n_sold < _min_for(wanted, float(card.market_price_usd or 0)):
+            if include_asking_fallback and n_sold < per_card_min:
                 log.info(f"  (fallback → asking pass)")
                 await _scrape_pass(
                     browser=browser,
@@ -700,7 +770,7 @@ async def run(
                     snapshot_date=snapshot_date,
                     dry_run=dry_run,
                     ipg=ipg,
-                    max_attempts=max_attempts,
+                    max_attempts=tier_max_attempts,
                     stats=stats,
                     idx=stats["cards_seen"],
                     total=len(cards),
