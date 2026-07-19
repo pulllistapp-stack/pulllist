@@ -125,6 +125,10 @@ const nextConfig = {
       // Backfilled 23/27 zhtw-* set logos from here.
       { protocol: "https", hostname: "api.koca.shop" },
       { protocol: "https", hostname: "s.koca.shop" },
+      // hobbyxstore.com — Taiwan/HK hobby retailer, used for the
+      // one zhtw-* set (MBG 挑戰牌組「超級耿鬼ex」) koca.shop's
+      // catalog didn't carry. LO hand-supplied the URL.
+      { protocol: "https", hostname: "hobbyxstore.com" },
     ],
   },
   async rewrites() {
