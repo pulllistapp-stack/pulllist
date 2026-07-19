@@ -1124,6 +1124,138 @@ async def get_card_graded_prices(
     return result
 
 
+@router.get("/trending/grading-premium")
+async def trending_grading_premium(
+    tier: str = Query("psa10", pattern="^(psa10|cgc10|bgs10|bgs10bl|tag10)$"),
+    language: str = Query("all", pattern="^(all|en|ja|ko|zh)$"),
+    min_samples: int = Query(2, ge=1, le=50),
+    min_multiplier: float = Query(2.0, ge=1.0, le=100.0),
+    limit: int = Query(100, ge=10, le=500),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Rank cards by their graded-tier premium — the multiple of raw
+    market price a graded slab of that tier clears at. Feeds the
+    "Grading Premium" trending page collectors use to decide which
+    cards are worth submitting for grading.
+
+    Formula per card:
+        multiplier = tier_price / raw_price
+        (raw = Card.market_price_usd, tier_price = latest snapshot
+         median for `source in (ebay_sold, ebay_asking)` at the
+         requested grade)
+
+    Filters:
+      * raw price > $1 (fractional-cent commons make the ratio blow
+        up meaninglessly)
+      * tier_price sales_count >= min_samples (single-listing medians
+        are too noisy for a "worth grading?" call)
+      * multiplier >= min_multiplier (below 2× the fee usually eats
+        the premium, so it's not actionable)
+
+    Sort: multiplier DESC. Ties broken by tier_price DESC (bigger
+    absolute win first) then card name ASC (stable).
+    """
+    # sales_count is populated for ebay_sold / ebay_asking; ebay
+    # legacy source is nullable there, so treat NULL as satisfying
+    # the min_samples floor when the source is legacy 'ebay' —
+    # otherwise the entire legacy backfill drops out.
+    sql = text(
+        """
+        WITH latest_tier AS (
+            SELECT DISTINCT ON (card_id)
+                card_id,
+                market_price_usd AS tier_price,
+                sales_count,
+                source,
+                snapshot_date
+            FROM card_price_snapshots
+            WHERE source IN ('ebay_sold', 'ebay_asking', 'ebay')
+              AND grade = :tier
+              AND market_price_usd IS NOT NULL
+              AND market_price_usd > 0
+            ORDER BY card_id,
+                     snapshot_at DESC,
+                     CASE source
+                        WHEN 'ebay_sold' THEN 0
+                        WHEN 'ebay_asking' THEN 1
+                        ELSE 2
+                     END
+        )
+        SELECT
+            c.id,
+            c.name,
+            c.number,
+            c.rarity,
+            c.image_small,
+            c.language,
+            c.set_id,
+            s.name AS set_name,
+            c.market_price_usd AS raw_price,
+            l.tier_price,
+            l.sales_count,
+            l.source,
+            l.snapshot_date,
+            (l.tier_price / NULLIF(c.market_price_usd, 0)) AS multiplier
+        FROM latest_tier l
+        JOIN cards c ON c.id = l.card_id
+        LEFT JOIN sets s ON s.id = c.set_id
+        WHERE c.market_price_usd IS NOT NULL
+          AND c.market_price_usd > 1.0
+          AND (l.tier_price / c.market_price_usd) >= :min_multiplier
+          AND (
+            l.source != 'ebay_sold' OR
+            COALESCE(l.sales_count, 0) >= :min_samples
+          )
+          AND (
+            :language = 'all' OR c.language = :language
+          )
+        ORDER BY multiplier DESC, l.tier_price DESC, c.name ASC
+        LIMIT :limit
+        """
+    )
+    rows = (
+        await db.execute(
+            sql,
+            {
+                "tier": tier,
+                "language": language,
+                "min_multiplier": min_multiplier,
+                "min_samples": min_samples,
+                "limit": limit,
+            },
+        )
+    ).mappings().all()
+
+    items = [
+        {
+            "card_id": r["id"],
+            "name": r["name"],
+            "number": r["number"],
+            "rarity": r["rarity"],
+            "image_small": r["image_small"],
+            "language": r["language"],
+            "set_id": r["set_id"],
+            "set_name": r["set_name"],
+            "raw_price_usd": float(r["raw_price"]),
+            "tier_price_usd": float(r["tier_price"]),
+            "sales_count": r["sales_count"],
+            "source": r["source"],
+            "updated_at": r["snapshot_date"],
+            "multiplier": round(float(r["multiplier"]), 2),
+        }
+        for r in rows
+    ]
+
+    return {
+        "tier": tier,
+        "language": language,
+        "min_samples": min_samples,
+        "min_multiplier": min_multiplier,
+        "count": len(items),
+        "items": items,
+    }
+
+
 # In-memory refresh cooldown so a single user can't fire the workflow
 # 100× in a minute. Keyed by card_id → last-fire epoch. One-process
 # only, but that's fine — Render runs one instance. Cache resets on

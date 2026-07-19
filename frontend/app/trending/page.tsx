@@ -176,6 +176,21 @@ export default function TrendingPage() {
           </div>
         </div>
 
+        {/* Sibling-page pill — Grading Premium is its own /trending
+            child page (different question: multiplier, not %change). */}
+        <div className="mt-4">
+          <Link
+            href="/trending/grading"
+            className="inline-flex items-center gap-2 rounded-full border border-accent-yellow/40 bg-accent-yellow/10 px-3.5 py-1.5 text-xs font-mono uppercase tracking-wider font-semibold text-text-primary hover:bg-accent-yellow/15 transition-colors"
+          >
+            <span aria-hidden>💎</span>
+            Grading Premium
+            <span className="text-text-tertiary normal-case font-sans tracking-normal">
+              — raw → PSA10 multiplier ranking
+            </span>
+          </Link>
+        </div>
+
         {/* Tier toggle — most decision-shaping filter, lives on its own row */}
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-full border border-border bg-bg-surface p-1">
