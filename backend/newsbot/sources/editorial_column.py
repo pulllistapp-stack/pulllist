@@ -30,7 +30,13 @@ REQUEST_TIMEOUT = 60.0
 SERPER_SEARCH_URL = "https://google.serper.dev/search"
 SERPER_NEWS_URL = "https://google.serper.dev/news"
 
-CARD_GALLERY_SIZE = 15
+# Bumped 15 → 25. LO wants deep-detail visual essays; more gallery
+# cards means Claude has more concrete anchors to build sections
+# around and more image embeds to weave between paragraphs.
+CARD_GALLERY_SIZE = 25
+# Also expand the inline_image seed pool so we don't cap gallery
+# density before it reaches the generator. 10 → 20.
+INLINE_IMAGE_SEED_SIZE = 20
 WEB_SNIPPETS_TARGET = 8
 
 
@@ -239,8 +245,12 @@ async def crawl() -> list[NewsItem]:
     }
 
     inline: list[dict[str, str]] = []
-    for c in cards[:10]:
-        img = c.get("image_small") or c.get("image_large")
+    for c in cards[:INLINE_IMAGE_SEED_SIZE]:
+        # Prefer image_large for editorial columns — reader can click
+        # through the frontend lightbox for the full-res version, but
+        # even the in-body render benefits from a sharper source when
+        # the hosting CDN serves it at reasonable size.
+        img = c.get("image_large") or c.get("image_small")
         if img:
             inline.append({
                 "url": img[:512],
