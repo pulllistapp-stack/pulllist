@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # falls back.
     gemini_api_key: str = ""
 
+    # Which Gemini model to hit. `gemini-1.5-flash` is the safest
+    # default — free-tier friendly on every AI Studio account. Once a
+    # project enables billing the operator can override to
+    # `gemini-2.0-flash` (or -flash-lite / -pro) via env var.
+    gemini_model: str = "gemini-1.5-flash"
+
     env: str = "development"
     debug: bool = True
 

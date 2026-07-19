@@ -428,7 +428,7 @@ async def scan_card_gemini(
     client = genai.Client(api_key=settings.gemini_api_key)
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model=settings.gemini_model,
             contents=[
                 SCAN_PROMPT,
                 types.Part.from_bytes(data=image_bytes, mime_type=media_type),
@@ -436,6 +436,21 @@ async def scan_card_gemini(
         )
     except Exception as e:
         log.error("Gemini call failed: %s", e)
+        # 429 = quota exceeded. Surface a clean message with the
+        # retry hint from Google's response instead of dumping the
+        # whole traceback into the panel.
+        msg = str(e)
+        if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
+            import re as _re
+            match = _re.search(r"retry in (\d+)", msg, _re.IGNORECASE)
+            hint = f" Retry in {match.group(1)}s." if match else ""
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Gemini quota exceeded for {settings.gemini_model}."
+                    f"{hint} Consider enabling billing or switching model."
+                ),
+            )
         raise HTTPException(status_code=502, detail=f"Vision API error: {e}")
 
     raw = (response.text or "").strip()
