@@ -90,6 +90,22 @@ export default function PortfolioPage() {
     });
   }, []);
 
+  // Vault-by-set section fold state — sets with more than SET_AUTO_FOLD
+  // items default to collapsed so users with a completed Master Set
+  // (500+ cards for Base) don't drown in a wall of tiles. Each set is
+  // its own accordion so partial expansion is possible; "Expand all /
+  // Collapse all" pills at the top handle bulk toggles.
+  const SET_AUTO_FOLD = 20;
+  const [collapsedSets, setCollapsedSets] = useState<Set<string> | null>(null);
+  const toggleSetCollapsed = useCallback((setId: string) => {
+    setCollapsedSets((prev) => {
+      const next = new Set(prev ?? []);
+      if (next.has(setId)) next.delete(setId);
+      else next.add(setId);
+      return next;
+    });
+  }, []);
+
   const exitManageMode = useCallback(() => {
     setManageMode(false);
     setSelected(new Set());
@@ -243,6 +259,27 @@ export default function PortfolioPage() {
   );
   const setOrder = Object.keys(bySet).sort((a, b) =>
     (bySet[a][0].set_name ?? "").localeCompare(bySet[b][0].set_name ?? ""),
+  );
+
+  // First-load auto-fold — any set with more than SET_AUTO_FOLD owned
+  // items starts collapsed. Uses null sentinel (not the empty Set) so
+  // this initialization only runs once per session; users who manually
+  // toggle a set aren't clobbered by re-render.
+  useEffect(() => {
+    if (collapsedSets !== null) return;
+    if (items.length === 0) return;
+    const init = new Set<string>();
+    for (const setId of Object.keys(bySet)) {
+      if (bySet[setId].length > SET_AUTO_FOLD) init.add(setId);
+    }
+    setCollapsedSets(init);
+  }, [items, bySet, collapsedSets]);
+
+  // Bulk toggles for the pill row above the vault section.
+  const expandAllSets = useCallback(() => setCollapsedSets(new Set()), []);
+  const collapseAllSets = useCallback(
+    () => setCollapsedSets(new Set(Object.keys(bySet))),
+    [bySet],
   );
 
   const value = summary?.estimated_value_usd ?? 0;
@@ -498,28 +535,80 @@ export default function PortfolioPage() {
 
       {/* Full vault grouped by set */}
       <section>
-        <h2 className="mb-4 text-lg font-bold">Vault by set</h2>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-lg font-bold">Vault by set</h2>
+          {items.length > 0 && setOrder.length > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={expandAllSets}
+                className="rounded-full border border-border bg-bg-surface px-3 py-1 text-[11px] font-mono uppercase tracking-wider font-semibold text-text-secondary hover:text-text-primary hover:border-accent-yellow/40 transition-colors"
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllSets}
+                className="rounded-full border border-border bg-bg-surface px-3 py-1 text-[11px] font-mono uppercase tracking-wider font-semibold text-text-secondary hover:text-text-primary hover:border-accent-yellow/40 transition-colors"
+              >
+                Collapse all
+              </button>
+            </div>
+          )}
+        </div>
         {loading ? (
           <div className="text-text-tertiary">Loading your collection…</div>
         ) : items.length === 0 ? null : (
           setOrder.map((setId) => {
             const setItems = bySet[setId];
             const setName = setItems[0].set_name;
+            const isCollapsed = collapsedSets?.has(setId) ?? false;
+            const setValue = setItems.reduce(
+              (sum, it) =>
+                sum + (it.market_price_usd ?? 0) * (it.qty ?? 1),
+              0,
+            );
             return (
               <div key={setId} className="mb-10">
-                <div className="flex items-baseline justify-between mb-3">
+                <div className="flex items-center gap-3 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleSetCollapsed(setId)}
+                    aria-expanded={!isCollapsed}
+                    aria-controls={`vault-set-${setId}`}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-bg-surface text-text-secondary hover:text-text-primary hover:border-accent-yellow/40 transition-colors"
+                    title={isCollapsed ? "Expand" : "Collapse"}
+                  >
+                    {isCollapsed ? (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                   <Link
                     href={`/sets/${setId}`}
-                    className="text-sm font-mono uppercase tracking-wider text-text-tertiary hover:text-text-primary"
+                    className="text-sm font-mono uppercase tracking-wider text-text-tertiary hover:text-text-primary flex-1 truncate"
                   >
                     {setName}{" "}
                     <span className="text-text-tertiary">
                       · {setItems.length} owned
                     </span>
                   </Link>
+                  {setValue > 0 && (
+                    <span className="shrink-0 text-xs font-mono text-text-tertiary">
+                      $
+                      {setValue.toLocaleString("en-US", {
+                        maximumFractionDigits: 0,
+                      })}
+                    </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                {isCollapsed ? null : (
+                <div
+                  id={`vault-set-${setId}`}
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
+                >
                   {setItems.map((item) => {
                     const isSelected = selected.has(item.id);
                     const cardCls =
@@ -731,6 +820,7 @@ export default function PortfolioPage() {
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           })
