@@ -193,27 +193,42 @@ async def upsert_collection_entry(
             raise HTTPException(400, "acquired_at must be YYYY-MM-DD")
 
     condition = _normalize_condition(payload.condition)
-    if row is None:
-        row = SealedCollectionItem(
-            user_id=user.id,
-            product_id=product_id,
-            qty=max(1, payload.qty),
-            condition=condition,
-            purchase_price_usd=payload.purchase_price_usd,
-            acquisition_type=payload.acquisition_type,
-            acquired_at=parsed_acquired_at,
-            notes=payload.notes,
+    try:
+        if row is None:
+            row = SealedCollectionItem(
+                user_id=user.id,
+                product_id=product_id,
+                qty=max(1, payload.qty),
+                condition=condition,
+                purchase_price_usd=payload.purchase_price_usd,
+                acquisition_type=payload.acquisition_type,
+                acquired_at=parsed_acquired_at,
+                notes=payload.notes,
+            )
+            db.add(row)
+        else:
+            row.qty = max(1, payload.qty)
+            row.condition = condition
+            row.purchase_price_usd = payload.purchase_price_usd
+            row.acquisition_type = payload.acquisition_type
+            row.acquired_at = parsed_acquired_at
+            row.notes = payload.notes
+        await db.commit()
+        await db.refresh(row)
+    except Exception as exc:
+        # Wrap in HTTPException so FastAPI's CORS middleware attaches the
+        # right response headers — without this the browser fires a
+        # generic "Failed to fetch" instead of showing the real detail.
+        # The exception message goes to Render logs verbatim so a future
+        # session can diagnose the underlying issue.
+        import logging
+        logging.getLogger("sealed_collection").exception(
+            "upsert failed for user=%s product=%s", user.id, product_id
         )
-        db.add(row)
-    else:
-        row.qty = max(1, payload.qty)
-        row.condition = condition
-        row.purchase_price_usd = payload.purchase_price_usd
-        row.acquisition_type = payload.acquisition_type
-        row.acquired_at = parsed_acquired_at
-        row.notes = payload.notes
-    await db.commit()
-    await db.refresh(row)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not save sealed ownership: {type(exc).__name__}: {exc}",
+        )
     return SealedCollectionItemRead.model_validate(row)
 
 

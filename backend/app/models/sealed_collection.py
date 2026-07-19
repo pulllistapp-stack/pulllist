@@ -51,7 +51,7 @@ class SealedCollectionItem(Base):
     qty: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     condition: Mapped[str | None] = mapped_column(
-        String(16), nullable=True, server_default="sealed", default="sealed"
+        String(16), nullable=True, server_default="sealed"
     )
     """Physical state of the sealed product:
         'sealed'  — factory sealed, unopened (default)
