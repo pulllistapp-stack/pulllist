@@ -187,13 +187,65 @@ export function findNearest(
   return { cardId: bestId, distance: bestDistance };
 }
 
+// Pokemon card aspect ratio (245 × 342 = ~0.716). Every catalog image
+// is stored at this aspect, so we crop the camera frame to match
+// before hashing — otherwise the 32×32 resize warps the two inputs
+// differently (a 16:9 video frame squishes horizontally while a 3:4
+// card image stays roughly square) and no hash bits will line up.
+const CARD_ASPECT = 245 / 342;
+
+// Shrink the auto-crop this much from each edge (fraction of the
+// crop rectangle). Matches the visual "align card here" corner
+// brackets in the viewfinder — user is aiming to fill the brackets,
+// not the whole viewport, so hashing a little inside the crop drops
+// most of the yellow-border rim + background.
+const CARD_CROP_INSET = 0.06;
+
 /**
- * Extract a 32×32 ImageData from a video element at the given crop
- * rectangle (in video coordinates). The crop lets us hash only the
- * card region — the align-here guide box — instead of the full frame
- * with hand + background noise.
+ * Compute the largest card-aspect (3:4-ish) centered rectangle that
+ * fits in a video of the given source dimensions, then shrink it by
+ * CARD_CROP_INSET on each side. Result is what we tell drawImage to
+ * sample from — so background / hand / rounded viewport corners are
+ * left out of the hash.
+ */
+export function computeCardCrop(
+  videoWidth: number,
+  videoHeight: number,
+): { x: number; y: number; w: number; h: number } {
+  const videoAspect = videoWidth / videoHeight;
+  let w: number;
+  let h: number;
+  if (videoAspect > CARD_ASPECT) {
+    // Video is wider than a card — height is the limiting side.
+    h = videoHeight;
+    w = h * CARD_ASPECT;
+  } else {
+    // Video is taller/narrower than a card — width limits.
+    w = videoWidth;
+    h = w / CARD_ASPECT;
+  }
+  const shrink = 1 - CARD_CROP_INSET * 2;
+  w *= shrink;
+  h *= shrink;
+  return {
+    x: (videoWidth - w) / 2,
+    y: (videoHeight - h) / 2,
+    w,
+    h,
+  };
+}
+
+/**
+ * Extract a 32×32 ImageData from a video element, cropping to the
+ * card region first so the hash reflects the card art rather than the
+ * whole 16:9 sensor. Passing an explicit crop bypasses the automatic
+ * card-aspect calculation — useful for debugging.
  *
- * Passing null for crop hashes the whole frame (useful for debugging).
+ * imageSmoothingQuality is forced to "high" so the extreme downscale
+ * (a ~1280 × 1920 crop → 32 × 32) doesn't produce a garbled DCT input.
+ * Default canvas smoothing is bilinear-low; the "high" tier gives
+ * something closer to a Lanczos-style filter, matching what PIL uses
+ * to seed the catalog hashes.
  */
 export function extractFrameForHash(
   video: HTMLVideoElement,
@@ -207,10 +259,9 @@ export function extractFrameForHash(
   canvas.height = IMG_SIZE;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return null;
-  const sx = crop?.x ?? 0;
-  const sy = crop?.y ?? 0;
-  const sw = crop?.w ?? video.videoWidth;
-  const sh = crop?.h ?? video.videoHeight;
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, IMG_SIZE, IMG_SIZE);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  const c = crop ?? computeCardCrop(video.videoWidth, video.videoHeight);
+  ctx.drawImage(video, c.x, c.y, c.w, c.h, 0, 0, IMG_SIZE, IMG_SIZE);
   return ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE);
 }

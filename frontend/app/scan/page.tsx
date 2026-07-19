@@ -38,10 +38,11 @@ type Mode = "camera" | "confirm";
 
 // Match threshold — hamming distance between a camera frame's pHash
 // and a catalog hash. Backend uses 5 for cache lookups on very-similar
-// re-scans of the SAME photo; camera-vs-render is noisier so we loosen
-// to 18. Tune down if we see too many false positives, up if
-// legitimate cards aren't matching.
-const BULK_MATCH_THRESHOLD = 18;
+// re-scans of the SAME photo; camera-vs-render is noisier and even
+// with card-aspect cropping we see ~10-20 bit drift, so we allow up
+// to 22. Tune down if we get false positives, up if legit matches
+// keep sliding past the threshold.
+const BULK_MATCH_THRESHOLD = 22;
 
 // After the user adds or skips a card, don't re-detect the same
 // card_id for this many ms. Prevents an instant re-fire when the user
