@@ -744,11 +744,16 @@ export type ScanResponse = {
   matched_card_id: string | null;
 };
 
+export type VisionProvider = "claude" | "gemini";
+
 export async function scanCard(
   imageData: string,
   mediaType = "image/jpeg",
+  provider: VisionProvider = "claude",
 ): Promise<ScanResponse> {
-  return authFetch<ScanResponse>("/cards/scan", {
+  const path =
+    provider === "gemini" ? "/cards/scan-gemini" : "/cards/scan";
+  return authFetch<ScanResponse>(path, {
     method: "POST",
     body: JSON.stringify({ image_data: imageData, media_type: mediaType }),
   });

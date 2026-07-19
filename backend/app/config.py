@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     # so tokens issued for another app can't authenticate against us.
     google_client_id: str = ""
 
+    # Google Gemini API key — an A/B alternative to Anthropic Claude
+    # for card scanning. Gemini 2.0 Flash reads cards at the same
+    # quality as Haiku 4.5 but ~30x cheaper. If empty, the
+    # /cards/scan-gemini endpoint returns 501 so testing gracefully
+    # falls back.
+    gemini_api_key: str = ""
+
     env: str = "development"
     debug: bool = True
 

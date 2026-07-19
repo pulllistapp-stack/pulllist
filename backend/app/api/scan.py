@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models import Card, Set, User
 from app.services.image_hash import (
@@ -337,6 +338,152 @@ async def _match_card(
         )
         for card, set_name in rows
     ]
+
+
+# ────────── Gemini alternative — same task, ~30x cheaper ──────────
+#
+# A/B path: identical request / response shape as /cards/scan so the
+# frontend can route via a `?vision=gemini` query param and we can
+# compare live accuracy without touching the default flow. If quality
+# holds, this endpoint becomes the default and Claude sticks around
+# as a fallback / for cases where Gemini's per-region key isn't set.
+
+
+@router.post("/scan-gemini", response_model=ScanResponse)
+async def scan_card_gemini(
+    payload: ScanRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ScanResponse:
+    """Identify a Pokémon TCG card using Google Gemini 2.0 Flash."""
+    if not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=501,
+            detail="GEMINI_API_KEY not configured on the server",
+        )
+
+    # Base64 handling — identical to the Claude path so we can swap
+    # providers on the client side by just changing the URL.
+    img = payload.image_data
+    if img.startswith("data:"):
+        try:
+            _, img = img.split(",", 1)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Malformed data URL")
+    if not img:
+        raise HTTPException(status_code=400, detail="image_data is empty")
+
+    media_type = payload.media_type or "image/jpeg"
+
+    # Shared pHash cache — a hit from a previous Claude scan of the
+    # same image is just as valid for Gemini and vice-versa. Saves
+    # duplicate API calls when the same photo gets scanned twice.
+    image_phash = compute_phash(img)
+    if image_phash:
+        hit = await find_cache_hit(db, image_phash)
+        if hit is not None:
+            cached_card = await db.get(Card, hit.card_id)
+            if cached_card is not None:
+                set_row = await db.get(Set, cached_card.set_id)
+                set_name = set_row.name if set_row else cached_card.set_id
+                candidate = CardCandidate(
+                    id=cached_card.id,
+                    name=cached_card.name,
+                    number=cached_card.number,
+                    set_id=cached_card.set_id,
+                    set_name=set_name,
+                    rarity=cached_card.rarity,
+                    image_small=cached_card.image_small,
+                    market_price_usd=float(cached_card.market_price_usd)
+                    if cached_card.market_price_usd is not None
+                    else None,
+                )
+                await bump_hit(db, hit.image_hash)
+                return ScanResponse(
+                    identification=ScanIdentification(
+                        card_name=cached_card.name,
+                        card_number=cached_card.number,
+                        set_name=set_name,
+                        confidence="high",
+                        notes="(cached from a previous scan)",
+                    ),
+                    candidates=[candidate],
+                    matched_card_id=cached_card.id,
+                )
+
+    # Gemini call. google-genai is Google's newer unified SDK; the
+    # async surface lives under client.aio.
+    import base64 as _b64
+    import json as _json
+    import re as _re
+
+    from google import genai
+    from google.genai import types
+
+    try:
+        image_bytes = _b64.b64decode(img, validate=False)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Bad base64: {e}")
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    try:
+        response = await client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                SCAN_PROMPT,
+                types.Part.from_bytes(data=image_bytes, mime_type=media_type),
+            ],
+        )
+    except Exception as e:
+        log.error("Gemini call failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Vision API error: {e}")
+
+    raw = (response.text or "").strip()
+    fence = _re.match(r"^```(?:json)?\s*(.*?)\s*```$", raw, _re.DOTALL)
+    if fence:
+        raw = fence.group(1).strip()
+    brace = _re.search(r"\{.*\}", raw, _re.DOTALL)
+    if brace:
+        raw = brace.group(0)
+
+    try:
+        parsed = _json.loads(raw)
+        identification = ScanIdentification(**parsed)
+    except Exception as e:
+        log.error(
+            "Failed to parse Gemini response: %s | raw: %s", e, (response.text or "")[:500]
+        )
+        raise HTTPException(
+            status_code=502, detail="Vision API returned unparseable JSON"
+        )
+
+    candidates = await _match_card(db, identification)
+    matched = (
+        candidates[0].id
+        if candidates and identification.confidence == "high"
+        else None
+    )
+
+    log.info(
+        "User %s scanned (gemini): %s #%s → %d candidates (matched=%s)",
+        user.id[:8],
+        identification.card_name,
+        identification.card_number,
+        len(candidates),
+        matched,
+    )
+
+    if image_phash and matched and identification.confidence in ("high", "medium"):
+        try:
+            await write_cache(db, image_phash, matched, identification.confidence)
+        except Exception as e:
+            log.warning("scan cache write failed (non-fatal): %s", e)
+
+    return ScanResponse(
+        identification=identification,
+        candidates=candidates,
+        matched_card_id=matched,
+    )
 
 
 # ────────── pHash catalog (bulk-scan client-side matching) ──────────

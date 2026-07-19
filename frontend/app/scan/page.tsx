@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/AuthProvider";
 import { useCamera } from "@/hooks/useCamera";
@@ -21,7 +21,12 @@ import {
 import {
   createCollectionItem,
 } from "@/lib/auth";
-import { scanCard, type ScanCandidate, type ScanResponse } from "@/lib/auth";
+import {
+  scanCard,
+  type ScanCandidate,
+  type ScanResponse,
+  type VisionProvider,
+} from "@/lib/auth";
 import {
   fetchPhashCatalog,
   fetchPhashCatalogStats,
@@ -113,6 +118,12 @@ async function blobToBase64(blob: Blob): Promise<string> {
 
 export default function ScanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // A/B toggle: /scan?vision=gemini routes the shutter-based scan to
+  // the Gemini endpoint instead of Claude. Default is Claude so the
+  // production flow stays unchanged.
+  const visionProvider: VisionProvider =
+    searchParams?.get("vision") === "gemini" ? "gemini" : "claude";
   const { user, loading: authLoading } = useAuth();
   const camera = useCamera();
 
@@ -195,7 +206,7 @@ export default function ScanPage() {
 
     try {
       const b64 = await blobToBase64(blob);
-      const resp = await scanCard(b64, blob.type || "image/jpeg");
+      const resp = await scanCard(b64, blob.type || "image/jpeg", visionProvider);
       setScanResp(resp);
       const pick =
         resp.candidates.find((c) => c.id === resp.matched_card_id) ??
