@@ -29,7 +29,9 @@ export function ScanFAB() {
       aria-label="Scan a card"
       title="Scan a card"
       className="
-        fixed bottom-5 right-5 z-40
+        fixed z-40
+        bottom-[calc(1.25rem_+_env(safe-area-inset-bottom))]
+        right-[calc(1.25rem_+_env(safe-area-inset-right))]
         inline-flex md:hidden h-14 w-14 items-center justify-center
         rounded-full
         bg-accent-yellow text-gray-900

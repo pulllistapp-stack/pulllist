@@ -33,6 +33,10 @@ export const viewport: Viewport = {
   // Don't let pinch-zoom break our scan/camera UX, but keep accessibility:
   // maximumScale 5 lets users still zoom for low-vision needs.
   maximumScale: 5,
+  // Extend the layout under the notch / dynamic island / rounded corners
+  // in standalone PWA + iOS Safari. Every sticky/fixed element then reads
+  // env(safe-area-inset-*) so the actual content stays clear.
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -120,7 +124,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body className="bg-bg text-text-primary min-h-screen">
+      <body className="bg-bg text-text-primary min-h-[100dvh]">
         <ThemeProvider>
           <AuthProvider>
             <CollectionProvider>

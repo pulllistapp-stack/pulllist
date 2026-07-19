@@ -45,7 +45,7 @@ export function CookieBanner() {
       role="dialog"
       aria-live="polite"
       aria-label="Cookie disclosure"
-      className="fixed bottom-3 left-3 right-3 sm:left-auto sm:right-4 sm:bottom-4 z-50 max-w-md mx-auto sm:mx-0 rounded-2xl border border-border bg-bg-surface/95 backdrop-blur shadow-2xl shadow-black/20 p-4 sm:p-5"
+      className="fixed bottom-[calc(0.75rem_+_env(safe-area-inset-bottom))] left-3 right-3 sm:left-auto sm:right-[calc(1rem_+_env(safe-area-inset-right))] sm:bottom-[calc(1rem_+_env(safe-area-inset-bottom))] z-50 max-w-md mx-auto sm:mx-0 rounded-2xl border border-border bg-bg-surface/95 backdrop-blur shadow-2xl shadow-black/20 p-4 sm:p-5"
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">

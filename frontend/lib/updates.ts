@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-19 ─────────────────────────────────────────────────
   {
     date: "2026-07-19",
+    emoji: "📱",
+    kr: "iOS 노치 / 다이나믹아일랜드 / 홈 인디케이터 safe-area 지원 — PWA standalone 모드에서 상단 nav 가 노치 뒤로 밀리거나 하단 스캔 FAB / 쿠키 배너가 홈 인디케이터에 겹치던 문제 수정. viewport-fit: cover 로 콘텐츠가 노치 밑까지 뻗도록 하고, 모든 sticky / fixed 요소 (TopNav, ScanFAB, CookieBanner, Footer) 에 env(safe-area-inset-*) 패딩 적용. 랜드스케이프 좌우 노치 컷도 대응. body min-height 를 100dvh 로 바꿔서 iOS Safari 주소창 등장 / 사라짐 layout jank 완화. 모바일 UX 개편 1단계 (다음: 하단 탭 네비 / 관리자 페이지 mobile 대응).",
+    en: "iOS notch / dynamic island / home-indicator safe-area support — in standalone PWA the sticky top nav slid under the notch and the scan FAB + cookie banner overlapped the home indicator. Added viewport-fit: cover so content extends behind system UI, and every sticky / fixed element (TopNav, ScanFAB, CookieBanner, Footer) now pads with env(safe-area-inset-*). Landscape notch cut-outs handled too. Body min-height switched to 100dvh to reduce iOS Safari's URL-bar show/hide layout jank. Phase 1 of a mobile UX pass — bottom tab nav and mobile-friendly admin pages coming next.",
+  },
+  {
+    date: "2026-07-19",
     emoji: "🇰🇷",
     kr: "한국판 (KR) 카탈로그 정식 오픈 — 세트 페이지 상단 리전 탭에 🇰🇷 Korea + 🇨🇳 China 신규 추가. TCGdex 로 KR 세트 91개 (SV6 변환의 가면 / SV5a 크림슨헤이즈 / SV4M 미래의 일섬 등) + CN 세트 56개 (太晶盛聚 / 星彩晶璃 등) landing. KR 카드는 TCGdex 가 세트 메타만 있고 카드 arrays 비어있어서 collectory.cc (한국 팬 아카이브) 로 카드 8,475장 fill — 99% 한국 스캔 이미지 (cdn.collectory.cc) 사용. 76/91 KR 세트 카드 커버 (나머지 15세트는 collectory 에도 없는 옛날 promo). URL 은 JP 와 코드 충돌 방지 위해 KR 은 ko- 접두어 (예: /sets/ko-SV6), CN 은 zhcn- 접두어 사용. 가격 시세는 KR/CN 아직 미지원 (별도 phase 예정).",
     en: "Korean (KR) catalog officially open — set page's region tab bar adds 🇰🇷 Korea and 🇨🇳 China alongside USA / Japan. TCGdex ingest landed 91 KR sets (SV6 변환의 가면 / SV5a 크림슨헤이즈 / SV4M 미래의 일섬 etc.) + 56 CN Simplified sets (太晶盛聚 / 星彩晶璃 etc.). TCGdex only carried set metadata for KR (empty cards arrays), so a second pass via collectory.cc (a Korean fan archive) filled 8,475 KR card rows with 99% native Korean scans on cdn.collectory.cc. 76 of 91 KR sets fully populated — the remaining 15 are legacy promos collectory doesn't index either. To avoid PK collision with JP (TCGdex uses the same set/card ids across all locales), KR ids get a `ko-` prefix (e.g. /sets/ko-SV6) and CN gets `zhcn-`. KR/CN pricing not yet wired — separate phase later.",
