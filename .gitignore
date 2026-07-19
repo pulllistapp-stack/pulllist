@@ -36,6 +36,11 @@ backend/*.log
 # Scraped data dumps (transient build artifacts, not source)
 backend/data/scraped/
 
+# Local mirror of every set logo across all locales (safety net
+# before R2 migration — see backup_all_set_logos.py). ~85MB of
+# binaries; not something to shove through git.
+backend/data/logo_backup/
+
 # LO's local mascot working copies (we use the renamed ones in code)
 frontend/public/*.apng
 frontend/public/pullist-mascot-*-backup.png
