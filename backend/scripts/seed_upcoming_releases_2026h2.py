@@ -128,15 +128,11 @@ UPCOMING: list[dict] = [
         "set_type": "MAIN",
         "set_subtype": None,
     },
-    {
-        "id": "me30-cn",
-        "name": "30th Celebration (CN)",
-        "language": "zh-cn",
-        "series": "30th Celebration",
-        "release_date": "2026-09-16",
-        "set_type": "MAIN",
-        "set_subtype": None,
-    },
+    # (me30-cn intentionally omitted — the CN catalog already carries
+    # zhcn-c-b09b95caa5 for the 30th Celebration campaign. That row
+    # gets promoted into series='30th Celebration' by
+    # promote_cn_30th_and_cleanup_stub.py instead of maintaining a
+    # parallel stub here.)
     # ── US 30th Celebration secondary drops (Oct → Dec 2026) ──
     # Bills Archive product manifest, cross-checked against Pokemon.com
     # gallery pages. The Battle Decks are standalone all-foil 60-card
