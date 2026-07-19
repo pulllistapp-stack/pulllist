@@ -34,6 +34,7 @@ export function ProductOwnButtons({ productId, productName }: Props) {
   const [wishlisted, setWishlisted] = useState(false);
   const [busy, setBusy] = useState<"own" | "wish" | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Bootstrap: on mount, fetch current ownership + wishlist state.
   // Use the bulk /sealed/state endpoint so a single request answers
@@ -64,6 +65,7 @@ export function ProductOwnButtons({ productId, productName }: Props) {
   const handleOwnToggle = async () => {
     if (!user || busy) return;
     setBusy("own");
+    setErrorMsg(null);
     try {
       if (owned) {
         await deleteSealedOwnership(productId);
@@ -72,8 +74,13 @@ export function ProductOwnButtons({ productId, productName }: Props) {
         await upsertSealedOwnership(productId, { qty: 1 });
         setOwned(true);
       }
-    } catch {
-      /* swallow — a failed toggle just leaves the button clickable */
+    } catch (e) {
+      // Silent-catch was hiding real failures (schema mismatches,
+      // auth expiries). Surface the message so a broken flow can be
+      // diagnosed instead of feeling like "nothing happens".
+      const msg = e instanceof Error ? e.message : "Failed to update collection";
+      setErrorMsg(msg);
+      console.error("[ProductOwnButtons] sealed toggle failed:", e);
     } finally {
       setBusy(null);
     }
@@ -82,11 +89,14 @@ export function ProductOwnButtons({ productId, productName }: Props) {
   const handleWishlistToggle = async () => {
     if (!user || busy) return;
     setBusy("wish");
+    setErrorMsg(null);
     try {
       const res = await toggleSealedWishlist(productId);
       setWishlisted(res.wishlisted);
-    } catch {
-      /* swallow */
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to update wishlist";
+      setErrorMsg(msg);
+      console.error("[ProductOwnButtons] wishlist toggle failed:", e);
     } finally {
       setBusy(null);
     }
@@ -169,6 +179,11 @@ export function ProductOwnButtons({ productId, productName }: Props) {
           </>
         )}
       </button>
+      {errorMsg && (
+        <div className="w-full mt-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          <span className="font-mono font-bold">Error:</span> {errorMsg}
+        </div>
+      )}
     </div>
   );
 }
