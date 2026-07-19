@@ -242,7 +242,7 @@ export default function BinderDetailPage() {
             {view.master_set.owned_master}/{view.master_set.total_master}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <button
             type="button"
             onClick={() => setShowShare(true)}
