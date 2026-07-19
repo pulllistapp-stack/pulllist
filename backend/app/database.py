@@ -57,6 +57,18 @@ async def init_db() -> None:
             "ALTER TABLE newsbot_processed_urls "
             "ADD COLUMN IF NOT EXISTS title_tokens TEXT"
         ))
+        # Perceptual hash of the card's image_small. Populated by
+        # scripts/backfill_card_phashes.py and served in bulk via the
+        # /cards/phash-catalog endpoint. Enables client-side bulk scan
+        # matching without a paid vision API call. 16-char hex = 64 bits.
+        await conn.execute(text(
+            "ALTER TABLE cards "
+            "ADD COLUMN IF NOT EXISTS image_phash VARCHAR(16)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_cards_image_phash "
+            "ON cards (image_phash) WHERE image_phash IS NOT NULL"
+        ))
         # Partial index for the DISTINCT ON latest-raw-eBay-median lookup
         # used by (1) nightly TCGCSV sync's consensus blend, (2) unified
         # Refresh endpoint, (3) backfill_consensus_market_price. Without

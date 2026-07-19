@@ -332,3 +332,97 @@ async def _match_card(
         )
         for card, set_name in rows
     ]
+
+
+# ────────── pHash catalog (bulk-scan client-side matching) ──────────
+
+
+class PhashCatalogResponse(BaseModel):
+    """A snapshot of every card's perceptual hash. Consumed by the client-
+    side bulk scan loop so the camera can identify cards from a local
+    hamming-distance lookup without a paid vision API call.
+
+    Two parallel arrays keep the payload compact — one card_id list and
+    one hash list, iterated in lockstep. At ~43 k rows this is ~2 MB raw
+    (~500 KB gzipped) and lives behind long cache headers, so a phone
+    downloads it once and reuses it for every subsequent session.
+    """
+
+    count: int
+    generated_at: str
+    ids: list[str]
+    hashes: list[str]
+
+
+@router.get("/phash-catalog", response_model=PhashCatalogResponse)
+async def get_phash_catalog(
+    db: AsyncSession = Depends(get_db),
+) -> PhashCatalogResponse:
+    """Return every card_id → image_phash mapping.
+
+    Public: no auth required. The catalog is public data and clients
+    (including the bulk scan feature) need it before any auth flow.
+    Response is auto-gzipped by GZipMiddleware.
+
+    Cache: 1 h in browser, 1 day at the edge. Regenerating pHashes is a
+    manual backfill job, so real turnover is measured in weeks — an
+    aggressive TTL is fine. Clients can bust via a URL query param when
+    they know a resync landed.
+    """
+    from datetime import datetime, timezone
+
+    rows = (
+        await db.execute(
+            select(Card.id, Card.image_phash).where(Card.image_phash.isnot(None))
+        )
+    ).all()
+
+    ids: list[str] = []
+    hashes: list[str] = []
+    for card_id, phash in rows:
+        ids.append(card_id)
+        hashes.append(phash)
+
+    resp = PhashCatalogResponse(
+        count=len(ids),
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        ids=ids,
+        hashes=hashes,
+    )
+    return resp
+
+
+@router.get("/phash-catalog/stats")
+async def get_phash_catalog_stats(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    """Quick health check — how many cards actually have a pHash yet.
+
+    The client uses this before download to decide whether the bulk
+    scan feature has enough coverage to be worth exposing (e.g. hide
+    the toggle until >90 % of the catalog is hashed).
+    """
+    from sqlalchemy import func
+
+    total = (
+        await db.execute(select(func.count()).select_from(Card))
+    ).scalar_one()
+    with_hash = (
+        await db.execute(
+            select(func.count()).select_from(Card).where(
+                Card.image_phash.isnot(None)
+            )
+        )
+    ).scalar_one()
+    with_image = (
+        await db.execute(
+            select(func.count()).select_from(Card).where(
+                Card.image_small.isnot(None)
+            )
+        )
+    ).scalar_one()
+    return {
+        "total_cards": int(total),
+        "cards_with_image": int(with_image),
+        "cards_with_phash": int(with_hash),
+    }

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
@@ -43,6 +44,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Gzip responses over 1 KB. The pHash catalog (~2 MB uncompressed for
+# 43 k cards) is the load-bearing consumer; every other JSON response
+# gets a free size win. minimum_size=1024 skips tiny payloads where
+# gzip overhead would be larger than the savings.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 app.include_router(filters_router, prefix="/api/v1")
 app.include_router(api_router, prefix="/api/v1")

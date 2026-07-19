@@ -1,0 +1,52 @@
+name: Backfill card image pHashes (bulk scan)
+
+# Computes cards.image_phash for every catalog card so the client-side
+# bulk scan feature can match camera frames locally (no paid vision API
+# call per scan). Resumable — only touches rows where image_phash IS
+# NULL, so re-running after a partial completion picks up where it
+# stopped. Use --force from CLI locally to re-hash everything.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run only (count-only, no HTTP fetches, no writes)"
+        required: false
+        default: "false"
+      limit:
+        description: "Cap number of cards (blank = all)"
+        required: false
+        default: ""
+      concurrency:
+        description: "HTTP concurrency"
+        required: false
+        default: "20"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # 43 k cards × ~1 s/card at concurrency=20 ≈ 37 min. Padding for
+    # slow CDN responses + retries.
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args="--concurrency ${{ inputs.concurrency }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            args="$args --dry-run"
+          fi
+          if [ -n "${{ inputs.limit }}" ]; then
+            args="$args --limit ${{ inputs.limit }}"
+          fi
+          python -m scripts.backfill_card_phashes $args
