@@ -46,11 +46,14 @@ type Props = {
   bulkDetected: BulkDetected | null;
   bulkIdentifying: boolean;
   bulkScanCount: number;
+  bulkDrift: number | null;
+  bulkStableTicks: number;
   bulkList: BulkListItem[];
   bulkAdding: boolean;
   onBulkAdd: () => void;
   onBulkDismiss: () => void;
   onBulkClearList: () => void;
+  onBulkForceScan: () => void;
 };
 
 function fmtPrice(v: number | null): string {
@@ -82,11 +85,14 @@ export function ScanCamera({
   bulkDetected,
   bulkIdentifying,
   bulkScanCount,
+  bulkDrift,
+  bulkStableTicks,
   bulkList,
   bulkAdding,
   onBulkAdd,
   onBulkDismiss,
   onBulkClearList,
+  onBulkForceScan,
 }: Props) {
   const isBulk = scanMode === "bulk";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -237,11 +243,14 @@ export function ScanCamera({
             detected={bulkDetected}
             identifying={bulkIdentifying}
             scanCount={bulkScanCount}
+            drift={bulkDrift}
+            stableTicks={bulkStableTicks}
             list={bulkList}
             adding={bulkAdding}
             onAdd={onBulkAdd}
             onDismiss={onBulkDismiss}
             onClearList={onBulkClearList}
+            onForceScan={onBulkForceScan}
           />
         )}
 

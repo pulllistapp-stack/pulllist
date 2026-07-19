@@ -38,11 +38,14 @@ type Props = {
   detected: BulkDetected | null;
   identifying: boolean;
   scanCount: number;
+  drift: number | null;
+  stableTicks: number;
   list: BulkListItem[];
   adding: boolean;
   onAdd: () => void;
   onDismiss: () => void;
   onClearList: () => void;
+  onForceScan: () => void;
 };
 
 function fmtPrice(v: number | null): string {
@@ -55,11 +58,14 @@ export function BulkScanPanel({
   detected,
   identifying,
   scanCount,
+  drift,
+  stableTicks,
   list,
   adding,
   onAdd,
   onDismiss,
   onClearList,
+  onForceScan,
 }: Props) {
   const total = list.reduce((s, it) => s + (it.priceUsd ?? 0), 0);
 
@@ -129,35 +135,54 @@ export function BulkScanPanel({
         </motion.div>
       )}
 
-      {/* Idle / status hint. Three visual states:
+      {/* Idle / status hint. Two visual states:
           - identifying: yellow spinner, "reading card…"
           - idle: green pulse, "hold a card"
-          Session scan count sits on the right so LO can see how many
-          Gemini calls this session has cost (roughly $0.0001 each). */}
+          Diagnostic line below shows frame drift + stability tick
+          count so we can watch the trigger from LO's phone. A
+          manual "Scan now" button forces a vision call regardless
+          of stability — isolates the vision-call path from the
+          stability detector when debugging. */}
       {!detected && (
-        <div className="rounded-full bg-white/90 border border-[#FDE2C7] px-4 py-2 flex items-center justify-between gap-2 shadow-sm">
-          <div className="flex items-center gap-2 min-w-0">
-            {identifying ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FACC15] shrink-0" />
-                <span className="text-xs font-semibold text-[#2D2A26]">
-                  Reading card…
-                </span>
-              </>
-            ) : (
-              <>
-                <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse shrink-0" />
-                <span className="text-xs font-semibold text-[#8A7E72]">
-                  Hold a card steady in the frame
-                </span>
-              </>
+        <div className="rounded-xl bg-white/90 border border-[#FDE2C7] px-3 py-2 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              {identifying ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FACC15] shrink-0" />
+                  <span className="text-xs font-semibold text-[#2D2A26]">
+                    Reading card…
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse shrink-0" />
+                  <span className="text-xs font-semibold text-[#8A7E72]">
+                    Hold a card steady in the frame
+                  </span>
+                </>
+              )}
+            </div>
+            {scanCount > 0 && (
+              <span className="text-[10px] font-mono text-[#8A7E72] shrink-0">
+                {scanCount} scan{scanCount === 1 ? "" : "s"}
+              </span>
             )}
           </div>
-          {scanCount > 0 && (
-            <span className="text-[10px] font-mono text-[#8A7E72] shrink-0">
-              {scanCount} scan{scanCount === 1 ? "" : "s"}
+          <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
+            <span className="text-[10px] font-mono text-[#B8A99A]">
+              drift{" "}
+              {drift == null ? "—" : `${drift}/14`} · steady {stableTicks}/2
             </span>
-          )}
+            <button
+              type="button"
+              onClick={onForceScan}
+              disabled={identifying}
+              className="rounded-full bg-[#14B8A6] text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 shadow-sm disabled:opacity-50"
+            >
+              Scan now
+            </button>
+          </div>
         </div>
       )}
 

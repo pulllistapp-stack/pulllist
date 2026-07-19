@@ -43,14 +43,14 @@ const BULK_TICK_MS = 500;
 
 // Two consecutive frames must be within this hamming distance to
 // count as "stable" — the user has stopped moving the card enough
-// that firing an identifying call is worthwhile.
-const BULK_STABILITY_HAMMING = 5;
+// that firing an identifying call is worthwhile. Real cameras drift
+// more than expected between frames even at rest (autofocus micro-
+// jitter, exposure adjustments), so we tolerate up to 14 bits of
+// difference before deciding the frame is still moving.
+const BULK_STABILITY_HAMMING = 14;
 
 // Number of consecutive stable ticks before we fire the vision call.
-// 2 ticks × 500 ms = ~1 s of holding still. Lower than the old
-// pHash-catalog design (which needed 3 same-card matches) because
-// stability here just means "camera has settled", not "matched to a
-// specific card yet — Gemini decides that.
+// 2 ticks × 500 ms = ~1 s of holding still.
 const BULK_STABILITY_TICKS = 2;
 
 // Provider used for bulk detection. Gemini is ~30x cheaper than
@@ -136,10 +136,18 @@ export default function ScanPage() {
   const [bulkAdding, setBulkAdding] = useState(false);
   const [bulkIdentifying, setBulkIdentifying] = useState(false);
   const [bulkScanCount, setBulkScanCount] = useState(0);
-  // Consecutive-stable-tick counter — used to know when the frame
-  // has held still long enough to fire a Gemini call.
+  // Diagnostic — most recent frame-to-frame drift + running stable
+  // count. Surfaced in the panel so LO can see whether stability
+  // actually triggers on his phone or whether the threshold needs
+  // more tuning. `forceScan` is a ref so the button handler can flip
+  // it without re-arming the capture effect.
+  const [bulkDiag, setBulkDiag] = useState<{
+    drift: number | null;
+    stableTicks: number;
+  }>({ drift: null, stableTicks: 0 });
   const stableTicksRef = useRef(0);
   const lastHashRef = useRef<string | null>(null);
+  const forceScanRef = useRef(false);
   // card_id → epoch ms until which we should ignore this card. Kept in
   // a ref so tick closure sees the latest without re-arming the
   // interval effect on every add / skip.
@@ -322,14 +330,18 @@ export default function ScanPage() {
       if (!hash) return;
 
       const prev = lastHashRef.current;
-      if (prev && hammingDistance(prev, hash) <= BULK_STABILITY_HAMMING) {
+      const drift = prev == null ? null : hammingDistance(prev, hash);
+      if (drift != null && drift <= BULK_STABILITY_HAMMING) {
         stableTicksRef.current += 1;
       } else {
         stableTicksRef.current = 0;
       }
       lastHashRef.current = hash;
+      setBulkDiag({ drift, stableTicks: stableTicksRef.current });
 
-      if (stableTicksRef.current < BULK_STABILITY_TICKS) return;
+      const forced = forceScanRef.current;
+      if (forced) forceScanRef.current = false;
+      if (!forced && stableTicksRef.current < BULK_STABILITY_TICKS) return;
 
       // Enough stability — capture a bigger frame for Gemini so the
       // vision model has legible text to read.
@@ -470,6 +482,14 @@ export default function ScanPage() {
     skipUntilRef.current.clear();
   }, []);
 
+  const onBulkForceScan = useCallback(() => {
+    forceScanRef.current = true;
+    // Reset stability so the diagnostic shows an honest count after
+    // the manual trigger fires.
+    stableTicksRef.current = 0;
+    setBulkDiag((d) => ({ ...d, stableTicks: 0 }));
+  }, []);
+
   const onScanModeChange = useCallback((next: ScanMode) => {
     setScanMode(next);
     // Wipe any stale detection so switching modes doesn't leave a
@@ -521,11 +541,14 @@ export default function ScanPage() {
       bulkDetected={bulkDetected}
       bulkIdentifying={bulkIdentifying}
       bulkScanCount={bulkScanCount}
+      bulkDrift={bulkDiag.drift}
+      bulkStableTicks={bulkDiag.stableTicks}
       bulkList={bulkList}
       bulkAdding={bulkAdding}
       onBulkAdd={onBulkAdd}
       onBulkDismiss={onBulkDismiss}
       onBulkClearList={onBulkClearList}
+      onBulkForceScan={onBulkForceScan}
     />
   );
 }
