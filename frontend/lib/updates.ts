@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-19 ─────────────────────────────────────────────────
   {
     date: "2026-07-19",
+    emoji: "🧹",
+    kr: "KR 카탈로그 정리 — 이전 대량 import (collectory) 가 CN/US/JP 세트도 KR 로 잘못 넣어서 브라우저에 태晶盛聚 (中), Chaos Rising (US), Battle Academy (CN) 같은 게 섞여있던 문제 수정. 각 세트 카드 이미지 CDN 경로로 지역 판정 (majority vote) 후: CN 128 세트 (12,890 카드) → CN 카탈로그로 이동, US 99 + JP 28 + scrydex 4 = 131 세트 (7,750 카드) → 삭제 (이미 EN/JP 카탈로그에 있음), KR 147 유지. 결과: KR 세트 502 → 243, CN 세트 56 → 184, EN 187 완전 미변경 (safeguard 유지). 이제 /sets?region=ko 에는 한국 발매판만.",
+    en: "KR catalog cleanup — a prior bulk import (collectory --include-new-sets) pulled every un-matched set into KR regardless of actual locale, so 太晶盛聚 (CN), Chaos Rising (US), Battle Academy (CN) etc. all appeared as Korean sets in the browser. Classified each ko-c-* set by the CDN prefix of its cards' image URLs (majority vote): CN 128 sets / 12,890 cards → moved to CN region, US 99 + JP 28 + scrydex 4 = 131 sets / 7,750 cards → deleted (already covered by EN/JP catalogs), KR 147 kept. Net: KR sets 502 → 243, CN sets 56 → 184, EN 187 rows completely untouched (script safeguard enforced). /sets?region=ko now shows only Korean releases.",
+  },
+  {
+    date: "2026-07-19",
     emoji: "📱",
     kr: "모바일 하단 탭 네비 신설 — 화면 하단에 고정된 5개 탭 (Sets / Portfolio / Scan / Wishlist / Me) 이 모든 모바일 화면에 뜸. Scan 은 가운데 강조된 노란 원형 CTA 로 승격 (기존 우측 하단 ScanFAB 완전히 대체). 아이콘은 lucide-react. 로그아웃 상태에선 Me 탭이 'Sign in' 으로 바뀜. 몰입형 스캔 카메라 (`/scan`), auth (`/login`, `/signup`), 자체 하단 CTA 있는 카드 상세 (`/cards/[id]`) 에선 자동 숨김. 데스크탑 (md+) 에선 안 뜸. body min-h 에 safe-area 반영한 하단 여백 추가해서 콘텐츠 안 가려짐.",
     en: "Mobile bottom tab bar shipped — five fixed tabs on every mobile screen (Sets / Portfolio / Scan / Wishlist / Me). Scan lives as the elevated yellow FAB in the center slot and fully replaces the old bottom-right ScanFAB. Icons from lucide-react. Logged-out users see the last tab as 'Sign in' instead of 'Me'. Auto-hidden on the immersive scan camera (/scan), auth pages (/login, /signup), and the card detail page (/cards/[id]) which has its own sticky buy CTA. Desktop (md+) is unchanged. Body padding-bottom respects safe-area so no page content sits behind the bar.",
