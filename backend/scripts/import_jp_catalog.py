@@ -42,6 +42,30 @@ log = logging.getLogger("import_tcgdex_catalog")
 # introduce a divergent source of truth for the same rows.
 SUPPORTED_LANGS = ("ja", "ko", "zh-cn", "zh-tw")
 
+# TCGdex uses the SAME set/card ids across every locale it serves
+# (SV3 is the JP, KR, and CN name of the same physical expansion).
+# Our `sets`/`cards` tables have a single-column primary key, so KR
+# and CN rows would collide with JP rows if inserted bare. Prefix
+# every non-JP id with the locale tag so the three catalogs coexist
+# as first-class rows with their own images, prices, and rarity.
+# JP stays unprefixed — it was the first locale and its ids are
+# already published in URLs, share links, and user collections.
+_ID_PREFIX: dict[str, str] = {
+    "ja": "",       # JP is the canonical / unprefixed catalog
+    "ko": "ko-",
+    "zh-cn": "zhcn-",
+    "zh-tw": "zhtw-",
+}
+
+
+def _prefixed(raw_id: str, lang: str) -> str:
+    """Return the storage id for `raw_id` under `lang`. JP keeps the
+    bare TCGdex id; every other locale gets a short prefix so a JP
+    row and a KR row for the same TCGdex id (e.g. SV3) don't collide
+    on the sets/cards primary key."""
+    p = _ID_PREFIX.get(lang, f"{lang}-")
+    return f"{p}{raw_id}"
+
 # Sized image variants on assets.tcgdex.net. The base path the API
 # returns is `https://assets.tcgdex.net/ja/SV/SV5K/001`; we append
 # `/low.webp` for thumbnails and `/high.webp` for the detail view.
@@ -100,7 +124,8 @@ def _normalize_rarity(value: str | None) -> str | None:
 
 
 async def _upsert_set(db, raw: dict, processed: set[str], lang: str) -> Set | None:
-    set_id = raw["id"]
+    raw_id = raw["id"]
+    set_id = _prefixed(raw_id, lang)
     # Defend against duplicate detail responses in the same batch. The
     # TCGdex /{lang}/sets index has known dupes (sv1a x9 on ja, etc.); we
     # dedupe at the index level but a defensive skip here guarantees we
@@ -111,11 +136,11 @@ async def _upsert_set(db, raw: dict, processed: set[str], lang: str) -> Set | No
     processed.add(set_id)
     row = await db.get(Set, set_id)
     if row is not None and row.language != lang:
-        # Cross-language ID collision (e.g. lowercase JP set "sv1a" vs
-        # pokemontcg.io's English "sv1a", or KR "SM1M" landing on JP
-        # "SM1M" if we ever share ids). Refuse to touch the row -
-        # silently overwriting another catalog's data is worse than
-        # missing a set. Long-term such sets need a prefixed id.
+        # Same-storage-id collision with a different language would
+        # only happen if the prefix table were mis-configured (two
+        # locales sharing the same prefix). Refuse to overwrite;
+        # investigate the prefix map instead of silently corrupting
+        # a sibling catalog's data.
         log.warning(
             f"  ! skip {set_id}: existing row is language={row.language!r}, refusing to overwrite (importing lang={lang!r})"
         )
@@ -146,11 +171,14 @@ async def _upsert_set(db, raw: dict, processed: set[str], lang: str) -> Set | No
 
 
 async def _upsert_card(db, raw: dict, set_id: str, lang: str) -> Card | None:
-    card_id = raw["id"]
+    # `set_id` here is already the prefixed storage id (locale-scoped
+    # foreign key) — the caller derives it from `_prefixed(raw['id'],
+    # lang)` before invoking us. Cards get the same prefix so the FK
+    # to sets stays clean.
+    card_id = _prefixed(raw["id"], lang)
     row = await db.get(Card, card_id)
     if row is not None and row.language != lang:
-        # Same protection as _upsert_set - never overwrite another
-        # catalog's row because of a case-equal-id collision.
+        # Guard for a mis-configured prefix map (see _upsert_set).
         log.warning(
             f"  ! skip card {card_id}: existing row is language={row.language!r} (importing lang={lang!r})"
         )
@@ -278,18 +306,22 @@ async def run(
                     )
 
         for i, d in enumerate(details, 1):
-            set_id = d["id"]
+            # Raw TCGdex id for URL fetch, prefixed id for FK writes.
+            # existing_ids is keyed on the prefixed (storage) card id
+            # so the skip check matches what we actually wrote before.
+            raw_set_id = d["id"]
+            storage_set_id = _prefixed(raw_set_id, lang)
             thin_cards = d.get("cards") or []
             to_fetch = [
                 c for c in thin_cards
-                if refresh or c["id"] not in existing_ids
+                if refresh or _prefixed(c["id"], lang) not in existing_ids
             ]
             if not to_fetch:
-                log.info(f"  [{i}/{len(details)}] {set_id:10s} all cards already cached, skipping.")
+                log.info(f"  [{i}/{len(details)}] {storage_set_id:12s} all cards already cached, skipping.")
                 continue
 
             log.info(
-                f"  [{i}/{len(details)}] {set_id:10s} {d.get('name','')[:25]:25s} "
+                f"  [{i}/{len(details)}] {storage_set_id:12s} {d.get('name','')[:25]:25s} "
                 f"fetching {len(to_fetch)} cards…"
             )
 
@@ -304,8 +336,8 @@ async def run(
                 for raw in details_chunk:
                     if raw is None:
                         continue
-                    await _upsert_card(db, raw, set_id, lang)
-                    existing_ids.add(raw["id"])
+                    await _upsert_card(db, raw, storage_set_id, lang)
+                    existing_ids.add(_prefixed(raw["id"], lang))
                     written += 1
                 await db.commit()
             log.info(f"    -> wrote {written} cards")

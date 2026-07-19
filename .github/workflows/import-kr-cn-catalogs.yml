@@ -55,6 +55,43 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Nuke any bare (unprefixed) KR/CN rows from earlier runs
+        # Phase 1's first ingest landed 15 KR + 49 CN sets under bare
+        # TCGdex ids (SV3, CSA, CSV1C…), which then collide with JP
+        # sets of the same id. Phase 1d.1 switched to prefixed ids
+        # ('ko-SV3', 'zhcn-CSV1C'). Nuke the bare rows so re-ingest
+        # can write them under the correct prefixed ids without
+        # tripping the "different language, refusing to overwrite"
+        # guard. Idempotent: after this migration lands, subsequent
+        # runs of this step delete 0 rows.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python <<'PY'
+          import asyncio
+          from sqlalchemy import text
+          from app.database import SessionLocal, init_db
+
+          async def main():
+              await init_db()
+              async with SessionLocal() as db:
+                  for lang in ('ko', 'zh-cn'):
+                      prefix = 'ko-' if lang == 'ko' else 'zhcn-'
+                      # Cards first (FK dependency), then sets.
+                      c = await db.execute(text(
+                          "DELETE FROM cards WHERE language = :l "
+                          "AND id NOT LIKE :p"
+                      ), {"l": lang, "p": f"{prefix}%"})
+                      s = await db.execute(text(
+                          "DELETE FROM sets WHERE language = :l "
+                          "AND id NOT LIKE :p"
+                      ), {"l": lang, "p": f"{prefix}%"})
+                      await db.commit()
+                      print(f"  {lang:>6s}: nuked {s.rowcount} bare sets + {c.rowcount} bare cards")
+
+          asyncio.run(main())
+          PY
+
       - name: Import KR sets (${{ inputs.lang == 'zh-cn' && 'skipped' || 'running' }})
         if: inputs.lang == 'both' || inputs.lang == 'ko'
         env:
