@@ -101,7 +101,36 @@ export default function ReleaseCalendarPage() {
     )
       .then((chunks) => {
         if (cancelled) return;
-        const merged = chunks.flat().filter((s) => s.release_date);
+        const today = new Date().setUTCHours(0, 0, 0, 0);
+        const merged = chunks.flat().filter((s) => {
+          if (!s.release_date) return false;
+          // Hide upcoming rows that don't yet have anything to show:
+          // no logo yet, no cards yet, no known card_count. LO's ask —
+          // Storm Emeralda / Aura Seeker / Delta Reign / FPIC S3 /
+          // Special Deck Set were seeded so the calendar wouldn't lie
+          // about our roadmap coverage, but until TCGCSV publishes a
+          // logo or a card list the tile reads as an empty stub.
+          // Carve-out: 30th Celebration family stays visible even
+          // without a logo/card because LO explicitly wants the
+          // worldwide-launch cluster and the US secondary waves
+          // (UPC Day/Night, Battle Decks, wave aggregates) to be
+          // discoverable now, artwork gaps notwithstanding.
+          const releaseTs = new Date(
+            s.release_date.length === 10
+              ? `${s.release_date}T00:00:00Z`
+              : s.release_date,
+          ).getTime();
+          const isFuture = releaseTs >= today;
+          const isEmpty =
+            !s.logo_url && (s.card_count ?? 0) === 0;
+          const is30th =
+            (s.series ?? "").toLowerCase().includes("30th celebration") ||
+            s.id.startsWith("me30") ||
+            s.id.startsWith("m30cs") ||
+            s.id === "m6a";
+          if (isFuture && isEmpty && !is30th) return false;
+          return true;
+        });
         setRows(merged);
       })
       .finally(() => {
