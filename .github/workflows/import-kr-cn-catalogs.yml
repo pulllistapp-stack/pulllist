@@ -122,6 +122,29 @@ jobs:
           fi
           python -m scripts.import_jp_catalog $args
 
+      - name: KR — fill cards from collectory.cc (bridges TCGdex's empty arrays)
+        # TCGdex's /ko/sets/{id} returns metadata but empty `cards`
+        # arrays for most KR sets. collectory.cc (a Korean fan archive)
+        # has native KR card data — name_ko, KR-scanned images, rarity,
+        # card number. This step matches each collectory set to one
+        # of the TCGdex-ingested ko-* set rows (via set_code_ja or
+        # fuzzy name match on name_ko) and upserts its cards under
+        # the same set_id so the URLs stay consistent.
+        if: inputs.lang == 'both' || inputs.lang == 'ko'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args=""
+          if [ "${{ inputs.sets_only }}" = "true" ]; then
+            # sets_only means "just refresh set metadata this run";
+            # collectory's whole reason for existing here is the card
+            # content, so skip it when sets_only is on.
+            echo "sets_only=true — skipping collectory card fill"
+            exit 0
+          fi
+          python -m scripts.import_kr_from_collectory $args
+
       - name: Summary
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
