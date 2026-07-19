@@ -41,6 +41,18 @@ export const UPDATES: UpdateEntry[] = [
   },
   {
     date: "2026-07-19",
+    emoji: "🖼️",
+    kr: "**zh-tw 세트 로고 100% 커버리지** — Taiwan 훈련가 사이트(카드 DB 전용)에 세트 마케팅 아트가 없어서 방금 임포트한 27개 zh-tw 세트가 다 로고 NULL 로 렌더되던 문제. Google Image Search 로 먼저 시도 → 첫 요청은 성공하는데 두번째부터 봇 감지로 imgs 0 반환. Bing Image Search 로 피벗 (동일 headless-Chrome stack 으로 zh-TW 마켓 쿼리 3/3 일관 성공). 검색어 패턴 `寶可夢 {클린이름} 卡盒` (擴充包/挑戰牌組/戰術牌組 등 상품 접두사 스트립 후). 결과는 Bing 의 안정적인 프록시 (th.bing.com/th/id/OIP.<hash>?w=400&h=400) — 원본 리테일 사진 hot-link 보호에 안 걸리게 Bing이 이미 재호스팅한 상태. 27/27 매칭 성공, 총 소요 ~2.5분 (2초 sleep 정중 대기). 이제 /sets?region=zh-tw 열면 M시리즈 (16) + SV시리즈 (11) 모두 실물 팩 사진으로 표시.",
+    en: "**zh-tw set logos hit 100% coverage** — the Taiwan trainer site is card-DB only (no per-set marketing art) so all 27 zh-tw sets were rendering with a null logo. Tried Google Image Search first — first query returns rich results but bot detection kicks in on request #2 and serves empty pages. Pivoted to Bing Image Search (same headless-Chrome stack, 3/3 consistent hits on zh-TW market queries). Query shape: `寶可夢 {clean_name} 卡盒` after stripping product-type prefixes (擴充包 / 挑戰牌組 / 戰術牌組). Results use Bing's stable thumbnail proxy (th.bing.com/th/id/OIP.<hash>?w=400&h=400) — because Bing already re-hosts the underlying retail-shop photos we bypass source-site hot-link protection entirely. 27/27 matched in ~2.5 min (2 s polite sleep between queries). /sets?region=zh-tw now shows every M-series (16) and SV-series (11) tile with a real pack photo.",
+  },
+  {
+    date: "2026-07-19",
+    emoji: "🏷️",
+    kr: "**리전 탭 라벨에 언어 명시 추가** — 그동안 'China' / 'Taiwan' 만 표기해서 처음 방문한 유저는 두 탭의 차이 (간체 vs 번체) 를 즉시 파악 못했음. LO 도 유입 UX 관점에서 lump vs split 고민을 제기 → 데이터는 분리 유지가 컬렉터 정확도 위해 필수 (다른 마켓/다른 셋 코드/다른 인쇄) 지만 라벨을 'China (Simplified)' / 'Taiwan (Traditional)' 로 명시하면 캐주얼 브라우저도 '아 둘 다 중문이구나' 즉시 인지. 컬렉터 정확성 + 유입 명확성 둘 다 챙기는 최소 변경.",
+    en: "**Region tab labels now show script variant** — the previous 'China' / 'Taiwan' labels made new visitors work to figure out the CN/TW split is Simplified vs Traditional Chinese. Keeping the underlying data split is non-negotiable for collector accuracy (different market, different set codes, different print runs) — but relabeling to 'China (Simplified)' / 'Taiwan (Traditional)' lets casual browsers see at a glance that both are Chinese variants. Minimum change that keeps the strict data model while removing the acquisition-side confusion LO flagged.",
+  },
+  {
+    date: "2026-07-19",
     emoji: "🔀",
     kr: "**미스라벨된 zhcn-SV7~SV10 7세트 → zh-tw 로 재라벨** — CN Simplified 카탈로그에 들어와있던 SV7 (星晶奇跡) / SV7a (樂園騰龍) / SV8 (超電突圍) / SV8a (太晶慶典ex) / SV9 (對戰搭檔) / SV9a (熱風競技場) / SV10 (火箭隊的榮耀) 이 사실 번체자 대만판이었던 것 (跡/慶/對/龍 등 번체 형태). TCGdex zh-cn API 가 소스에서부터 잘못 라벨링한 것. 이번에 zh-tw 리전이 정식으로 생겼으니 원 위치로 이동. Set ID + Card ID 접두사 zhcn- → zhtw- 변경, language 컬럼 zh-tw 로 변경, 시리즈는 '朱＆紫 (Scarlet & Violet)' bilingual 포맷 부여. 총 7세트 / 829 카드 이관. 트랜잭션 감싸서 안전 실행. 이제 Taiwan 탭에 SV era 완전 커버 (SV7 ~ SV11W/B + SVQP/QL) + Mega era 16세트 = 총 27세트 / 3,725 카드.",
     en: "**Relabeled 7 mislabeled zhcn-SV7~SV10 sets to zh-tw** — SV7 (星晶奇跡) / SV7a (樂園騰龍) / SV8 (超電突圍) / SV8a (太晶慶典ex) / SV9 (對戰搭檔) / SV9a (熱風競技場) / SV10 (火箭隊的榮耀) were sitting in the CN Simplified catalog but their names are actually Traditional Chinese (跡/慶/對/龍 give it away — Simplified would use 迹/庆/对/龙). Root cause: TCGdex's zh-cn API mislabels them at source. Now that we have a proper zh-tw region, they're moved home: set + card ID prefix flipped zhcn- → zhtw-, language column updated, series canonicalized to '朱＆紫 (Scarlet & Violet)'. 7 sets / 829 cards migrated in a single transaction. Taiwan tab now fully covers the SV era (SV7 through SV11W/B + SVQP/QL) plus 16 Mega era sets = 27 total / 3,725 cards.",

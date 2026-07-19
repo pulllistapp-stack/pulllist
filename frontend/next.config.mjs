@@ -113,6 +113,12 @@ const nextConfig = {
       // import_zhtw_from_official.py for the full SV + Mega Evolution
       // Traditional Chinese catalog (TCGdex zh-tw feed is stale).
       { protocol: "https", hostname: "asia.pokemon-card.com" },
+      // Bing Image Search thumbnail proxy — every zh-tw set logo is a
+      // Bing thumb URL (th.bing.com/th/id/OIP.<hash>?w=400...) sourced
+      // by backfill_zhtw_logos_google.py. Bing re-hosts the underlying
+      // retail-shop pack photos so we don't hit source-site hot-link
+      // protection at render time.
+      { protocol: "https", hostname: "th.bing.com" },
     ],
   },
   async rewrites() {

@@ -14,8 +14,8 @@ export const REGIONS: RegionDef[] = [
   { code: "en", flag: "🇺🇸", label: "USA" },
   { code: "ja", flag: "🇯🇵", label: "Japan" },
   { code: "ko", flag: "🇰🇷", label: "Korea" },
-  { code: "zh-cn", flag: "🇨🇳", label: "China" },
-  { code: "zh-tw", flag: "🇹🇼", label: "Taiwan" },
+  { code: "zh-cn", flag: "🇨🇳", label: "China (Simplified)" },
+  { code: "zh-tw", flag: "🇹🇼", label: "Taiwan (Traditional)" },
 ];
 
 type Props = {
