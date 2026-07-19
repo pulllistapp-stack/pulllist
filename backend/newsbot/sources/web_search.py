@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import date, datetime
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -57,12 +58,39 @@ _NEWS_SIGNAL_KEYWORDS = (
 
 # Serper /news 'date' field. Absolute like "Jul 5, 2026" or relative
 # like "2 days ago" / "3 hours ago" / "1 month ago" / "2 years ago".
-# We only need a coarse "is this within the past month" gate — anything
-# with 'month', 'months', 'year', 'years' in the date string is old
-# enough to skip. Relative-time strings without those words are recent.
 _STALE_DATE_RE = re.compile(
     r"\b(month|months|year|years)\s+ago\b", re.IGNORECASE
 )
+# Absolute-date formats we've seen in Serper /news payloads.
+_ABS_DATE_FORMATS = (
+    "%b %d, %Y",  # 'Jul 5, 2026'
+    "%B %d, %Y",  # 'July 5, 2026'
+    "%Y-%m-%d",   # ISO fallback
+)
+# Anything older than this counts as a stale republish / re-index —
+# a Pokemon Center product page from a year ago sometimes reappears
+# in /news when Google re-crawls it. 90 days keeps the door open
+# for legit late-write-ups without letting last-year's ETB back in.
+_STALE_DATE_DAYS = 90
+
+
+def _is_stale_date(date_str: str) -> bool:
+    """Best-effort 'is this news article old' gate. Handles both
+    relative strings ('2 years ago') and absolute dates ('Jul 5,
+    2025'). Unrecognised formats fall through as not-stale so a
+    legit item never gets false-negatived."""
+    if not date_str:
+        return False
+    if _STALE_DATE_RE.search(date_str):
+        return True
+    stripped = date_str.strip()
+    for fmt in _ABS_DATE_FORMATS:
+        try:
+            parsed = datetime.strptime(stripped, fmt).date()
+        except ValueError:
+            continue
+        return (date.today() - parsed).days > _STALE_DATE_DAYS
+    return False
 
 
 # Regex og:* extraction — avoids pulling an extra HTML parser dep
@@ -284,13 +312,14 @@ async def crawl() -> list[NewsItem]:
                 snippet = (hit.get("snippet") or "").strip()
                 if not title:
                     continue
-                # Freshness gate — Serper /news returns some results
-                # whose date reads "2 months ago" / "1 year ago". Those
-                # are old product pages Google re-indexed, not news.
-                # Skip anything with month/year granularity in the
-                # date string; relative day/week/hour strings pass.
+                # Freshness gate — Serper /news occasionally returns
+                # old product pages that Google re-crawled. Skip
+                # relative dates >= 1 month ago AND absolute dates
+                # older than _STALE_DATE_DAYS. Unknown date formats
+                # fall through (better a legit article than an old
+                # ETB false-negative).
                 date_str = (hit.get("date") or "").strip()
-                if date_str and _STALE_DATE_RE.search(date_str):
+                if _is_stale_date(date_str):
                     log.info(
                         "web_search: skip stale %r (date=%r)",
                         title[:80], date_str,
