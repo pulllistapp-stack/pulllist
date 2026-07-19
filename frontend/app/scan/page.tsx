@@ -37,12 +37,12 @@ import {
 type Mode = "camera" | "confirm";
 
 // Match threshold — hamming distance between a camera frame's pHash
-// and a catalog hash. Backend uses 5 for cache lookups on very-similar
-// re-scans of the SAME photo; camera-vs-render is noisier and even
-// with card-aspect cropping we see ~10-20 bit drift, so we allow up
-// to 22. Tune down if we get false positives, up if legit matches
-// keep sliding past the threshold.
-const BULK_MATCH_THRESHOLD = 22;
+// and a catalog hash. Backend uses 5 for cache lookups on identical
+// re-scans; camera-vs-render is noisier (lighting / YUV / lens blur
+// each contribute a few bits). Set to 26 — anything under produces a
+// detection banner, anything above only surfaces as the diagnostic
+// "closest" line so LO can see how far real matches are landing.
+const BULK_MATCH_THRESHOLD = 26;
 
 // After the user adds or skips a card, don't re-detect the same
 // card_id for this many ms. Prevents an instant re-fire when the user
@@ -128,6 +128,13 @@ export default function ScanPage() {
   const [bulkDetected, setBulkDetected] = useState<BulkDetected | null>(null);
   const [bulkList, setBulkList] = useState<BulkListItem[]>([]);
   const [bulkAdding, setBulkAdding] = useState(false);
+  // Diagnostic — the top-1 nearest catalog match every tick, whether
+  // or not it clears BULK_MATCH_THRESHOLD. Lets us see what real
+  // camera-vs-render distances look like so we can tune.
+  const [bulkClosest, setBulkClosest] = useState<{
+    cardId: string;
+    distance: number;
+  } | null>(null);
   // card_id → epoch ms until which we should ignore this card. Kept in
   // a ref so tick closure sees the latest without re-arming the
   // interval effect on every add / skip.
@@ -325,7 +332,11 @@ export default function ScanPage() {
       const hash = computePhash(frame);
       if (!hash) return;
       const match = findNearest(hash, catalog);
-      if (!match || match.distance > BULK_MATCH_THRESHOLD) return;
+      if (!match) return;
+      // Always publish the closest match for the diagnostic line —
+      // gives LO immediate insight into what distances are typical.
+      setBulkClosest({ cardId: match.cardId, distance: match.distance });
+      if (match.distance > BULK_MATCH_THRESHOLD) return;
       const skipUntil = skipUntilRef.current.get(match.cardId);
       if (skipUntil && skipUntil > Date.now()) return;
       // Fetch card details so the detection banner has name / price /
@@ -462,6 +473,7 @@ export default function ScanPage() {
       bulkCatalogError={catalogError}
       bulkCatalogCoverage={catalogCoverage}
       bulkDetected={bulkDetected}
+      bulkClosest={bulkClosest}
       bulkList={bulkList}
       bulkAdding={bulkAdding}
       onBulkAdd={onBulkAdd}

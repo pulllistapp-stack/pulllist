@@ -47,6 +47,7 @@ type Props = {
   bulkCatalogError: string | null;
   bulkCatalogCoverage: number | null;
   bulkDetected: BulkDetected | null;
+  bulkClosest: { cardId: string; distance: number } | null;
   bulkList: BulkListItem[];
   bulkAdding: boolean;
   onBulkAdd: () => void;
@@ -85,6 +86,7 @@ export function ScanCamera({
   bulkCatalogError,
   bulkCatalogCoverage,
   bulkDetected,
+  bulkClosest,
   bulkList,
   bulkAdding,
   onBulkAdd,
@@ -242,6 +244,7 @@ export function ScanCamera({
             catalogError={bulkCatalogError}
             catalogCoverage={bulkCatalogCoverage}
             detected={bulkDetected}
+            closest={bulkClosest}
             list={bulkList}
             adding={bulkAdding}
             onAdd={onBulkAdd}

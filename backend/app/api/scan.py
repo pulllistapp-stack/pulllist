@@ -359,6 +359,15 @@ class PhashCatalogResponse(BaseModel):
     hashes: list[str]
 
 
+# A pHash that repeats across many cards almost always signals a
+# placeholder image (e.g. the Japanese card-back Bulbapedia URL
+# 146 cards share) rather than genuine art overlap. Serving those
+# to clients pulls "closest match" queries toward random cards for
+# any low-content camera frame (empty hand, dark background). Drop
+# any hash appearing more than this many times from the catalog.
+DEGENERATE_CLUSTER_THRESHOLD = 10
+
+
 @bulk_router.get("/phash-catalog", response_model=PhashCatalogResponse)
 async def get_phash_catalog(
     db: AsyncSession = Depends(get_db),
@@ -374,6 +383,7 @@ async def get_phash_catalog(
     aggressive TTL is fine. Clients can bust via a URL query param when
     they know a resync landed.
     """
+    from collections import Counter
     from datetime import datetime, timezone
 
     rows = (
@@ -382,9 +392,16 @@ async def get_phash_catalog(
         )
     ).all()
 
+    # First pass — count hash frequencies. Any hash beyond
+    # DEGENERATE_CLUSTER_THRESHOLD is a shared placeholder and must
+    # not be a valid match target.
+    counts: Counter[str] = Counter(phash for _, phash in rows)
+
     ids: list[str] = []
     hashes: list[str] = []
     for card_id, phash in rows:
+        if counts[phash] > DEGENERATE_CLUSTER_THRESHOLD:
+            continue
         ids.append(card_id)
         hashes.append(phash)
 

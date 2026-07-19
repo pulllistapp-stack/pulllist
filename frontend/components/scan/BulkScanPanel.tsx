@@ -39,6 +39,7 @@ type Props = {
   catalogError: string | null;
   catalogCoverage: number | null;
   detected: BulkDetected | null;
+  closest: { cardId: string; distance: number } | null;
   list: BulkListItem[];
   adding: boolean;
   onAdd: () => void;
@@ -58,6 +59,7 @@ export function BulkScanPanel({
   catalogError,
   catalogCoverage,
   detected,
+  closest,
   list,
   adding,
   onAdd,
@@ -179,13 +181,16 @@ export function BulkScanPanel({
         </motion.div>
       )}
 
-      {/* Idle "waiting for card" hint — shows when no detection and no
-          catalog issue. Small, unobtrusive. */}
+      {/* Idle "waiting for card" hint + diagnostic. When there's a
+          closest match but it's above threshold, we still show it so
+          the accuracy problem is visible instead of silent. */}
       {!detected && !catalogLoading && !catalogError && (
         <div className="rounded-full bg-white/90 border border-[#FDE2C7] px-4 py-2 flex items-center justify-center gap-2 shadow-sm">
           <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse" />
           <span className="text-xs font-semibold text-[#8A7E72]">
-            Auto-scan running — hold a card in the frame
+            {closest
+              ? `Closest: ${closest.cardId} · dist ${closest.distance} (need ≤26)`
+              : "Auto-scan running — hold a card in the frame"}
           </span>
         </div>
       )}
