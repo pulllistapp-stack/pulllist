@@ -32,7 +32,9 @@ import { PriceBadge } from "@/components/PriceBadge";
 import { VariantChip } from "@/components/VariantChip";
 import {
   downloadCollectionCsv,
+  listSealedCollection,
   listSets,
+  type SealedCollectionEntry,
   type SetWithCardCount,
 } from "@/lib/api";
 import {
@@ -58,6 +60,7 @@ export default function PortfolioPage() {
   const [summary, setSummary] = useState<CollectionSummary | null>(null);
   const [items, setItems] = useState<CollectionItemDetail[]>([]);
   const [sets, setSets] = useState<SetWithCardCount[]>([]);
+  const [sealedItems, setSealedItems] = useState<SealedCollectionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [shareOpen, setShareOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -184,15 +187,26 @@ export default function PortfolioPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [s, list, allSets] = await Promise.all([
+        const [s, list, allSets, sealed] = await Promise.all([
           collectionSummary(),
           listMyItems(),
           listSets({ token: getToken() ?? undefined }),
+          // Sealed collection fetched alongside so the Top-5 sealed
+          // preview panel next to Top-5 cards doesn't need a second
+          // render pass. Failure is non-fatal — an empty array just
+          // renders the "no sealed products" placeholder.
+          listSealedCollection().catch(() => ({
+            items: [],
+            total_owned: 0,
+            unique_products: 0,
+            estimated_value_usd: 0,
+          })),
         ]);
         if (cancelled) return;
         setSummary(s);
         setItems(list);
         setSets(allSets);
+        setSealedItems(sealed.items);
       } catch {
         // non-fatal
       } finally {
@@ -447,77 +461,163 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* Big vault preview — top owned cards (highest value first) */}
-        <div className="rounded-card bg-bg-surface border border-border p-5">
-          <div className="flex items-baseline justify-between mb-4">
-            <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary">
-              Top 10 cards by value
-            </h2>
-            <span className="text-xs font-mono text-text-tertiary">
-              {Math.min(items.length, 10)} of {items.length}
-            </span>
+        {/* Big vault preview — split 50/50 between top cards and top
+            sealed products so both halves of the collection get equal
+            real estate. Stacks to full width on narrow viewports. */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {/* Top 5 cards */}
+          <div className="rounded-card bg-bg-surface border border-border p-5">
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary">
+                Top 5 cards by value
+              </h2>
+              <span className="text-xs font-mono text-text-tertiary">
+                {Math.min(items.length, 5)} of {items.length}
+              </span>
+            </div>
+            {loading ? (
+              <MascotLoader size="md" className="py-6" />
+            ) : items.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm text-text-secondary mb-3">
+                  Your vault is empty. Tap{" "}
+                  <span className="text-accent-green">+ I have this</span> on any card to start.
+                </p>
+                <Link
+                  href="/sets"
+                  className="inline-block rounded-full bg-accent-yellow px-4 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
+                >
+                  Browse sets
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {[...items]
+                  .sort(
+                    (a, b) =>
+                      (b.market_price_usd ?? 0) - (a.market_price_usd ?? 0),
+                  )
+                  .slice(0, 5)
+                  .map((it, i) => (
+                    <Link
+                      key={it.id}
+                      href={`/cards/${it.card_id}`}
+                      className="group block"
+                    >
+                      <div className="relative aspect-[245/342] overflow-hidden rounded-md bg-bg border border-border group-hover:border-accent-yellow/40">
+                        <span className="absolute top-1 left-1 z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900/80 dark:bg-zinc-900/80 px-1.5 text-[10px] font-bold text-white backdrop-blur">
+                          #{i + 1}
+                        </span>
+                        {it.image_small && (
+                          <Image
+                            src={it.image_small}
+                            alt={it.card_name}
+                            fill
+                            sizes="120px"
+                            className="object-contain group-hover:scale-[1.03] transition-transform"
+                            unoptimized
+                          />
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between text-xs">
+                        <span className="font-mono text-text-tertiary truncate">
+                          {it.card_number ? `№${it.card_number}` : "—"}
+                        </span>
+                        <span className="font-mono font-bold text-accent-yellow">
+                          {it.market_price_usd != null
+                            ? `$${it.market_price_usd.toFixed(2)}`
+                            : "—"}
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+              </div>
+            )}
           </div>
 
-          {loading ? (
-            <MascotLoader size="md" className="py-6" />
-          ) : items.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-sm text-text-secondary mb-3">
-                Your vault is empty. Tap{" "}
-                <span className="text-accent-green">+ I have this</span> on any card to start.
-              </p>
-              <Link
-                href="/sets"
-                className="inline-block rounded-full bg-accent-yellow px-4 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
-              >
-                Browse sets
-              </Link>
+          {/* Top 5 sealed products — same shape as the cards column but
+              per-owned-copy value so a 2× box counts as 2× value here. */}
+          <div className="rounded-card bg-bg-surface border border-border p-5">
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary">
+                Top 5 sealed by value
+              </h2>
+              <span className="text-xs font-mono text-text-tertiary">
+                {Math.min(sealedItems.length, 5)} of {sealedItems.length}
+              </span>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {[...items]
-                .sort(
-                  (a, b) =>
-                    (b.market_price_usd ?? 0) - (a.market_price_usd ?? 0),
-                )
-                .slice(0, 10)
-                .map((it, i) => (
-                  <Link
-                    key={it.id}
-                    href={`/cards/${it.card_id}`}
-                    className="group block"
-                  >
-                    <div className="relative aspect-[245/342] overflow-hidden rounded-md bg-bg border border-border group-hover:border-accent-yellow/40">
-                      {/* Rank badge — makes the "Top 10" ordering explicit
-                          so the row is read as a leaderboard, not a sample. */}
-                      <span className="absolute top-1 left-1 z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900/80 dark:bg-zinc-900/80 px-1.5 text-[10px] font-bold text-white backdrop-blur">
-                        #{i + 1}
-                      </span>
-                      {it.image_small && (
-                        <Image
-                          src={it.image_small}
-                          alt={it.card_name}
-                          fill
-                          sizes="120px"
-                          className="object-contain group-hover:scale-[1.03] transition-transform"
-                          unoptimized
-                        />
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between text-xs">
-                      <span className="font-mono text-text-tertiary truncate">
-                        {it.card_number ? `№${it.card_number}` : "—"}
-                      </span>
-                      <span className="font-mono font-bold text-accent-yellow">
-                        {it.market_price_usd != null
-                          ? `$${it.market_price_usd.toFixed(2)}`
-                          : "—"}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-            </div>
-          )}
+            {loading ? (
+              <MascotLoader size="md" className="py-6" />
+            ) : sealedItems.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm text-text-secondary mb-3">
+                  No sealed products in your collection yet.
+                </p>
+                <Link
+                  href="/products"
+                  className="inline-block rounded-full bg-accent-yellow px-4 py-2 text-sm font-semibold text-gray-900 hover:brightness-110"
+                >
+                  Browse sealed
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {[...sealedItems]
+                  .map((entry) => ({
+                    entry,
+                    lineValue:
+                      (entry.product.market_price_usd ?? 0) *
+                      (entry.item.qty ?? 1),
+                  }))
+                  .sort((a, b) => b.lineValue - a.lineValue)
+                  .slice(0, 5)
+                  .map(({ entry, lineValue }, i) => (
+                    <Link
+                      key={entry.product.id}
+                      href={`/products/${entry.product.id}`}
+                      className="group block"
+                    >
+                      <div className="relative aspect-[245/342] overflow-hidden rounded-md bg-bg border border-border group-hover:border-accent-yellow/40 flex items-center justify-center p-2">
+                        <span className="absolute top-1 left-1 z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-900/80 dark:bg-zinc-900/80 px-1.5 text-[10px] font-bold text-white backdrop-blur">
+                          #{i + 1}
+                        </span>
+                        {entry.item.qty > 1 && (
+                          <span className="absolute top-1 right-1 z-10 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-accent-yellow text-gray-900 text-[10px] font-bold font-mono">
+                            ×{entry.item.qty}
+                          </span>
+                        )}
+                        {entry.product.image_url && (
+                          <Image
+                            src={entry.product.image_url}
+                            alt={entry.product.name}
+                            fill
+                            sizes="120px"
+                            className="object-contain group-hover:scale-[1.03] transition-transform"
+                            unoptimized
+                          />
+                        )}
+                      </div>
+                      <div className="mt-1.5 text-xs">
+                        <div
+                          className="font-medium text-text-primary truncate"
+                          title={entry.product.name}
+                        >
+                          {entry.product.name}
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <span className="font-mono text-text-tertiary uppercase tracking-wider text-[10px]">
+                            {entry.product.product_type.replace(/_/g, " ")}
+                          </span>
+                          <span className="font-mono font-bold text-accent-yellow">
+                            ${lineValue.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
