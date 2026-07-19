@@ -75,7 +75,8 @@ export function ScanCamera({
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#FFF8E7] text-[#2D2A26] flex flex-col max-w-md mx-auto relative overflow-hidden border-x border-[#FDE2C7]">
+    <div className="fixed inset-0 flex justify-center bg-[#FFF8E7] overflow-hidden">
+      <div className="relative flex h-full w-full max-w-md flex-col overflow-hidden border-x border-[#FDE2C7] bg-[#FFF8E7] text-[#2D2A26]">
       {/* Header */}
       <header className="p-5 pt-[calc(1.25rem_+_env(safe-area-inset-top))] flex items-center justify-between relative z-10">
         <button
@@ -123,7 +124,7 @@ export function ScanCamera({
       </header>
 
       {/* Viewfinder */}
-      <main className="flex-1 px-5 flex flex-col items-center justify-start gap-5 relative z-10">
+      <main className="flex-1 min-h-0 px-5 flex flex-col items-center justify-start gap-5 relative z-10 overflow-y-auto overscroll-contain">
         <div className="relative w-full aspect-[3/4] bg-[#2D2A26]/5 rounded-[2rem] overflow-hidden border-4 border-white shadow-inner">
           {/* Live video stream */}
           <video
@@ -281,6 +282,7 @@ export function ScanCamera({
           <RotateCw className="w-6 h-6" />
         </button>
       </footer>
+      </div>
     </div>
   );
 }

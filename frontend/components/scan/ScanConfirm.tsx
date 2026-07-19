@@ -102,7 +102,8 @@ export function ScanConfirm({
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#FFF8E7] text-[#2D2A26] flex flex-col max-w-md mx-auto relative overflow-hidden border-x border-[#FDE2C7]">
+    <div className="fixed inset-0 flex justify-center bg-[#FFF8E7] overflow-hidden">
+      <div className="relative flex h-full w-full max-w-md flex-col overflow-hidden border-x border-[#FDE2C7] bg-[#FFF8E7] text-[#2D2A26]">
       {/* Header */}
       <header className="p-5 pt-[calc(1.25rem_+_env(safe-area-inset-top))] flex items-center justify-between relative z-10">
         <button
@@ -119,7 +120,7 @@ export function ScanConfirm({
         <div className="w-10" />
       </header>
 
-      <main className="flex-1 px-5 pb-3 flex flex-col gap-4 relative z-10 overflow-y-auto">
+      <main className="flex-1 min-h-0 px-5 pb-3 flex flex-col gap-4 relative z-10 overflow-y-auto overscroll-contain">
         {/* Side-by-side comparison */}
         <div className="flex items-center justify-center gap-3 py-1">
           <div className="flex flex-col items-center gap-1.5">
@@ -420,6 +421,7 @@ export function ScanConfirm({
           </div>
         </motion.div>
       )}
+      </div>
     </div>
   );
 }
