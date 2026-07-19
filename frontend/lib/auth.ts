@@ -750,12 +750,14 @@ export async function scanCard(
   imageData: string,
   mediaType = "image/jpeg",
   provider: VisionProvider = "claude",
+  signal?: AbortSignal,
 ): Promise<ScanResponse> {
   const path =
     provider === "gemini" ? "/cards/scan-gemini" : "/cards/scan";
   return authFetch<ScanResponse>(path, {
     method: "POST",
     body: JSON.stringify({ image_data: imageData, media_type: mediaType }),
+    signal,
   });
 }
 

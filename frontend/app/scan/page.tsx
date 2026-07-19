@@ -56,6 +56,13 @@ const BULK_STABILITY_TICKS = 1;
 // stays above the stability threshold.
 const BULK_MAX_WAIT_MS = 6000;
 
+// Abort a bulk vision call after this many ms. Gemini normally
+// answers in 2-3 s; anything past 20 s is a Render cold start, a
+// network stall, or a truly stuck request. We reset and let the
+// next tick try again rather than sitting on "Reading card…"
+// forever.
+const BULK_SCAN_TIMEOUT_MS = 20000;
+
 // Provider used for bulk detection. Gemini is ~30x cheaper than
 // Claude at similar accuracy — ~$0.0001 per scan, so a 100-card
 // bulk session is roughly a cent.
@@ -138,7 +145,11 @@ export default function ScanPage() {
   const [bulkList, setBulkList] = useState<BulkListItem[]>([]);
   const [bulkAdding, setBulkAdding] = useState(false);
   const [bulkIdentifying, setBulkIdentifying] = useState(false);
+  const [bulkIdentifyStartedAt, setBulkIdentifyStartedAt] = useState<
+    number | null
+  >(null);
   const [bulkScanCount, setBulkScanCount] = useState(0);
+  const [bulkLastError, setBulkLastError] = useState<string | null>(null);
   // Diagnostic — most recent frame-to-frame drift + running stable
   // count. Surfaced in the panel so LO can see whether stability
   // actually triggers on his phone or whether the threshold needs
@@ -400,8 +411,24 @@ export default function ScanPage() {
 
       inFlight = true;
       setBulkIdentifying(true);
+      setBulkIdentifyStartedAt(Date.now());
+      setBulkLastError(null);
+      // Fetch-level timeout so a hung Gemini call doesn't wedge the
+      // whole capture loop. Render cold start can take ~50 s, but by
+      // the time bulk runs the backend is already warm from the
+      // catalog fetch, so 20 s is a comfortable upper bound.
+      const abortCtl = new AbortController();
+      const timeoutId = window.setTimeout(
+        () => abortCtl.abort(new Error("scan timeout")),
+        BULK_SCAN_TIMEOUT_MS,
+      );
       try {
-        const resp = await scanCard(b64, "image/jpeg", BULK_VISION_PROVIDER);
+        const resp = await scanCard(
+          b64,
+          "image/jpeg",
+          BULK_VISION_PROVIDER,
+          abortCtl.signal,
+        );
         if (cancelled) return;
         setBulkScanCount((n) => n + 1);
         const pick = resp.candidates[0] ?? null;
@@ -425,10 +452,18 @@ export default function ScanPage() {
         });
       } catch (e) {
         console.error("[bulk] vision call failed", e);
+        const msg = e instanceof Error ? e.message : String(e);
+        setBulkLastError(msg);
         stableTicksRef.current = 0;
+        // On a timeout, hold the loop start point as "now" so the
+        // 6 s safety-net fallback doesn't immediately re-fire against
+        // whatever caused the hang.
+        loopStartRef.current = performance.now();
       } finally {
+        window.clearTimeout(timeoutId);
         inFlight = false;
         setBulkIdentifying(false);
+        setBulkIdentifyStartedAt(null);
       }
     };
 
@@ -564,6 +599,8 @@ export default function ScanPage() {
       bulkDrift={bulkDiag.drift}
       bulkStableTicks={bulkDiag.stableTicks}
       bulkTickCount={bulkDiag.tickCount}
+      bulkIdentifyStartedAt={bulkIdentifyStartedAt}
+      bulkLastError={bulkLastError}
       bulkList={bulkList}
       bulkAdding={bulkAdding}
       onBulkAdd={onBulkAdd}

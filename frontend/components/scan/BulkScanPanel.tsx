@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { Check, Loader2, Plus, X } from "lucide-react";
+import { AlertCircle, Check, Loader2, Plus, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,8 @@ type Props = {
   drift: number | null;
   stableTicks: number;
   tickCount: number;
+  identifyStartedAt: number | null;
+  lastError: string | null;
   list: BulkListItem[];
   adding: boolean;
   onAdd: () => void;
@@ -62,6 +65,8 @@ export function BulkScanPanel({
   drift,
   stableTicks,
   tickCount,
+  identifyStartedAt,
+  lastError,
   list,
   adding,
   onAdd,
@@ -70,6 +75,19 @@ export function BulkScanPanel({
   onForceScan,
 }: Props) {
   const total = list.reduce((s, it) => s + (it.priceUsd ?? 0), 0);
+  // Live elapsed-time display while a vision call is in flight. Ticks
+  // every 500 ms so the "Reading card… 3s" hint doesn't feel frozen
+  // if Gemini or Render happens to be slow.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (identifyStartedAt == null) return;
+    const t = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [identifyStartedAt]);
+  const identifyElapsed =
+    identifyStartedAt == null
+      ? null
+      : Math.max(0, Math.round((nowMs - identifyStartedAt) / 1000));
 
   return (
     <div className="w-full flex flex-col gap-3">
@@ -153,7 +171,12 @@ export function BulkScanPanel({
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FACC15] shrink-0" />
                   <span className="text-xs font-semibold text-[#2D2A26]">
-                    Reading card…
+                    Reading card…{" "}
+                    {identifyElapsed != null && identifyElapsed > 0 && (
+                      <span className="text-[#8A7E72] font-mono">
+                        {identifyElapsed}s
+                      </span>
+                    )}
                   </span>
                 </>
               ) : (
@@ -171,6 +194,12 @@ export function BulkScanPanel({
               </span>
             )}
           </div>
+          {lastError && !identifying && (
+            <div className="mt-1.5 flex items-start gap-2 pl-4 text-[10px] text-red-600">
+              <AlertCircle className="h-3 w-3 mt-px shrink-0" />
+              <span className="font-mono break-all">{lastError}</span>
+            </div>
+          )}
           <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
             <span className="text-[10px] font-mono text-[#B8A99A]">
               t{tickCount} · drift{" "}
