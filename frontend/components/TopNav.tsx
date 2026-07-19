@@ -98,7 +98,7 @@ export function TopNav() {
             Trending
           </Link>
           <Link href="/drops" className="hover:text-text-primary">
-            Drops
+            Calendar
           </Link>
           <Link href="/news" className="hover:text-text-primary">
             News
@@ -207,7 +207,7 @@ export function TopNav() {
             <MobileLink href="/cards">Browse cards</MobileLink>
             <MobileLink href="/products">Sealed products</MobileLink>
             <MobileLink href="/trending">Trending</MobileLink>
-            <MobileLink href="/drops">Drops</MobileLink>
+            <MobileLink href="/drops">Calendar</MobileLink>
             <MobileLink href="/news">News</MobileLink>
             <MobileLink href="/pricing">Pricing</MobileLink>
 
