@@ -56,8 +56,8 @@ core platform stabilizes.
 - Site-wide footer (text wordmark), 4-card Contact page, Privacy/Terms/About
 
 ### 3.2 Catalog & data
-- **31,000+ cards** (EN 20,668 + JA 10,970)
-- **340+ sets** (EN 173 + JA 171 — including all JP promo eras JPP-XY/SwSh/SM/SV/S)
+- **43,000+ cards** (EN 21,250 + JA 21,837)
+- **500+ sets** (EN 187 + JA 316 — including all JP promo eras JPP-XY/SwSh/SM/SV/S)
 - Card detail page: hero with 3D-tilt sparkle hover, price chart, secondary prices, live listings, breadcrumb, neighbors, per-variant tabs
 - Card image magnifier loupe (hover, portal-mounted to escape transform contexts)
 - Set detail page: hero with logo, completion progress, set-scoped filter chips, card grid
@@ -160,7 +160,7 @@ core platform stabilizes.
 - Latest sets section
 - Feature pillars (Catalog / Live prices / History)
 - Final CTA with mascot sparkles
-- Stats reflect actual catalog: **31,000+ cards** / **340+ sets** / **Daily price snapshots**
+- Stats reflect actual catalog: **43,000+ cards** / **500+ sets** / **Daily price snapshots**
 - Pill banner: "EN · JP · KR catalogs"
 
 ### 3.10 Mascot loaders
@@ -235,7 +235,7 @@ core platform stabilizes.
 
 ```
 PullList Free  $0 forever
-  Catalog (31,000+ cards) · Collection tracker · Wishlist
+  Catalog (43,000+ cards) · Collection tracker · Wishlist
   Portfolio + growth chart · Trending · Price history (7d/30d/90d/1y)
   Cross-language search · Card scanning (5/day — limit not enforced yet)
   Public portfolio sharing
