@@ -82,16 +82,27 @@ export function PullListCardDetail({
   ebaySpark7d,
   tcgSpark7d,
 }: Props) {
-  // Derive cheapest from available price data (used by the sticky mobile CTA).
-  const cheapest: { price: number; source: "TCGplayer" | "eBay"; url: string } | null = useMemo(() => {
-    const candidates: { price: number; source: "TCGplayer" | "eBay"; url: string }[] = [];
+  // Buy CTAs — the sticky mobile bar now shows TCGplayer + eBay
+  // side-by-side (half each) so the user can jump to whichever
+  // marketplace they prefer without us picking for them. Each side is
+  // shown only when we have a real price signal for it.
+  const buyLinks: {
+    tcg: { price: number; url: string } | null;
+    ebay: { price: number; url: string } | null;
+  } = useMemo(() => {
+    let tcgLow: number | null = null;
     if (card.tcgplayer_prices) {
       for (const variant of Object.values(card.tcgplayer_prices)) {
         const low = variant?.low;
         if (typeof low === "number" && low > 0) {
-          candidates.push({
-            price: low,
-            source: "TCGplayer",
+          if (tcgLow == null || low < tcgLow) tcgLow = low;
+        }
+      }
+    }
+    const tcg =
+      tcgLow != null
+        ? {
+            price: tcgLow,
             url: wrapTcgPlayerUrl(
               bestTcgPlayerUrl({
                 productId: card.tcgplayer_product_id,
@@ -99,30 +110,24 @@ export function PullListCardDetail({
                 cardNumber: card.number,
               }),
             ),
-          });
-        }
-      }
-    }
-    if (initialEbayMedian != null && initialEbayMedian > 0) {
-      const q = [
-        "pokemon",
-        card.name,
-        card.number,
-        card.set_name,
-      ]
-        .filter(Boolean)
-        .join(" ");
-      candidates.push({
-        price: initialEbayMedian,
-        source: "eBay",
-        url: wrapEbayUrl(
-          `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}&LH_BIN=1`,
-        ),
-      });
-    }
-    if (!candidates.length) return null;
-    return candidates.sort((a, b) => a.price - b.price)[0];
+          }
+        : null;
+    const ebay =
+      initialEbayMedian != null && initialEbayMedian > 0
+        ? {
+            price: initialEbayMedian,
+            url: wrapEbayUrl(
+              `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(
+                ["pokemon", card.name, card.number, card.set_name]
+                  .filter(Boolean)
+                  .join(" "),
+              )}&LH_BIN=1`,
+            ),
+          }
+        : null;
+    return { tcg, ebay };
   }, [card, initialEbayMedian]);
+  const hasAnyBuyLink = !!(buyLinks.tcg || buyLinks.ebay);
 
   // Which TCGplayer print variants does this card actually have data
   // for? Modern SV commons usually ship {normal, reverseHolofoil};
@@ -415,7 +420,7 @@ export function PullListCardDetail({
         )}
 
         {/* Empty state mascot if we have very little data */}
-        {!cheapest && (
+        {!hasAnyBuyLink && (
           <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-10 text-center dark:border-[#2D3543] dark:bg-[#1A1F29]/50">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-400/15">
               <Search className="h-7 w-7 text-teal-600 dark:text-teal-400" />
@@ -465,27 +470,44 @@ export function PullListCardDetail({
         )}
       </div>
 
-      {/* Sticky mobile CTA */}
-      {cheapest && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden dark:border-[#2D3543] dark:bg-[#0F1419]/95">
-          <div className="mx-auto flex max-w-6xl items-center gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                Cheapest
-              </p>
-              <p className="font-mono text-lg font-extrabold text-amber-500 dark:text-amber-400">
-                {fmtUSD(cheapest.price)}
-              </p>
-            </div>
-            <a
-              href={cheapest.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-auto inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-amber-400 px-4 py-3 text-sm font-bold text-amber-950 hover:bg-amber-300"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              Buy on {cheapest.source}
-            </a>
+      {/* Sticky mobile CTA — split TCGplayer / eBay so the user picks
+          the marketplace, not us. Safe-area padding on the bottom so
+          the buttons clear the iPhone home indicator. */}
+      {hasAnyBuyLink && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 px-3 pt-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] backdrop-blur lg:hidden dark:border-[#2D3543] dark:bg-[#0F1419]/95">
+          <div className="mx-auto flex max-w-6xl items-stretch gap-2">
+            {buyLinks.tcg && (
+              <a
+                href={buyLinks.tcg.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 rounded-2xl bg-amber-400 px-3 py-2.5 text-amber-950 hover:bg-amber-300"
+              >
+                <span className="inline-flex items-center gap-1.5 text-sm font-black">
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  TCGplayer
+                </span>
+                <span className="font-mono text-xs font-bold">
+                  {fmtUSD(buyLinks.tcg.price)}
+                </span>
+              </a>
+            )}
+            {buyLinks.ebay && (
+              <a
+                href={buyLinks.ebay.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 inline-flex flex-col items-center justify-center gap-0.5 rounded-2xl border border-teal-500/60 bg-teal-500/10 px-3 py-2.5 text-teal-700 hover:bg-teal-500/20 dark:text-teal-300"
+              >
+                <span className="inline-flex items-center gap-1.5 text-sm font-black">
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  eBay
+                </span>
+                <span className="font-mono text-xs font-bold">
+                  {fmtUSD(buyLinks.ebay.price)}
+                </span>
+              </a>
+            )}
           </div>
         </div>
       )}

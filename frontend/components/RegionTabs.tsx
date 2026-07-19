@@ -35,7 +35,7 @@ export function RegionTabs({ active, hrefBase }: Props) {
     <div
       role="tablist"
       aria-label="Catalog region"
-      className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-surface p-1"
+      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-bg-surface p-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {REGIONS.map((r) => {
         const isActive = r.code === active;
@@ -48,7 +48,7 @@ export function RegionTabs({ active, hrefBase }: Props) {
             aria-selected={isActive}
             title={r.comingSoon}
             className={[
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors",
               isActive
                 ? "bg-accent-yellow text-gray-900 shadow-sm"
                 : "text-text-secondary hover:text-text-primary",

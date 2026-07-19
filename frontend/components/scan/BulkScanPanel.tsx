@@ -172,7 +172,7 @@ export function BulkScanPanel({
           <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
             <span className="text-[10px] font-mono text-[#B8A99A]">
               drift{" "}
-              {drift == null ? "—" : `${drift}/14`} · steady {stableTicks}/2
+              {drift == null ? "—" : `${drift}/28`} · steady {stableTicks}/1
             </span>
             <button
               type="button"

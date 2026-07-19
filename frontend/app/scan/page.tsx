@@ -42,16 +42,17 @@ const BULK_SKIP_TTL_MS = 6000;
 const BULK_TICK_MS = 500;
 
 // Two consecutive frames must be within this hamming distance to
-// count as "stable" — the user has stopped moving the card enough
-// that firing an identifying call is worthwhile. Real cameras drift
-// more than expected between frames even at rest (autofocus micro-
-// jitter, exposure adjustments), so we tolerate up to 14 bits of
-// difference before deciding the frame is still moving.
-const BULK_STABILITY_HAMMING = 14;
+// count as "stable". Even a held-still iPhone drifts ~18-25 bits
+// between frames because of autofocus + auto-exposure micro-
+// adjustments, so we allow up to 28 bits — anything below means
+// the user is actually holding the card, not swiping past.
+const BULK_STABILITY_HAMMING = 28;
 
 // Number of consecutive stable ticks before we fire the vision call.
-// 2 ticks × 500 ms = ~1 s of holding still.
-const BULK_STABILITY_TICKS = 2;
+// 1 tick × 500 ms = fire as soon as any stability is detected.
+// Gemini is cheap ($0.0001/call), and the same-card cooldown stops
+// duplicate charges — so bias toward firing early.
+const BULK_STABILITY_TICKS = 1;
 
 // Provider used for bulk detection. Gemini is ~30x cheaper than
 // Claude at similar accuracy — ~$0.0001 per scan, so a 100-card
