@@ -76,6 +76,31 @@ def _strip_tcgdex_prefix(set_id: str) -> str:
     return set_id
 
 
+# Manual set-id -> collectory UUID mappings for known-empty TCGdex-side
+# KR sets that don't carry a set_code_ja / name that any of our fuzzy
+# matchers can reach. Hand-verified against the collectory API; ids
+# stable enough that hardcoding is safe.
+_MANUAL_MATCH: dict[str, str] = {
+    # ko-<tcgdex_id>: collectory_uuid
+    "ko-SM8b": "1758a1f2-dca4-4956-8e8e-49468c486163",   # GX 울트라샤이니 (250 cards)
+    "ko-SM11a": "00151953-d94d-4141-9273-a9d4d74555d8",  # 리믹스바우트 (78)
+    "ko-S8a":  "1331f663-aaa7-4a73-b371-4193edad37bf",   # 25주년 기념 컬렉션 (31)
+    "ko-S11":  "0e7c338d-f57b-4192-9eb8-0ad39310ed14",   # 로스트어비스 (127)
+    "ko-SV1a": "c4bd1ec1-4c8d-473f-893a-3a2e47d51b24",   # 트리플렛비트 (102)
+}
+
+
+# collectory-uuid prefix for auto-created KR sets. Using a short
+# `ko-c-` scheme keeps the id short and clearly distinct from our
+# tcgdex-derived `ko-{TCGDEX_ID}` rows. Hash the full collectory id
+# (SHA-1 first 10 hex) so ids like `cn-tcg-11768` / `cn-tcg-11817`
+# (which share the first 8 characters) don't collide.
+def _ko_id_from_collectory(coll_id: str) -> str:
+    import hashlib
+    h = hashlib.sha1(coll_id.encode("utf-8")).hexdigest()[:10]
+    return f"ko-c-{h}"
+
+
 def _norm_name(s: str | None) -> str:
     """Lowercase + strip whitespace/punct for fuzzy name compare."""
     if not s:
@@ -195,30 +220,96 @@ def _match_collectory_set(
 
 def _pick_best_matches(
     coll_sets: list[dict], ko_index: dict[str, tuple[str, str]]
-) -> dict[str, dict]:
+) -> tuple[dict[str, dict], list[dict]]:
     """Winner-take-all: for each of our ko-* set ids, pick exactly one
     collectory set (highest score; tie-break on card_count desc).
-    Returns {our_ko_set_id: collectory_set_dict}. This is the fix for
-    the mid-run PK collisions we saw when multiple collectory sets
-    ('151', '포켓몬 카드 151', '포켓몬 카드 151 (중판)') all
-    matched ko-SV2a and their cards fought for `ko-SV2a-001`."""
-    # First pass: for each collectory set, compute its (target, score)
-    all_matches: list[tuple[str, float, int, dict]] = []
+    Returns (matched, unmatched_with_cards) where matched is
+    {our_ko_set_id: collectory_set_dict} and unmatched_with_cards is
+    the list of collectory sets that had cards but no confident match
+    (caller may create new ko-c-<uuid8> rows for these under
+    --include-new-sets)."""
+    # Manual overrides take absolute priority — resolves TCGdex-side
+    # metadata gaps (empty cards[] arrays where collectory has the set
+    # under a different name/code).
+    by_coll_id = {cs.get("id"): cs for cs in coll_sets}
+    matched: dict[str, dict] = {}
+    used_coll_ids: set[str] = set()
+    for our_id, coll_id in _MANUAL_MATCH.items():
+        cs = by_coll_id.get(coll_id)
+        if cs is not None and (cs.get("card_count") or 0) > 0:
+            matched[our_id] = cs
+            used_coll_ids.add(coll_id)
+
+    # Auto matches for the rest.
+    all_auto: list[tuple[str, float, int, dict]] = []
     for cs in coll_sets:
         if (cs.get("card_count") or 0) == 0:
+            continue
+        if cs.get("id") in used_coll_ids:
             continue
         m = _match_collectory_set(cs, ko_index)
         if m is None:
             continue
         our_id, _our_name, score = m
-        all_matches.append((our_id, score, cs.get("card_count") or 0, cs))
-    # Group by our_id, keep best (score desc, card_count desc)
+        if our_id in matched:
+            # Manual override already claimed this target — leave it.
+            continue
+        all_auto.append((our_id, score, cs.get("card_count") or 0, cs))
     best_per: dict[str, tuple[float, int, dict]] = {}
-    for our_id, score, cc, cs in all_matches:
+    for our_id, score, cc, cs in all_auto:
         prev = best_per.get(our_id)
         if prev is None or (score, cc) > (prev[0], prev[1]):
             best_per[our_id] = (score, cc, cs)
-    return {our_id: cs for our_id, (_s, _cc, cs) in best_per.items()}
+    for our_id, (_s, _cc, cs) in best_per.items():
+        matched[our_id] = cs
+        used_coll_ids.add(cs.get("id"))
+
+    unmatched = [
+        cs for cs in coll_sets
+        if (cs.get("card_count") or 0) > 0
+        and cs.get("id") not in used_coll_ids
+    ]
+    return matched, unmatched
+
+
+# Series-name normalization for auto-created collectory sets. Our
+# frontend series chip filters on the exact `series` string, so we
+# want collectory's raw enum values to snap to what the JP catalog
+# already uses (users flipping between the JP and KR tabs on the
+# same series shouldn't see two different labels).
+_SERIES_MAP: dict[str, str] = {
+    "SV": "Scarlet & Violet",
+    "S":  "Sword & Shield",
+    "SM": "Sun & Moon",
+    "XY": "XY",
+    "BW": "Black & White",
+    "Black & White": "Black & White",
+    "MEGA": "Mega Evolution",
+    "OTHER": "Other",
+}
+
+
+async def _create_collectory_set(db, cs: dict) -> str:
+    """Insert a brand-new KR set row for a collectory set that has no
+    TCGdex counterpart in our DB (mostly pre-2016 KR releases: XY,
+    BW, S/SM early promos). Returns the new set_id. Idempotent — if
+    the derived id already exists, refresh its fields instead."""
+    new_id = _ko_id_from_collectory(cs["id"])
+    row = await db.get(Set, new_id)
+    if row is None:
+        row = Set(id=new_id, language="ko")
+        db.add(row)
+    row.name = cs.get("name_ko") or cs.get("name_en") or cs.get("name_ja") or new_id
+    row.name_local = cs.get("name_ko")
+    row.name_en = cs.get("name_en")
+    row.series = _SERIES_MAP.get(cs.get("series") or "", cs.get("series"))
+    row.printed_total = _coerce_int(cs.get("total_cards_ko"))
+    row.total = _coerce_int(cs.get("card_count"))
+    row.release_date = _parse_date(cs.get("release_date_ko"))
+    if cs.get("image_url"):
+        row.logo_url = cs["image_url"]
+    row.language = "ko"
+    return new_id
 
 
 async def _upsert_kr_card(
@@ -275,14 +366,16 @@ async def _upsert_kr_card(
     return (("updated" if changed else "unchanged"), card_id)
 
 
-async def run(only_set: str | None, dry_run: bool) -> None:
+async def run(only_set: str | None, dry_run: bool, include_new: bool) -> None:
     await init_db()
 
     stats = {
         "collectory_sets_seen": 0,
         "sets_matched_via_code": 0,
         "sets_matched_via_name": 0,
+        "sets_matched_via_manual": 0,
         "sets_unmatched": 0,
+        "new_sets_created": 0,
         "cards_seen": 0,
         "cards_added": 0,
         "cards_updated": 0,
@@ -308,18 +401,36 @@ async def run(only_set: str | None, dry_run: bool) -> None:
         # duplicate-key crashes we saw when several collectory reprints
         # of the same physical expansion all matched the same ko-*
         # set and their cards competed for the same primary keys.
-        best_matches = _pick_best_matches(coll_sets, ko_index)
+        best_matches, unmatched = _pick_best_matches(coll_sets, ko_index)
         log.info(f"unique ko-* -> collectory matches: {len(best_matches)}")
+        log.info(f"unmatched collectory sets with cards: {len(unmatched)}")
 
         # Track which match came from set_code_ja (score=1.0) vs fuzzy
         for our_id, cs in best_matches.items():
-            if (cs.get("set_code_ja") or "").strip() == _strip_tcgdex_prefix(our_id):
+            if our_id in _MANUAL_MATCH:
+                stats["sets_matched_via_manual"] += 1
+            elif (cs.get("set_code_ja") or "").strip() == _strip_tcgdex_prefix(our_id):
                 stats["sets_matched_via_code"] += 1
             else:
                 stats["sets_matched_via_name"] += 1
-        stats["sets_unmatched"] = stats["collectory_sets_seen"] - (
-            stats["sets_matched_via_code"] + stats["sets_matched_via_name"]
-        )
+        stats["sets_unmatched"] = len(unmatched)
+
+        # Optionally auto-create fresh ko-c-<uuid8> sets for collectory
+        # entries that have no TCGdex counterpart — mostly pre-2016 KR
+        # releases (XY / BW / early SM promos) that our TCGdex-driven
+        # ingest can't see. Each unmatched set with cards becomes a
+        # brand-new Set row with a synthetic id.
+        if include_new and unmatched:
+            log.info(f"--include-new-sets: creating {len(unmatched)} new KR sets")
+            async with SessionLocal() as db:
+                for cs in unmatched:
+                    if dry_run:
+                        continue
+                    new_id = await _create_collectory_set(db, cs)
+                    best_matches[new_id] = cs
+                    stats["new_sets_created"] += 1
+                if not dry_run:
+                    await db.commit()
 
         target_ko_ids: set[str] | None = {only_set} if only_set else None
 
@@ -391,12 +502,21 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--set", dest="only_set", help="Limit to one of our ko-* set ids")
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--include-new-sets",
+        action="store_true",
+        help=(
+            "Auto-create fresh ko-c-<uuid8> Set rows for collectory "
+            "entries that have no TCGdex counterpart in the DB. "
+            "Enables pre-2016 KR coverage (~97 sets / ~6.8k cards)."
+        ),
+    )
     args = p.parse_args()
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
     )
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    asyncio.run(run(args.only_set, args.dry_run))
+    asyncio.run(run(args.only_set, args.dry_run, args.include_new_sets))
 
 
 if __name__ == "__main__":
