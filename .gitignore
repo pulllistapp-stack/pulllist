@@ -41,6 +41,11 @@ backend/data/scraped/
 # binaries; not something to shove through git.
 backend/data/logo_backup/
 
+# Local mirror of card images (JP+KR+CN+TW) — see
+# backup_all_card_images.py. ~10-15GB of binaries. EN cards live
+# in C:\Users\Jinwon\Desktop\PullList_ImageBackup outside the repo.
+backend/data/card_backup/
+
 # LO's local mascot working copies (we use the renamed ones in code)
 frontend/public/*.apng
 frontend/public/pullist-mascot-*-backup.png
