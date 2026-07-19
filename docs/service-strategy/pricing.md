@@ -8,7 +8,7 @@
 
 ## 0. 지금 상태 한 줄
 
-Free 온리. 결제 미도입. PROJECT_STATUS §2 에는 **$5.99/월 · $59/년** 명시, ROADMAP §4 에는 **$7-9/월** 재검토 흔적. 이 문서에서 최종 확정.
+Free 온리. **Path F 소프트 런치 방식 결정** (§2.0). Beta 가격 **$3.99/월 · $29/년** (Founding Members 첫 100명 영구 grandfather) → 3-6개월 Beta 후 정식 가격 확정 (§2.0.4 시나리오별 · B $5.99/$49 · E $6.99/$59 · Free 원가 최적화 성공 시 C $4.99/$39). 런치 시점: **LO 한국 귀국 이후 (~2026-09-10, F-1 → 한국 tax residence 전환 후)**.
 
 ---
 
@@ -191,7 +191,79 @@ SaaS 벤치마크: 컬렉터 카테고리 Free → Paid 컨버전 rate 2-5%.
 
 ---
 
-## 2. Pro 가격 — 결정 대기 (LO 답 필요)
+## 2.0 소프트 런치 결정 (Path F) — 확정
+
+`§0.5` unit economics 를 고려한 결과 정식 가격 오늘 확정 대신 **소프트 런치 방식**. 시장 컨텍스트 pricing 이 아니라 실측 데이터 기반 정식 가격 확정.
+
+### 2.0.1 원칙 (locked)
+
+- **정식 가격 결정 전 3-6개월 실측 데이터 필요** — 컨버전 rate · churn · 사용 패턴 · Pro hook 실사용률
+- **Beta 가격 = 얼리 어답터 감사** — Founding Members 뱃지 + 영구 grandfather
+- **정식 가격 = 실측 데이터 기반** — B/C/E 시나리오별 결정 (§2.0.4)
+- **런치 시점 = LO 한국 귀국 이후** — 미국 F-1 self-employment 이슈 회피 · 한국 tax residence 확정 · W-8BEN + 조세조약 10% 감면 정상 진행
+
+### 2.0.2 소프트 런치 스펙
+
+| 항목 | 값 |
+|---|---|
+| **Beta 가격** | **$3.99/월 · $29/년** (년간 할인 39%) |
+| **Beta 유저 상한** | **첫 100명** — Founding Members |
+| **Founding Members 혜택** | 프로필/공개 포트폴리오 뱃지 · **영구 grandfather** ($3.99 정식 전환 후에도 유지) |
+| **런치 시점** | 2026-09~10 (LO 한국 귀국 · Lemon Squeezy 통합 완료 후) |
+| **Beta 기간** | 3-6개월 (정식 가격 결정까지) |
+| **결제 채널** | Lemon Squeezy (MoR · 한국 tax residence 유효) |
+| **가격 인상 정책** | Founding Members 무기한 grandfather · 신규 유저만 정식 가격 |
+
+### 2.0.3 Beta 성공 지표 (정식 가격 결정 근거)
+
+3-6개월 동안 트래킹, 정식 가격 결정 시 근거:
+
+| 지표 | 목표 | 정식 가격 결정 시 사용 |
+|---|---|---|
+| Beta 가격 컨버전 rate (Free → Pro) | 5-10% | 정식 가격 컨버전 rate 추정 근거 |
+| Beta 유저 churn (30일) | < 10% | Product-market fit 시그널 |
+| 년간 결제 인입 rate | > 25% | 정식 가격 년간 할인율 결정 근거 |
+| Pro hook 실사용률 (알림 · Multi-grade · CSV import · 세션 관리 UI) | > 60% | 정식 가격 justify 근거 |
+| Free 유저 원가 최적화 결과 | $0.25/월 → $0.10/월 | C ($4.99) 옵션 되살릴지 결정 근거 |
+| Pro 스캔 실사용 평균 | < 100회/월 | 100/일 fair-use 상한 검증 |
+
+### 2.0.4 정식 가격 전환 시나리오
+
+**Case 1: Beta 데이터 좋음** (컨버전 8%+ · churn <10% · hook 사용률 70%+)
+- 정식 가격 = **E ($6.99/$59)** — 프리미엄 여유 확보 · Pokefy 12% 언더컷
+- Beta Founding Members = 영구 $3.99 (기존)
+- 신규 유저 = $6.99/월
+
+**Case 2: Beta 데이터 표준** (컨버전 5% · churn 10-15%)
+- 정식 가격 = **B ($5.99/$49)** — 마진 균형
+- Beta Founding Members = 영구 $3.99
+- 신규 유저 = $5.99/월
+
+**Case 3: Beta 데이터 저조** (컨버전 3% 이하 · churn 20%+)
+- **Pro hook 재점검 필요** — 알림 시스템 · Multi-grade · 세션 관리 UI 완성도 부족 시그널
+- 정식 가격 = **B ($5.99/$49) 유지 · Beta 연장 or Pro 기능 재설계**
+
+**Case 4: Free 원가 최적화 성공 + Beta 데이터 좋음**
+- 정식 가격 = **C ($4.99/$39)** — 커뮤니티 언더컷 가능
+- Founding Members grandfather 이슈 없음 ($3.99 유지)
+
+### 2.0.5 소프트 런치 진행 절차
+
+| 시점 | 액션 |
+|---|---|
+| **2026-07 ~ 08** | 지금 세션 · 코드 세션 · planning 문서 잠금 |
+| **2026-09-10** | LO 한국 귀국 · tax residence 전환 · Amazon Associates 재신청 (W-8BEN) |
+| **2026-09~10** | Lemon Squeezy 통합 · Pro tier gating 미들웨어 · `/pricing` 페이지 구현 (Sprint 2) |
+| **2026-10~11** | 소프트 런치 개시 · Founding Members 100명 모집 · 마케팅 (한글 뉴스 콘텐츠 · 소셜) |
+| **2026-11 ~ 2027-02** | Beta 기간 · 지표 수집 · Pro 기능 iteration |
+| **2027-03** | Beta 데이터 리뷰 · 정식 가격 확정 (§2.0.4 Case 분기) |
+| **2027-04** | 정식 가격 전환 · Founding Members grandfather · 마케팅 리런치 |
+
+---
+
+## 2. Pro 가격 — 정식 가격 결정 옵션 (Beta 후)
+
+**Beta 종료 시 §2.0.4 시나리오에 따라 확정**. 지금은 오늘 결정 안 함, Beta 데이터 기다림.
 
 ### Q1. Pro 최종 가격
 

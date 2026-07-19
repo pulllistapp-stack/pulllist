@@ -8,7 +8,7 @@
 
 ## 0. 지금 상태 한 줄
 
-Free 온리. Pro 티어는 PROJECT_STATUS §4에 선언만 되어 있고 실제 결제/게이팅 미도입. 결제 통합은 Sprint 2 예정 (LemonSqueezy).
+Free 온리. Pro 티어는 **소프트 런치 방식 (Path F, `pricing.md` §2.0)** 결정 — LO 한국 귀국 후 (~2026-09-10) Beta 가격 $3.99/월 · 첫 100명 Founding Members 영구 grandfather · 3-6개월 Beta 후 정식 가격 확정 (B $5.99/$49 또는 E $6.99/$59). 결제 통합은 Sprint 2 (Lemon Squeezy).
 
 ---
 
@@ -88,7 +88,10 @@ Free 온리. Pro 티어는 PROJECT_STATUS §4에 선언만 되어 있고 실제 
 - **인스턴트 push** (매물 감지 후 5-30분 이내 — eBay quota 상황에 따라)
   - eBay Growth Check 통과 시 (30-50k/일 quota): 5분 폴링, 실시간에 가까움
   - Growth Check 미통과 (5k/일 quota): 30분 폴링, 지연 있음
-- **Discord 웹훅** (개인 서버 지정)
+- **Discord — Phase 1: 웹훅 (유저 개인 서버 지정)** · **Phase 2: PullList Bot DM (공식 서버 join 후 진짜 DM)**
+  - Phase 1: Pro 런치 시 즉시 · 유저 셋업 1분 · 우리 인프라 POST HTTP
+  - Phase 2: 정식 오픈 3-6개월 후 · 공식 서버 개설 후 · OAuth 30초
+  - 유저는 두 방식 병렬 선택 가능 (웹훅은 트레이더 그룹 · Bot DM은 개인)
 - **Web Push** (PWA)
 - **이메일** (Resend paid tier)
 - 활성 알림 **무제한**
@@ -105,8 +108,9 @@ Free 온리. Pro 티어는 PROJECT_STATUS §4에 선언만 되어 있고 실제 
 ### 편의
 - **Multiple portfolios** — 개인 / 투자용 / 그레이딩용 분리
 - **CSV / Excel import** (export는 Free에도 있음)
-- **스캔 무제한** (Free 5/일 대비)
+- **스캔 100/일 fair-use** (Free 5/일 대비 · `pricing.md` §0.5.2 원가 리스크 대응)
 - **API rate limit 상향** (트렌딩 등)
+- **세션 관리 UI** — 이 계정에 로그인된 디바이스 목록 · 원격 로그아웃 · 전체 세션 kill (Level 3 refresh token 리팩터 부산물)
 - **얼리 액세스** — 새 기능 2주 먼저
 
 ### 상징적
@@ -249,6 +253,7 @@ ROADMAP §8: Sealed (박스 / ETB / 부스터 번들 / 틴) 별도 카탈로그 
 - **Team / Family tier** — 3-5인 공동 포트폴리오 뷰 (트레이더 그룹, 가족 컬렉션)
 - **Enterprise / API tier** — 카드샵 / 인플루언서 대상, 커스텀 알림 워크플로우 + 화이트 라벨
 - **Marketplace / P2P features** — buy-offer, 옥션, 인앱 메시징 (ROADMAP_IDEAS ⚪ 티어)
+- **PullList 공식 Discord 서버** — 커뮤니티 자산 + Pro Bot DM 알림의 mutual guild 조건 충족 + Pro 유저 exclusive 채널 + Founding Members 롤 + 새 세트 발매 공지 + 유저 트레이드/컬렉션 자랑 채널. §3 Discord Phase 2 개시 시점에 개설.
 
 ---
 
