@@ -114,6 +114,100 @@ UPCOMING: list[dict] = [
         }
         for i in range(1, 10)
     ],
+    # ── 30th Celebration WORLDWIDE SYNC (LO note: 전세계 동시발매) ─
+    # KR + CN drop the same set on Sep 16, so /drops needs to show
+    # all four language rows in one worldwide-launch cluster.
+    # Chinese sim + trad both get an entry so the region-chip filter
+    # actually has content when zh-cn / zh-tw is selected.
+    {
+        "id": "me30-kr",
+        "name": "30th Celebration (KR)",
+        "language": "ko",
+        "series": "30th Celebration",
+        "release_date": "2026-09-16",
+        "set_type": "MAIN",
+        "set_subtype": None,
+    },
+    {
+        "id": "me30-cn",
+        "name": "30th Celebration (CN)",
+        "language": "zh-cn",
+        "series": "30th Celebration",
+        "release_date": "2026-09-16",
+        "set_type": "MAIN",
+        "set_subtype": None,
+    },
+    # ── US 30th Celebration secondary drops (Oct → Dec 2026) ──
+    # Bills Archive product manifest, cross-checked against Pokemon.com
+    # gallery pages. The Battle Decks are standalone all-foil 60-card
+    # products so they get MAIN treatment; everything else is a DECK-
+    # subtype 'SPECIAL' bucket because the physical SKU IS the set (no
+    # separate card list to seed). Groups the Oct 2 wave, Nov 6 wave,
+    # and Dec 4 wave individually where LO explicitly called them out
+    # (UPC especially).
+    {
+        "id": "me30-oct2",
+        "name": "30th Celebration October Wave (Booster Bundle / Binder / Mini Tins)",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-10-02",
+        "set_type": "DECK",
+        "set_subtype": "SPECIAL",
+    },
+    {
+        "id": "me30-bd-espeon",
+        "name": "30th Celebration Battle Deck: Espeon ex",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-10-30",
+        "set_type": "DECK",
+        "set_subtype": "DECK",
+    },
+    {
+        "id": "me30-bd-umbreon",
+        "name": "30th Celebration Battle Deck: Umbreon ex",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-10-30",
+        "set_type": "DECK",
+        "set_subtype": "DECK",
+    },
+    {
+        "id": "me30-upc-day",
+        "name": "30th Celebration Ultra Premium Collection (Day)",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-11-06",
+        "set_type": "DECK",
+        "set_subtype": "BOX",
+    },
+    {
+        "id": "me30-upc-night",
+        "name": "30th Celebration Ultra Premium Collection (Night)",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-11-06",
+        "set_type": "DECK",
+        "set_subtype": "BOX",
+    },
+    {
+        "id": "me30-nov6",
+        "name": "30th Celebration November Wave (Ditto Premium / Mewtwo & Mew Figure Collections)",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-11-06",
+        "set_type": "DECK",
+        "set_subtype": "SPECIAL",
+    },
+    {
+        "id": "me30-dec4",
+        "name": "30th Celebration December Wave (Sylveon ex / Greninja ex Tins)",
+        "language": "en",
+        "series": "30th Celebration",
+        "release_date": "2026-12-04",
+        "set_type": "DECK",
+        "set_subtype": "SPECIAL",
+    },
 ]
 
 
