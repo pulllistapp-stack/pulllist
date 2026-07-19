@@ -64,6 +64,13 @@ _TRUSTED_IMAGE_HOSTS = (
     # rejected with these hosts as the unwrap-able hero.
     "mcdn.pokemon.com",
     "imguscdn.gamespress.com",
+    # TCGplayer's product CDN — weserv 400s 'Domain or TLD blocked
+    # by policy' the same way it does for pokemoncenter.com. The
+    # CloudFront-fronted origin serves images hot-link-friendly
+    # without a Referer check, so we go direct. Added after the
+    # grading-guide essay's promo-card gallery rendered as broken
+    # images (LO 2026-07-19).
+    "tcgplayer-cdn.tcgplayer.com",
 )
 
 # HEAD-check timeout for the pre-flight thumbnail verifier. Kept tight
