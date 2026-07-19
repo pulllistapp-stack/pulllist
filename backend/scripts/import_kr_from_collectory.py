@@ -43,7 +43,22 @@ from app.models import Card, Set
 
 
 COLLECTORY_BASE = "https://collectory.cc/api"
-UA = "PullList-Catalog/1.0 (+https://pulllist.org)"
+
+# collectory.cc sits behind Cloudflare and 403s the default httpx UA
+# from datacenter IPs (GitHub Actions runners), so we lean on a full
+# browser header set to look like a Korean user's Chrome hitting the
+# site's own SPA. Same headers also work locally, so no code branch.
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Referer": "https://collectory.cc/",
+    "Origin": "https://collectory.cc",
+}
 
 log = logging.getLogger("import_kr_from_collectory")
 
@@ -257,7 +272,7 @@ async def run(only_set: str | None, dry_run: bool) -> None:
         "cards_skipped": 0,
     }
 
-    async with httpx.AsyncClient(headers={"User-Agent": UA}) as client:
+    async with httpx.AsyncClient(headers=HEADERS) as client:
         # Index our existing KR sets
         async with SessionLocal() as db:
             ko_index = await _build_ko_set_index(db)
