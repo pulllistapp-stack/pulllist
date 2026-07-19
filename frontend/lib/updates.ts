@@ -26,6 +26,19 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-19 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-19",
+    emoji: "🎯",
+    kr: "세트 페이지와 카드 상세 페이지의 가격 표시 통일 — 카드 상세는 TCGplayer + eBay median 을 절반씩 섞은 컨센서스 (예: $75.65) 를 보여주는데, 세트 페이지 카드 타일은 TCG 원본 값 ($81.80) 만 보여줘서 유저가 '세트페이지 가격은 업데이트가 안된다' 고 오해했음. Refresh 엔드포인트 3곳 + 매일 밤 TCGCSV sync 다 컨센서스 저장하도록 수정. 5,673 장 카탈로그 한 번에 재계산해서 즉시 반영. 이제 두 화면 값 일치.",
+    en: "Set-page and card-detail pages now show the SAME price — card detail computed a consensus (TCG + eBay)/2 client-side (e.g. $75.65) while set-page tiles read raw TCG from the DB ($81.80). Users read the mismatch as 'the set page never updates.' Fixed at three writers (unified Refresh, legacy Refresh, nightly TCGCSV sync) so the persisted headline market_price_usd is the consensus itself, and ran a one-shot backfill against prod that reblended 5,673 catalog rows in 55 seconds. Both views now agree on the same number.",
+  },
+  {
+    date: "2026-07-19",
+    emoji: "📊",
+    kr: "eBay graded 스크레이퍼 BGS/TAG 커버리지 개선 (Round 5 검증 완료) — Round 4 에서 BGS 10 write rate 가 4.8% 로 낮았음 (PSA 10 은 37.5%). eBay 가 'BGS 10 Beckett Black Label' 처럼 특수 쿼리에는 검색어를 조용히 완화해서 무관 아이템 반환하는게 원인. 3가지 픽스 조합: (B) BGS/TAG 티어 MIN=1 + 재시도 3회, (C) BGS 시노님 fallback — 'BGS' 대신 'Beckett' 로 2차 쿼리 시도 (셀러들이 둘 다 씀), (D) URL 정렬을 '가장 최근 판매' 로 변경. Round 5 결과: BGS 10 → 10.6% (**2.2x 개선**), TAG 10 → 15.6% (1.5x), PSA 10 → 47.7% (+10pp). 등급별 시세는 여전히 분리 저장 (LO 요구사항: '슬랩은 등급별 가격이 진짜 중요함').",
+    en: "eBay graded scraper — BGS/TAG recall lift (verified in Round 5). Round 4 wrote only 4.8% on BGS 10 (vs 37.5% on PSA 10). Root cause: eBay silently relaxes narrow queries like 'BGS 10 Beckett Black Label' on datacenter IPs and returns trending Pokemon items. Three-part fix: (B) MIN=1 + max_attempts=3 across all BGS/TAG tiers, (C) Beckett synonym fallback pass — sellers list slabs as either 'BGS 10' or 'Beckett 10', so a second pass with the swap catches the other half; classify_grade routes both into the same bgs* buckets so grade purity survives, (D) sort URL by ended-time ascending so freshest sales land on page 1. Round 5 results: BGS 10 → 10.6% (**2.2x lift**), TAG 10 → 15.6% (1.5x), PSA 10 → 47.7% (+10pp thanks to the sort change alone). Per-grade prices still stored separately per LO's constraint that slab prices per grade are the important part.",
+  },
   // ── 2026-07-16 ─────────────────────────────────────────────────
   {
     date: "2026-07-16",

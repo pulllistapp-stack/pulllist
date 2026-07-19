@@ -1,0 +1,43 @@
+name: Cleanup pre-fix graded snapshots (one-shot)
+
+# Deletes Round 2/3-era ebay_sold + ebay_asking rows (snapshot_date
+# before 2026-07-16). Those were written by the pre-fix scraper and
+# leak wrong-print prices into the graded-prices tiles even after
+# Rounds 4-6 wrote clean replacements for top-value cards. See the
+# script docstring for the full rationale.
+
+on:
+  workflow_dispatch:
+    inputs:
+      before:
+        description: "Cutoff date (ISO). Delete rows strictly before this."
+        required: false
+        default: "2026-07-16"
+      apply:
+        description: "Actually delete (false = dry-run count only)"
+        required: false
+        default: "false"
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          args="--before ${{ inputs.before }}"
+          if [ "${{ inputs.apply }}" = "true" ]; then
+            args="$args --apply"
+          fi
+          python -m scripts.cleanup_pre_fix_graded_snapshots $args

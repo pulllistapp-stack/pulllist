@@ -57,3 +57,17 @@ async def init_db() -> None:
             "ALTER TABLE newsbot_processed_urls "
             "ADD COLUMN IF NOT EXISTS title_tokens TEXT"
         ))
+        # Partial index for the DISTINCT ON latest-raw-eBay-median lookup
+        # used by (1) nightly TCGCSV sync's consensus blend, (2) unified
+        # Refresh endpoint, (3) backfill_consensus_market_price. Without
+        # it the planner falls back to a full scan of the base ix_snapshot_
+        # card_date and filters in-memory, which scales badly as
+        # card_price_snapshots grows past ~500k rows. Partial predicate
+        # matches every downstream query exactly so the planner picks it
+        # every time. IF NOT EXISTS keeps boot idempotent.
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_snapshot_ebay_raw_card_time "
+            "ON card_price_snapshots (card_id, snapshot_at DESC) "
+            "WHERE source = 'ebay' AND grade = 'raw' "
+            "AND market_price_usd IS NOT NULL"
+        ))
