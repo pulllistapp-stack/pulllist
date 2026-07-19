@@ -221,6 +221,16 @@ export function TopNav() {
                 <MobileLink href="/wishlist">Wishlist</MobileLink>
                 <MobileLink href="/portfolio">Portfolio</MobileLink>
                 <MobileLink href="/me/settings">Settings</MobileLink>
+                {user.is_admin && (
+                  <MobileLink href="/admin/news">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="rounded-full bg-accent-yellow/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent-yellow">
+                        Admin
+                      </span>
+                      Admin dashboard
+                    </span>
+                  </MobileLink>
+                )}
                 <div className="px-3 py-2 text-xs text-text-tertiary font-mono truncate">
                   Logged in as {user.name ?? user.email}
                 </div>
