@@ -378,12 +378,14 @@ def _build_editorial_column_prompt(item: NewsItem) -> str:
     news_hits = payload.get("news_hits", []) or []
     web_hits = payload.get("web_hits", []) or []
 
+    slab_count = sum(1 for c in cards if c.get("slab_image_url"))
     lines = [
         "Source type: long-form editorial column (deep essay, human-triggered)",
         f"Topic: {topic}",
         f"Related cards from our catalog: {len(cards)}",
         f"Recent news snippets: {len(news_hits)}",
         f"Web/historical snippets: {len(web_hits)}",
+        f"Slab (PSA/BGS/CGC) photos available: {slab_count}",
         "",
         "This is a Collectory-style 'reads' piece — not a news post. "
         "Target length: 1500-2500 words. Voice: reflective, curious, "
@@ -406,6 +408,10 @@ def _build_editorial_column_prompt(item: NewsItem) -> str:
     for c in cards:
         price = c.get("market_price_usd")
         price_str = f"${price:.2f}" if isinstance(price, (int, float)) else "n/a"
+        slab_extra = (
+            f" slab_image={c['slab_image_url']}"
+            if c.get("slab_image_url") else ""
+        )
         lines.append(
             f"- card_id={c.get('id')} name={c.get('name')} "
             f"#{c.get('number')} rarity={c.get('rarity')} "
@@ -413,8 +419,25 @@ def _build_editorial_column_prompt(item: NewsItem) -> str:
             f"market={price_str} "
             f"set_id={c.get('set_id')} set={c.get('set_name')} "
             f"image={c.get('image_small', '') or c.get('image_large', '')}"
+            f"{slab_extra}"
         )
     lines.append("")
+
+    if slab_count > 0:
+        lines.append(
+            "SLAB IMAGES ARE PRESENT for this essay. When you mention "
+            "a card that has slab_image=..., render TWO inline embeds "
+            "right after the linked name: first the raw card image, "
+            "then the slab photo. Format:\n"
+            "  [Card Name #123](/cards/id) — $price\n"
+            "  ![Raw card](raw_url)\n"
+            "  ![PSA 10 slab](slab_url)\n"
+            "Paired like that, the reader sees the visual difference "
+            "between raw and graded — which is literally the story of "
+            "the article. Don't leave slab images out; they're the "
+            "point."
+        )
+        lines.append("")
 
     if news_hits:
         lines.append("RECENT NEWS SNIPPETS (weave in for current context):")

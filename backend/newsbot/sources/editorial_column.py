@@ -29,6 +29,7 @@ log = logging.getLogger("newsbot.sources.editorial_column")
 REQUEST_TIMEOUT = 60.0
 SERPER_SEARCH_URL = "https://google.serper.dev/search"
 SERPER_NEWS_URL = "https://google.serper.dev/news"
+SERPER_IMAGES_URL = "https://google.serper.dev/images"
 
 # Bumped 15 → 25. LO wants deep-detail visual essays; more gallery
 # cards means Claude has more concrete anchors to build sections
@@ -38,6 +39,28 @@ CARD_GALLERY_SIZE = 25
 # density before it reaches the generator. 10 → 20.
 INLINE_IMAGE_SEED_SIZE = 20
 WEB_SNIPPETS_TARGET = 8
+
+# Grading essays (PSA / BGS / CGC / slab topics) get an extra pass:
+# for each catalog card, we run one Serper /images call to fetch a
+# real slab photo of that specific card. Adds SLAB_MAX credits per
+# essay (worst case) but lets the generator embed raw + slab side
+# by side, which is the visual language of a grading article. Cap
+# below CARD_GALLERY_SIZE so a big gallery doesn't drain the whole
+# credit tier on one essay.
+GRADING_TOPIC_KEYWORDS = (
+    "grading", "graded", "grade",
+    "psa", "bgs", "cgc",
+    "slab", "slabbed", "slabbing",
+)
+SLAB_MAX = 12  # max cards we look up slab photos for
+
+
+def _is_grading_topic(topic: str) -> bool:
+    """Topic-keyword detector — cheap substring check on the topic
+    string. Any of the well-known grading words triggers the slab-
+    image fetch pass."""
+    lo = topic.lower()
+    return any(kw in lo for kw in GRADING_TOPIC_KEYWORDS)
 
 
 def _topic_slug(topic: str) -> str:
@@ -80,6 +103,34 @@ async def _serper_post(url: str, payload: dict) -> dict | None:
     except Exception as exc:
         log.exception("editorial_column: serper %s failed: %s", url, exc)
         return None
+
+
+async def _fetch_slab_image(card: dict) -> str | None:
+    """One Serper /images lookup for a single card's PSA/BGS/CGC slab
+    photo. Query strategy: '{card name} PSA 10' — Google's image
+    index has broad coverage for graded Pokemon slabs, so a fuzzy
+    match is usually enough. Returns the first http(s) imageUrl.
+    Non-http hits (data: URIs) are discarded — weserv wraps only
+    http(s) and Serper /images occasionally inlines base64 blobs."""
+    name = (card.get("name") or "").strip()
+    number = (card.get("number") or "").strip()
+    if not name:
+        return None
+    query_parts = [name]
+    if number:
+        query_parts.append(f"#{number}")
+    query_parts.append("PSA 10 slab")
+    resp = await _serper_post(
+        SERPER_IMAGES_URL,
+        {"q": " ".join(query_parts), "num": 5},
+    )
+    if not resp:
+        return None
+    for img in (resp.get("images") or []):
+        candidate = (img.get("imageUrl") or "").strip()
+        if candidate.startswith(("http://", "https://")):
+            return candidate[:512]
+    return None
 
 
 @register("editorial_column")
@@ -221,6 +272,29 @@ async def crawl() -> list[NewsItem]:
     today = date.today()
     slug = _topic_slug(topic)
 
+    # Grading-topic pass: for each of the top SLAB_MAX cards, kick
+    # off a parallel Serper /images fetch for a real slab photo.
+    # Attach the URL to the card dict as 'slab_image_url' so the
+    # generator prompt can emit '![Raw](...) ![Slab](...)' side-by-
+    # side embeds. Skipped entirely when the topic isn't a grading
+    # piece, so we don't burn Serper credits on unrelated essays.
+    if _is_grading_topic(topic) and cards:
+        import asyncio
+        slab_cards = cards[:SLAB_MAX]
+        slab_urls = await asyncio.gather(
+            *(_fetch_slab_image(c) for c in slab_cards),
+            return_exceptions=True,
+        )
+        slab_hits = 0
+        for c, url in zip(slab_cards, slab_urls):
+            if isinstance(url, str) and url:
+                c["slab_image_url"] = url
+                slab_hits += 1
+        log.info(
+            "editorial_column: grading topic — fetched %d/%d slab images",
+            slab_hits, len(slab_cards),
+        )
+
     payload = {
         "topic": topic,
         "cards": cards,
@@ -255,6 +329,14 @@ async def crawl() -> list[NewsItem]:
             inline.append({
                 "url": img[:512],
                 "caption": (c.get("name") or "")[:120],
+            })
+        # Add the slab photo (if we fetched one for grading essays)
+        # right after the raw so the generator can pair them visually.
+        slab = c.get("slab_image_url")
+        if slab:
+            inline.append({
+                "url": slab[:512],
+                "caption": f"{c.get('name', '')} PSA 10 slab"[:120],
             })
 
     # Hero image priority: catalog card > news imageUrl > web
