@@ -131,38 +131,59 @@ async def list_sets(
 
     rows = (await db.execute(stmt)).all()
 
-    # JP visibility rule: show a set when it carries either a logo,
-    # at least one card, or at least one sealed product. The old rule
-    # was logo-or-cards; sealed-only sets (SBC / JPP-M / CLL / NPF1 /
-    # PtA-GF / PtA-LP — created 2026-07-14 for the JP-sealed backfill)
-    # got hidden even though their /sets/{id} page carried real
-    # product tiles, so nobody could discover them by browsing.
+    # Visibility rule: show a set when it carries either a logo,
+    # at least one card, or at least one sealed product. Empty stub
+    # rows (no logo AND no cards AND no products) are hidden so the
+    # browse grid doesn't render dead tiles.
     #
-    # The carve-out: TCGdex returns stub rows for prehistoric promo
-    # buckets (JPP-MCD / JPP-SI / JPP-VM / etc.) and a few never-
-    # populated expansion shells (ADV1-5, L1a, LL) — no source has
-    # ever filled them with cards OR sealed, so surfacing them still
-    # creates empty tiles. Hide the no-logo-AND-no-cards-AND-no-sealed
-    # intersection only.
-    if language == "ja":
-        sealed_set_ids: set[str] = set(
-            (await db.execute(
-                select(Product.set_id).where(Product.set_id.is_not(None)).distinct()
-            )).scalars().all()
+    # Two carve-outs from the "must-have-something" gate:
+    #   1. Upcoming 30th Celebration family — LO wanted the Sep 16
+    #      worldwide-launch cluster + US secondary waves (UPC, Battle
+    #      Decks, Oct/Nov/Dec aggregates) discoverable BEFORE TCGCSV
+    #      publishes their logos. Whitelist by id-prefix + series
+    #      string so future 30th additions get the same treatment
+    #      automatically.
+    #   2. Nothing else future gets the free pass — non-30th upcoming
+    #      stubs (fpic-s3, m6, me6, m7, m7-sds) stay hidden until the
+    #      nightly TCGCSV sync populates them, at which point they
+    #      re-appear organically.
+    #
+    # Filter runs on every language now, not just ja. Historical rule
+    # was JP-only because TCGdex was the only source producing stub
+    # rows; the upcoming-releases seed added stubs across en/ja/ko/
+    # zh-cn so the gate needs to apply everywhere.
+    sealed_set_ids: set[str] = set(
+        (await db.execute(
+            select(Product.set_id).where(Product.set_id.is_not(None)).distinct()
+        )).scalars().all()
+    )
+    from datetime import date as _date
+    _today = _date.today()
+
+    def _is_30th_family(s: Set) -> bool:
+        """Whitelist: id-prefix based (me30 / m30cs / m6a) + series
+        contains check so any future 30th Celebration additions get
+        the visibility carve-out without maintaining a manual list."""
+        if (s.series or "").lower().find("30th celebration") != -1:
+            return True
+        sid = s.id
+        return (
+            sid.startswith("me30")
+            or sid.startswith("m30cs")
+            or sid == "m6a"
         )
-        from datetime import date as _date
-        _today = _date.today()
-        rows = [
-            r for r in rows
-            if r[0].logo_url is not None
-            or r[1] > 0
-            or r[0].id in sealed_set_ids
-            # Upcoming drops are legitimately empty (no logo yet, no
-            # cards yet, no sealed SKUs yet) but /drops needs to see
-            # them — release_date in the future is a valid presence
-            # signal on its own.
-            or (r[0].release_date is not None and r[0].release_date > _today)
-        ]
+
+    rows = [
+        r for r in rows
+        if r[0].logo_url is not None
+        or r[1] > 0
+        or r[0].id in sealed_set_ids
+        or (
+            r[0].release_date is not None
+            and r[0].release_date > _today
+            and _is_30th_family(r[0])
+        )
+    ]
 
     # Per-user owned counts in one query if logged in
     owned_map: dict[str, int] = {}
