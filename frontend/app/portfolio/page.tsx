@@ -274,7 +274,7 @@ export default function PortfolioPage() {
             Live valuation across {setsTouched} sets · {totalQty} cards
           </p>
         </div>
-        <div className="shrink-0 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => (manageMode ? exitManageMode() : setManageMode(true))}

@@ -15,7 +15,7 @@ const ITEMS = [
 export function AdminNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-2 pb-3">
+    <nav className="flex gap-2 pb-3 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {ITEMS.map((item) => {
         const active = pathname?.startsWith(item.href);
         const Icon = item.icon;
@@ -23,7 +23,7 @@ export function AdminNav() {
           <Link
             key={item.href}
             href={item.href}
-            className={`inline-flex items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-semibold transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-btn px-3 py-1.5 text-sm font-semibold transition-colors ${
               active
                 ? "bg-accent-yellow/15 text-accent-yellow"
                 : "text-text-secondary hover:text-text-primary"

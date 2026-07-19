@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-19 ─────────────────────────────────────────────────
   {
     date: "2026-07-19",
+    emoji: "↔️",
+    kr: "모바일에서 페이지 전체가 손가락 스와이프로 좌우 밀리던 문제 수정. 원인: 뷰포트보다 넓은 자식 요소가 있으면 body 가 가로 스크롤 가능해지고, 세로 스크롤 각도 삐끗하면 페이지 전체가 밀림. 3단 처방: (A) globals.css 에 html + body { overflow-x: hidden } 안전망. 오버플로 나도 문서 자체는 안 밀림. (B) Portfolio 액션 버튼 열 (Manage / Export CSV / Share / Scan a card) — 이너 래퍼가 shrink-0 라 flex-wrap 이 안 걸렸음. shrink-0 제거해서 좁은 화면에선 자동 줄바꿈. (C) 관리자 서브네비 (News / Users / Reports / Visits / Updates) — 5개 탭이 mobile 폭 초과. 컨테이너에 overflow-x-auto + 아이템에 shrink-0 붙여서 안쪽만 가로 스크롤, 스크롤바는 숨김.",
+    en: "Fixed: on mobile the whole page slid sideways under a finger swipe. Root cause: a single child wider than the viewport lets body scroll horizontally, and any vertical-scroll angle that isn't perfectly vertical then shifts every page element. Three-part fix: (A) globals.css sets overflow-x: hidden on html + body as a safety net so no future oversized element can hijack document scroll. (B) Portfolio action row (Manage / Export CSV / Share / Scan a card) — the inner wrapper was shrink-0, which defeated its own flex-wrap; dropped shrink-0 so the buttons wrap onto a second row on narrow screens. (C) Admin sub-nav (News / Users / Reports / Visits / Updates) — five tabs busted the mobile width; put overflow-x-auto on the nav (with edge-to-edge -mx-4 px-4 so it scrolls flush with the page gutter) and shrink-0 on each item; scrollbar hidden.",
+  },
+  {
+    date: "2026-07-19",
     emoji: "🎯",
     kr: "스캔 화면이 손가락 드래그로 위 아래 흔들리던 이슈 수정. 원인 두 가지: (1) iOS Safari 러버밴드 바운스가 사이트 전체에 살아있었음 → globals.css 에 overscroll-behavior: none 적용해서 앱 셸 느낌으로 통일 (PWA 대응). (2) ScanCamera / ScanConfirm 아웃터가 min-h-100dvh 라 콘텐츠 조금만 넘쳐도 페이지 자체가 스크롤 됐음 → fixed inset-0 로 뷰포트에 완전 고정하고, 콘텐츠 넘칠 땐 main 안에서만 스크롤 (overscroll-contain 으로 바운스 격리). 이제 카메라 화면은 안 밀림, confirm 화면은 폼이 길어도 헤더/푸터 고정된 채 안쪽만 움직임.",
     en: "Fixed: the scan screen shifting under finger drag. Two root causes stacked: (1) iOS Safari rubber-band bounce was site-wide → globals.css now sets overscroll-behavior: none for an app-shell feel (also closes the PWA polish item from earlier). (2) ScanCamera / ScanConfirm outer containers used min-h-[100dvh], so any content overflow made the whole page scroll → outers now use fixed inset-0 pinned to viewport, and if content overflows it scrolls inside main only (overscroll-contain traps the bounce). Camera screen no longer shifts, and the long confirm form scrolls internally while the header + footer stay locked.",

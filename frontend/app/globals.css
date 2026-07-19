@@ -45,6 +45,12 @@
        screen the immersive camera viewport shifted up/down under a
        drag; site-wide we want app-shell feel over browser feel. */
     overscroll-behavior: none;
+    /* Safety net: any oversized child (action-button row, wide table,
+       long headline) must not turn the whole document into a
+       horizontally-scrollable strip — a stray finger drift then
+       shifts every page element sideways. Individual containers can
+       still opt into internal overflow-x-auto for wide content. */
+    overflow-x: hidden;
   }
 }
 
