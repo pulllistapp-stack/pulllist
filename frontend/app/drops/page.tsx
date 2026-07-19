@@ -292,7 +292,7 @@ function TimelineSection({
       </h2>
       {months.map(([key, entries]) => {
         const [y, m] = key.split("-");
-        const monthLabel = `${y}년 ${Number(m)}월`;
+        const monthLabel = `${MONTH_NAMES[Number(m) - 1]} ${y}`;
         return (
           <div key={key} className="mb-8">
             <div className="flex items-baseline gap-2 mb-3">
