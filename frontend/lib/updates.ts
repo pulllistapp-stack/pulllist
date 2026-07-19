@@ -41,12 +41,6 @@ export const UPDATES: UpdateEntry[] = [
   },
   {
     date: "2026-07-19",
-    emoji: "🖼️",
-    kr: "**zh-tw 세트 로고 100% 커버리지** — Taiwan 훈련가 사이트(카드 DB 전용)에 세트 마케팅 아트가 없어서 방금 임포트한 27개 zh-tw 세트가 다 로고 NULL 로 렌더되던 문제. Google Image Search 로 먼저 시도 → 첫 요청은 성공하는데 두번째부터 봇 감지로 imgs 0 반환. Bing Image Search 로 피벗 (동일 headless-Chrome stack 으로 zh-TW 마켓 쿼리 3/3 일관 성공). 검색어 패턴 `寶可夢 {클린이름} 卡盒` (擴充包/挑戰牌組/戰術牌組 등 상품 접두사 스트립 후). 결과는 Bing 의 안정적인 프록시 (th.bing.com/th/id/OIP.<hash>?w=400&h=400) — 원본 리테일 사진 hot-link 보호에 안 걸리게 Bing이 이미 재호스팅한 상태. 27/27 매칭 성공, 총 소요 ~2.5분 (2초 sleep 정중 대기). 이제 /sets?region=zh-tw 열면 M시리즈 (16) + SV시리즈 (11) 모두 실물 팩 사진으로 표시.",
-    en: "**zh-tw set logos hit 100% coverage** — the Taiwan trainer site is card-DB only (no per-set marketing art) so all 27 zh-tw sets were rendering with a null logo. Tried Google Image Search first — first query returns rich results but bot detection kicks in on request #2 and serves empty pages. Pivoted to Bing Image Search (same headless-Chrome stack, 3/3 consistent hits on zh-TW market queries). Query shape: `寶可夢 {clean_name} 卡盒` after stripping product-type prefixes (擴充包 / 挑戰牌組 / 戰術牌組). Results use Bing's stable thumbnail proxy (th.bing.com/th/id/OIP.<hash>?w=400&h=400) — because Bing already re-hosts the underlying retail-shop photos we bypass source-site hot-link protection entirely. 27/27 matched in ~2.5 min (2 s polite sleep between queries). /sets?region=zh-tw now shows every M-series (16) and SV-series (11) tile with a real pack photo.",
-  },
-  {
-    date: "2026-07-19",
     emoji: "🏷️",
     kr: "**리전 탭 라벨에 언어 명시 추가** — 그동안 'China' / 'Taiwan' 만 표기해서 처음 방문한 유저는 두 탭의 차이 (간체 vs 번체) 를 즉시 파악 못했음. LO 도 유입 UX 관점에서 lump vs split 고민을 제기 → 데이터는 분리 유지가 컬렉터 정확도 위해 필수 (다른 마켓/다른 셋 코드/다른 인쇄) 지만 라벨을 'China (Simplified)' / 'Taiwan (Traditional)' 로 명시하면 캐주얼 브라우저도 '아 둘 다 중문이구나' 즉시 인지. 컬렉터 정확성 + 유입 명확성 둘 다 챙기는 최소 변경.",
     en: "**Region tab labels now show script variant** — the previous 'China' / 'Taiwan' labels made new visitors work to figure out the CN/TW split is Simplified vs Traditional Chinese. Keeping the underlying data split is non-negotiable for collector accuracy (different market, different set codes, different print runs) — but relabeling to 'China (Simplified)' / 'Taiwan (Traditional)' lets casual browsers see at a glance that both are Chinese variants. Minimum change that keeps the strict data model while removing the acquisition-side confusion LO flagged.",
