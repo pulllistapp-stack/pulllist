@@ -84,6 +84,7 @@ function fmtMultiplier(m: number): string {
 export default function GradingPremiumPage() {
   const [tier, setTier] = useState("psa10");
   const [language, setLanguage] = useState("all");
+  const [soldOnly, setSoldOnly] = useState(true);
   const [data, setData] = useState<PremiumResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -92,7 +93,8 @@ export default function GradingPremiumPage() {
     setLoading(true);
     const url =
       `${API_BASE}/trending/grading-premium` +
-      `?tier=${tier}&language=${language}&limit=150&min_samples=2&min_multiplier=2`;
+      `?tier=${tier}&language=${language}&limit=150&min_samples=2&min_multiplier=2` +
+      `&sold_only=${soldOnly ? "true" : "false"}`;
     fetch(url, { cache: "no-store" })
       .then(async (r) => (r.ok ? ((await r.json()) as PremiumResponse) : null))
       .then((json) => {
@@ -107,7 +109,7 @@ export default function GradingPremiumPage() {
     return () => {
       cancelled = true;
     };
-  }, [tier, language]);
+  }, [tier, language, soldOnly]);
 
   const activeTier = useMemo(
     () => TIERS.find((t) => t.key === tier) ?? TIERS[0],
@@ -151,8 +153,8 @@ export default function GradingPremiumPage() {
         ))}
       </div>
 
-      {/* Language chips */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      {/* Language chips + sold-only toggle */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         {LANGS.map((l) => (
           <button
             key={l.key}
@@ -169,6 +171,17 @@ export default function GradingPremiumPage() {
             {l.label}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-2">
+          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-mono uppercase tracking-wider text-text-secondary hover:text-text-primary">
+            <input
+              type="checkbox"
+              checked={soldOnly}
+              onChange={(e) => setSoldOnly(e.target.checked)}
+              className="h-3.5 w-3.5 accent-accent-yellow"
+            />
+            Sold-only
+          </label>
+        </div>
       </div>
 
       {/* List */}

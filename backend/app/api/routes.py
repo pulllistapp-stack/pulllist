@@ -1137,6 +1137,11 @@ async def trending_grading_premium(
     # at the query layer until the scraper gets its own sanity band
     # for graded snapshots.
     max_multiplier: float = Query(300.0, ge=10.0, le=10000.0),
+    # Asking-side snapshots include $999,999 anchor prices that
+    # slip past the multiplier cap when they cluster. `sold_only=true`
+    # narrows to ebay_sold, which is grounded in actually-cleared
+    # sales — noisier coverage, cleaner data.
+    sold_only: bool = Query(False),
     limit: int = Query(100, ge=10, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -1166,8 +1171,13 @@ async def trending_grading_premium(
     # legacy source is nullable there, so treat NULL as satisfying
     # the min_samples floor when the source is legacy 'ebay' —
     # otherwise the entire legacy backfill drops out.
+    source_filter = (
+        "'ebay_sold'"
+        if sold_only
+        else "'ebay_sold', 'ebay_asking', 'ebay'"
+    )
     sql = text(
-        """
+        f"""
         WITH latest_tier AS (
             SELECT DISTINCT ON (card_id)
                 card_id,
@@ -1176,7 +1186,7 @@ async def trending_grading_premium(
                 source,
                 snapshot_date
             FROM card_price_snapshots
-            WHERE source IN ('ebay_sold', 'ebay_asking', 'ebay')
+            WHERE source IN ({source_filter})
               AND grade = :tier
               AND market_price_usd IS NOT NULL
               AND market_price_usd > 0
@@ -1261,6 +1271,7 @@ async def trending_grading_premium(
         "min_samples": min_samples,
         "min_multiplier": min_multiplier,
         "max_multiplier": max_multiplier,
+        "sold_only": sold_only,
         "count": len(items),
         "items": items,
     }
