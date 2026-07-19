@@ -113,12 +113,18 @@ const nextConfig = {
       // import_zhtw_from_official.py for the full SV + Mega Evolution
       // Traditional Chinese catalog (TCGdex zh-tw feed is stale).
       { protocol: "https", hostname: "asia.pokemon-card.com" },
-      // Bing Image Search thumbnail proxy — every zh-tw set logo is a
-      // Bing thumb URL (th.bing.com/th/id/OIP.<hash>?w=400...) sourced
-      // by backfill_zhtw_logos_google.py. Bing re-hosts the underlying
-      // retail-shop pack photos so we don't hit source-site hot-link
-      // protection at render time.
+      // Bing Image Search thumbnail proxy — kept whitelisted in case a
+      // future logo hunt lands back on Bing. The initial zh-tw pass
+      // rolled back the Bing results (relevance filter was tautological
+      // and let FC Dallas / Michael Myers / NFL logos through).
       { protocol: "https", hostname: "th.bing.com" },
+      // koca.shop CDN — Taiwan Pokemon retailer LO pointed to after
+      // the Bing misfire. Their /api/planets/pokemoncard_tw/series
+      // endpoint returns a curated 82-series catalog with verified
+      // pack-shot photos hosted at api.koca.shop/images/{uuid}.jpeg.
+      // Backfilled 23/27 zhtw-* set logos from here.
+      { protocol: "https", hostname: "api.koca.shop" },
+      { protocol: "https", hostname: "s.koca.shop" },
     ],
   },
   async rewrites() {
