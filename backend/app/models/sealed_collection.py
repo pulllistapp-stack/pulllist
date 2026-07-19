@@ -62,6 +62,8 @@ class SealedCollectionItem(Base):
     the DB (server_default) or in Python (default) and the API
     endpoint normalizes reads with `or 'sealed'`. Grading isn't a
     concept for sealed products."""
+
+    acquired_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     purchase_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     acquisition_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """Purchase / Gift / Trade / Other — mirrors CollectionItem."""
