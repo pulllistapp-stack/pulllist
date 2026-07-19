@@ -13,12 +13,8 @@ type RegionDef = {
 export const REGIONS: RegionDef[] = [
   { code: "en", flag: "🇺🇸", label: "USA" },
   { code: "ja", flag: "🇯🇵", label: "Japan" },
-  {
-    code: "ko",
-    flag: "🇰🇷",
-    label: "Korea",
-    comingSoon: "We're sourcing Korean prints — coming next.",
-  },
+  { code: "ko", flag: "🇰🇷", label: "Korea" },
+  { code: "zh-cn", flag: "🇨🇳", label: "China" },
 ];
 
 type Props = {

@@ -103,8 +103,12 @@ async def list_sets(
     series: str | None = Query(None, description="Filter by series name"),
     language: str = Query(
         "en",
-        description="Catalog language: 'en' (default, pokemontcg.io English), 'ja' (TCGdex Japanese). 'ko' is reserved; no data yet.",
-        pattern="^(en|ja|ko)$",
+        description=(
+            "Catalog language: 'en' (default, pokemontcg.io English), "
+            "'ja' (TCGdex Japanese), 'ko' (TCGdex Korean), "
+            "'zh-cn' (TCGdex Chinese Simplified), 'zh-tw' (TCGdex Chinese Traditional)."
+        ),
+        pattern="^(en|ja|ko|zh-cn|zh-tw)$",
     ),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> list[SetWithCardCount]:
@@ -383,7 +387,7 @@ async def top_ebay_sales(
         ),
     ),
     limit: int = Query(15, ge=1, le=50),
-    language: str = Query("en", pattern="^(en|ja|ko)$"),
+    language: str = Query("en", pattern="^(en|ja|ko|zh-cn|zh-tw)$"),
 ) -> dict:
     """Weekly eBay auction highlights — cards with the highest sold
     activity in the window.
@@ -486,7 +490,7 @@ async def top_artists(
         ),
     ),
     limit: int = Query(10, ge=1, le=50),
-    language: str = Query("en", pattern="^(en|ja|ko)$"),
+    language: str = Query("en", pattern="^(en|ja|ko|zh-cn|zh-tw)$"),
 ) -> dict:
     """Top illustrators by count of qualifying cards.
 
@@ -534,7 +538,7 @@ async def cards_by_artist(
     db: AsyncSession = Depends(get_db),
     artist: str = Query(..., min_length=1, description="Exact artist credit as stored on Card.artist"),
     limit: int = Query(15, ge=1, le=50),
-    language: str = Query("en", pattern="^(en|ja|ko)$"),
+    language: str = Query("en", pattern="^(en|ja|ko|zh-cn|zh-tw)$"),
     sort: str = Query("price_desc", pattern="^(price_desc|newest|oldest)$"),
 ) -> dict:
     """Top cards credited to a specific artist.
@@ -600,7 +604,7 @@ async def top_priced_cards(
         ),
     ),
     limit: int = Query(20, ge=1, le=100),
-    language: str = Query("en", pattern="^(en|ja|ko)$"),
+    language: str = Query("en", pattern="^(en|ja|ko|zh-cn|zh-tw)$"),
 ) -> dict:
     """Straight top-N cards by market_price_usd, filtered to a floor.
 
@@ -662,11 +666,11 @@ async def search_cards(
     language: str | None = Query(
         None,
         description=(
-            "Filter to one catalog language (en/ja/ko). Omit to search "
-            "across all languages — cross-language matches use Pokédex "
-            "number expansion so e.g. 'Charizard' surfaces リザードン too."
+            "Filter to one catalog language (en/ja/ko/zh-cn/zh-tw). Omit "
+            "to search across all languages — cross-language matches use "
+            "Pokédex number expansion so e.g. 'Charizard' surfaces リザードン too."
         ),
-        pattern="^(en|ja|ko)$",
+        pattern="^(en|ja|ko|zh-cn|zh-tw)$",
     ),
     cross_language: bool = Query(
         True,

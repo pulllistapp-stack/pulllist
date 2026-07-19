@@ -1,0 +1,112 @@
+name: Import KR + CN catalogs (TCGdex)
+
+# One-shot ingest of the Korean and Chinese Simplified catalogs from
+# TCGdex, running against prod via secrets.DATABASE_URL. Uses the
+# same script that already handles JP (import_jp_catalog.py) with
+# the --lang flag. Idempotent: existing rows skipped unless --refresh.
+#
+# TCGdex coverage as of 2026-07-16:
+#   - ko:    95 sets
+#   - zh-cn: 57 sets
+#
+# Sets phase runs first (fast, ~30s per language) so /sets?language=ko
+# is browsable immediately. Cards phase runs after (~10-15 min per
+# language depending on TCGdex response time). Splitting them into
+# two steps lets the workflow fail one language without eating the
+# entire run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lang:
+        description: "Which language(s) to import"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - both
+          - ko
+          - zh-cn
+      sets_only:
+        description: "Only import sets (skip per-card fetch)"
+        required: false
+        default: "false"
+      refresh:
+        description: "Re-pull cards already in DB (slower)"
+        required: false
+        default: "false"
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import KR sets (${{ inputs.lang == 'zh-cn' && 'skipped' || 'running' }})
+        if: inputs.lang == 'both' || inputs.lang == 'ko'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args="--lang ko"
+          if [ "${{ inputs.sets_only }}" = "true" ]; then
+            args="$args --sets-only"
+          fi
+          if [ "${{ inputs.refresh }}" = "true" ]; then
+            args="$args --refresh"
+          fi
+          python -m scripts.import_jp_catalog $args
+
+      - name: Import CN Simplified sets (${{ inputs.lang == 'ko' && 'skipped' || 'running' }})
+        if: inputs.lang == 'both' || inputs.lang == 'zh-cn'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LOG_LEVEL: INFO
+        run: |
+          args="--lang zh-cn"
+          if [ "${{ inputs.sets_only }}" = "true" ]; then
+            args="$args --sets-only"
+          fi
+          if [ "${{ inputs.refresh }}" = "true" ]; then
+            args="$args --refresh"
+          fi
+          python -m scripts.import_jp_catalog $args
+
+      - name: Summary
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python <<'PY'
+          import asyncio
+          from sqlalchemy import text
+          from app.database import SessionLocal, init_db
+
+          async def main():
+              await init_db()
+              async with SessionLocal() as db:
+                  for lang in ('ko', 'zh-cn'):
+                      s = (await db.execute(
+                          text("SELECT COUNT(*) FROM sets WHERE language = :l"),
+                          {"l": lang},
+                      )).scalar_one()
+                      c = (await db.execute(
+                          text("SELECT COUNT(*) FROM cards WHERE language = :l"),
+                          {"l": lang},
+                      )).scalar_one()
+                      print(f"  {lang:>6s}: sets={s}  cards={c}")
+
+          asyncio.run(main())
+          PY

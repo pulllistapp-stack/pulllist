@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { RegionTabs } from "@/components/RegionTabs";
@@ -11,9 +10,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const _VALID_REGIONS: CatalogRegion[] = ["en", "ja", "ko", "zh-cn"];
+
 function normalizeRegion(raw: string | string[] | undefined): CatalogRegion {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  return v === "ja" || v === "ko" ? v : "en";
+  return (_VALID_REGIONS as string[]).includes(v ?? "") ? (v as CatalogRegion) : "en";
 }
 
 export default async function SetsPage({
@@ -63,47 +64,7 @@ export default async function SetsPage({
         </div>
       )}
 
-      {!error && sets.length === 0 && region === "ko" && (
-        <div className="rounded-card bg-bg-surface border border-border p-10 text-center max-w-xl mx-auto">
-          <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-white flex items-center justify-center shadow-sm">
-            <Image
-              src="/pullist-mascot.png"
-              alt="PullList mascot"
-              width={60}
-              height={60}
-              className="object-contain"
-              unoptimized
-            />
-          </div>
-          <h2 className="text-lg font-bold text-text-primary">
-            🇰🇷 Korean catalog — coming soon
-          </h2>
-          <p className="mt-2 text-sm text-text-secondary">
-            We&apos;re sourcing Korean prints from{" "}
-            <code className="font-mono text-xs bg-bg border border-border rounded px-1">
-              pokemonkorea.co.kr
-            </code>
-            . Until that lands, browse Japanese (the master prints most Korean
-            cards translate) or USA.
-          </p>
-          <div className="mt-5 flex justify-center gap-2">
-            <Link
-              href="/sets?region=ja"
-              className="rounded-full bg-accent-yellow text-gray-900 font-bold px-4 py-2 text-sm hover:brightness-105 transition-all"
-            >
-              🇯🇵 Browse Japanese
-            </Link>
-            <Link
-              href="/sets?region=en"
-              className="rounded-full border border-border bg-bg-surface text-text-primary font-semibold px-4 py-2 text-sm hover:border-accent-yellow/60 transition-all"
-            >
-              🇺🇸 Browse English
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {!error && sets.length === 0 && region !== "ko" && (
+      {!error && sets.length === 0 && (
         <div className="rounded-card bg-bg-surface border border-border p-6 text-sm text-text-secondary">
           No sets indexed for this region yet.
         </div>

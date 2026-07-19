@@ -10,7 +10,7 @@ export type SetSubtype = "STARTER" | "DECK" | "BOX" | "SPECIAL";
 export type SetWithCardCount = {
   id: string;
   name: string;
-  language: "en" | "ja" | "ko";
+  language: "en" | "ja" | "ko" | "zh-cn";
   name_ko: string | null;
   name_en: string | null;
   series: string | null;
@@ -114,7 +114,7 @@ export type CardList = {
   page_size: number;
 };
 
-export type CatalogRegion = "en" | "ja" | "ko";
+export type CatalogRegion = "en" | "ja" | "ko" | "zh-cn";
 
 export async function listSets(opts: {
   token?: string;
