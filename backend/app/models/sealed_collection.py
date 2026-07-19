@@ -50,18 +50,18 @@ class SealedCollectionItem(Base):
 
     qty: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
-    condition: Mapped[str] = mapped_column(
-        String(16), nullable=False, server_default="sealed", default="sealed"
+    condition: Mapped[str | None] = mapped_column(
+        String(16), nullable=True, server_default="sealed", default="sealed"
     )
     """Physical state of the sealed product:
         'sealed'  — factory sealed, unopened (default)
         'opened'  — box opened, contents intact
         'damaged' — box or contents damaged (water/tear/crush)
-    Grading isn't a concept for sealed products — cards get graded,
-    boxes don't. Keeping this coarse (3 buckets) is deliberate: any
-    finer split (mint sealed vs shelfwear vs dented corner) turns
-    into subjective grading that would need an authority to
-    standardize, which nobody publishes for sealed."""
+    Nullable at the ORM level so a delayed schema migration doesn't
+    500 the read path — every writer defaults to 'sealed' either at
+    the DB (server_default) or in Python (default) and the API
+    endpoint normalizes reads with `or 'sealed'`. Grading isn't a
+    concept for sealed products."""
     purchase_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     acquisition_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """Purchase / Gift / Trade / Other — mirrors CollectionItem."""

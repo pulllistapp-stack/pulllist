@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,32 +29,50 @@ from app.models import (
 router = APIRouter(prefix="/sealed", tags=["sealed"])
 
 
+_ALLOWED_CONDITIONS = frozenset({"sealed", "opened", "damaged"})
+
+
 class SealedCollectionItemRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     product_id: str
     qty: int
-    condition: str
-    purchase_price_usd: float | None
-    acquisition_type: str | None
-    acquired_at: str | None
-    notes: str | None
+    # Defaults to "sealed" so a delayed ALTER TABLE on Render can't
+    # 500 the read path — the field validator coerces None / empty
+    # / missing to "sealed" during model_validate so the response
+    # contract stays a plain non-null string.
+    condition: str = "sealed"
+    purchase_price_usd: float | None = None
+    acquisition_type: str | None = None
+    acquired_at: str | None = None
+    notes: str | None = None
+
+    @field_validator("condition", mode="before")
+    @classmethod
+    def _coerce_condition(cls, v):
+        return v if v else "sealed"
 
 
 class SealedCollectionItemWrite(BaseModel):
     qty: int = 1
-    # sealed / opened / damaged — see model docstring. Server-side
-    # pattern gate rejects anything off-list, so the frontend can't
-    # send a random string and end up with a mystery bucket in the
-    # portfolio.
-    condition: str | None = Field(
-        default=None, pattern="^(sealed|opened|damaged)$"
-    )
+    # Free-form on the wire; the endpoint normalizes to the 3-bucket
+    # allowlist. Pydantic v2's `pattern` interacts oddly with
+    # Optional strings across some FastAPI + pydantic versions, so
+    # we validate in Python where the semantics are unambiguous.
+    condition: str | None = None
     purchase_price_usd: float | None = None
     acquisition_type: str | None = None
     acquired_at: str | None = None  # ISO YYYY-MM-DD
     notes: str | None = None
+
+
+def _normalize_condition(value: str | None) -> str:
+    """Coerce whatever the client sent into the canonical vocab.
+    Unknown / None both fall back to 'sealed' — the safest default
+    for a "+ I have this" click that doesn't provide condition."""
+    v = (value or "").strip().lower()
+    return v if v in _ALLOWED_CONDITIONS else "sealed"
 
 
 class SealedWishlistItemRead(BaseModel):
@@ -174,7 +192,7 @@ async def upsert_collection_entry(
         except ValueError:
             raise HTTPException(400, "acquired_at must be YYYY-MM-DD")
 
-    condition = payload.condition or "sealed"
+    condition = _normalize_condition(payload.condition)
     if row is None:
         row = SealedCollectionItem(
             user_id=user.id,
