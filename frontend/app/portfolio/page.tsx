@@ -469,10 +469,10 @@ export default function PortfolioPage() {
           <div className="rounded-card bg-bg-surface border border-border p-5">
             <div className="flex items-baseline justify-between mb-4">
               <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary">
-                Top 5 cards by value
+                Top 10 cards by value
               </h2>
               <span className="text-xs font-mono text-text-tertiary">
-                {Math.min(items.length, 5)} of {items.length}
+                {Math.min(items.length, 10)} of {items.length}
               </span>
             </div>
             {loading ? (
@@ -497,7 +497,7 @@ export default function PortfolioPage() {
                     (a, b) =>
                       (b.market_price_usd ?? 0) - (a.market_price_usd ?? 0),
                   )
-                  .slice(0, 5)
+                  .slice(0, 10)
                   .map((it, i) => (
                     <Link
                       key={it.id}
@@ -540,10 +540,10 @@ export default function PortfolioPage() {
           <div className="rounded-card bg-bg-surface border border-border p-5">
             <div className="flex items-baseline justify-between mb-4">
               <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary">
-                Top 5 sealed by value
+                Top 10 sealed by value
               </h2>
               <span className="text-xs font-mono text-text-tertiary">
-                {Math.min(sealedItems.length, 5)} of {sealedItems.length}
+                {Math.min(sealedItems.length, 10)} of {sealedItems.length}
               </span>
             </div>
             {loading ? (
@@ -570,7 +570,7 @@ export default function PortfolioPage() {
                       (entry.item.qty ?? 1),
                   }))
                   .sort((a, b) => b.lineValue - a.lineValue)
-                  .slice(0, 5)
+                  .slice(0, 10)
                   .map(({ entry, lineValue }, i) => (
                     <Link
                       key={entry.product.id}
