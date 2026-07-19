@@ -129,6 +129,16 @@ const nextConfig = {
       // one zhtw-* set (MBG 挑戰牌組「超級耿鬼ex」) koca.shop's
       // catalog didn't carry. LO hand-supplied the URL.
       { protocol: "https", hostname: "hobbyxstore.com" },
+      // ─── Cloudflare R2 self-hosted set-logo CDN (2026-07-19) ─
+      // All 837 currently-live set logos across EN/JP/KR/CN/TW are
+      // now mirrored to the pulllist-setslogosbackup R2 bucket
+      // (see upload_logos_to_r2.py). Public URL served with
+      // Cache-Control: public, max-age=31536000, immutable — so
+      // next/image can cache aggressively. The above per-source
+      // hostnames stay whitelisted for the 5 remaining ko-* rows
+      // that pointed to weserv-proxied dead upstream sources; R2
+      // is where every other tile now loads from.
+      { protocol: "https", hostname: "pub-41c2ef36112f48f3bba1ce11a627209d.r2.dev" },
     ],
   },
   async rewrites() {
