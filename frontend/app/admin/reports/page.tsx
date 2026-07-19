@@ -179,8 +179,10 @@ function AdminReportsContent() {
         </p>
       </div>
 
-      {/* Scope toggle — card vs set */}
-      <div className="mb-3 inline-flex gap-1 rounded-full border border-border bg-bg-surface p-1">
+      {/* Scope toggle + Status tabs — wrap onto two rows on narrow
+          screens so neither pill group pushes past the viewport. */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="inline-flex gap-1 rounded-full border border-border bg-bg-surface p-1">
         {(["card", "set"] as ReportScope[]).map((s) => {
           const active = scope === s;
           return (
@@ -200,8 +202,7 @@ function AdminReportsContent() {
         })}
       </div>
 
-      {/* Status tabs */}
-      <div className="mb-5 inline-flex gap-1 rounded-full border border-border bg-bg-surface p-1 ml-2">
+      <div className="inline-flex gap-1 rounded-full border border-border bg-bg-surface p-1">
         {STATUS_TABS.map((tab) => {
           const active = statusFilter === tab.value;
           return (
@@ -219,6 +220,7 @@ function AdminReportsContent() {
             </button>
           );
         })}
+      </div>
       </div>
 
       {loading ? (

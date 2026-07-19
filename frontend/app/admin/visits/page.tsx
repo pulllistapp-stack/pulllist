@@ -187,6 +187,7 @@ function AdminVisitsContent() {
               </p>
             ) : (
               <div className="rounded-card border border-border bg-bg-surface overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-bg/40 text-[11px] font-mono uppercase tracking-wider text-text-tertiary">
@@ -249,6 +250,7 @@ function AdminVisitsContent() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </section>

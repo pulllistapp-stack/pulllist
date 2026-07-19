@@ -152,8 +152,8 @@ function AdminNewsListContent() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-6 flex items-end justify-between gap-4">
-        <div>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <p className="font-mono text-xs uppercase tracking-widest text-text-tertiary">
             Admin
           </p>
@@ -168,7 +168,7 @@ function AdminNewsListContent() {
         </div>
         <Link
           href="/admin/news/new"
-          className="inline-flex items-center gap-1.5 rounded-btn bg-accent-yellow px-4 py-2 text-sm font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-btn bg-accent-yellow px-4 py-2 text-sm font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110"
         >
           <Plus className="h-4 w-4" />
           New post
@@ -268,10 +268,13 @@ function AdminNewsListContent() {
                         type="button"
                         onClick={() => setStatus(p, "published")}
                         disabled={busy === p.slug}
-                        className="inline-flex items-center gap-1 rounded-btn bg-accent-yellow px-3 py-1.5 text-xs font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110 disabled:opacity-60"
+                        title="Publish this draft"
+                        className="inline-flex items-center gap-1 rounded-btn bg-accent-yellow px-2 py-1.5 sm:px-3 text-xs font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110 disabled:opacity-60"
                       >
                         <Send className="h-3 w-3" />
-                        {busy === p.slug ? "..." : "Publish"}
+                        <span className="hidden sm:inline">
+                          {busy === p.slug ? "..." : "Publish"}
+                        </span>
                       </button>
                     )}
                     {p.status === "published" && (
@@ -280,10 +283,12 @@ function AdminNewsListContent() {
                         onClick={() => setStatus(p, "hidden")}
                         disabled={busy === p.slug}
                         title="Hide from /news without deleting"
-                        className="inline-flex items-center gap-1 rounded-btn border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary disabled:opacity-60"
+                        className="inline-flex items-center gap-1 rounded-btn border border-border bg-bg-surface px-2 py-1.5 sm:px-3 text-xs font-semibold text-text-secondary hover:text-text-primary disabled:opacity-60"
                       >
                         <EyeOff className="h-3 w-3" />
-                        {busy === p.slug ? "..." : "Hide"}
+                        <span className="hidden sm:inline">
+                          {busy === p.slug ? "..." : "Hide"}
+                        </span>
                       </button>
                     )}
                     {isHidden && (
@@ -292,10 +297,12 @@ function AdminNewsListContent() {
                         onClick={() => setStatus(p, "published")}
                         disabled={busy === p.slug}
                         title="Restore to /news"
-                        className="inline-flex items-center gap-1 rounded-btn bg-accent-yellow px-3 py-1.5 text-xs font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110 disabled:opacity-60"
+                        className="inline-flex items-center gap-1 rounded-btn bg-accent-yellow px-2 py-1.5 sm:px-3 text-xs font-bold text-gray-900 shadow-sm shadow-accent-yellow/30 hover:brightness-110 disabled:opacity-60"
                       >
                         <Eye className="h-3 w-3" />
-                        {busy === p.slug ? "..." : "Unhide"}
+                        <span className="hidden sm:inline">
+                          {busy === p.slug ? "..." : "Unhide"}
+                        </span>
                       </button>
                     )}
                     <Link
@@ -307,26 +314,31 @@ function AdminNewsListContent() {
                           ? `/admin/news/${p.slug}/preview`
                           : `/news/${p.slug}`
                       }
-                      className="rounded-btn border border-border bg-bg-surface px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary"
+                      title="View post"
+                      className="inline-flex items-center gap-1 rounded-btn border border-border bg-bg-surface px-2 py-1.5 sm:px-3 text-xs font-semibold text-text-secondary hover:text-text-primary"
                     >
-                      View
+                      <Eye className="h-3 w-3" />
+                      <span className="hidden sm:inline">View</span>
                     </Link>
                     <Link
                       href={`/admin/news/${p.slug}/edit`}
-                      className="inline-flex items-center gap-1 rounded-btn border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-1.5 text-xs font-semibold text-accent-yellow hover:bg-accent-yellow/15"
+                      title="Edit post"
+                      className="inline-flex items-center gap-1 rounded-btn border border-accent-yellow/40 bg-accent-yellow/10 px-2 py-1.5 sm:px-3 text-xs font-semibold text-accent-yellow hover:bg-accent-yellow/15"
                     >
                       <Edit2 className="h-3 w-3" />
-                      Edit
+                      <span className="hidden sm:inline">Edit</span>
                     </Link>
                     <button
                       type="button"
                       onClick={() => deleteNow(p)}
                       disabled={busy === p.slug}
                       title={`Delete "${p.title}"`}
-                      className="inline-flex items-center gap-1 rounded-btn border border-accent-red/40 bg-accent-red/10 px-3 py-1.5 text-xs font-semibold text-accent-red hover:bg-accent-red/20 disabled:opacity-60"
+                      className="inline-flex items-center gap-1 rounded-btn border border-accent-red/40 bg-accent-red/10 px-2 py-1.5 sm:px-3 text-xs font-semibold text-accent-red hover:bg-accent-red/20 disabled:opacity-60"
                     >
                       <Trash2 className="h-3 w-3" />
-                      {busy === p.slug ? "..." : ""}
+                      {busy === p.slug && (
+                        <span className="hidden sm:inline">...</span>
+                      )}
                     </button>
                   </div>
                 </div>
