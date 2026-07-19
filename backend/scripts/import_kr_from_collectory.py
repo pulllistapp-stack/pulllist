@@ -138,30 +138,14 @@ async def _fetch_json(client: httpx.AsyncClient, path: str, params: dict | None 
 async def _list_all_cards_for_set(
     client: httpx.AsyncClient, collectory_set_id: str
 ) -> list[dict]:
-    """collectory `/api/cards?set_id=...` returns paginated results with
-    a soft page size cap; loop until we've seen every card in the set."""
-    all_cards: list[dict] = []
-    page = 1
-    while True:
-        d = await _fetch_json(
-            client,
-            "/cards",
-            params={"set_id": collectory_set_id, "page": page, "limit": 200},
-        )
-        cards = d.get("cards", [])
-        if not cards:
-            break
-        all_cards.extend(cards)
-        # Break when we've collected the set's full count. `total` in
-        # the response is the global card count (not the filtered one),
-        # so we can't rely on it. Instead stop when a page returns
-        # fewer than the requested limit.
-        if len(cards) < 200:
-            break
-        page += 1
-        if page > 50:  # hard safety cap
-            break
-    return all_cards
+    """Fetch every card in a collectory set. The `/cards?set_id=…`
+    filter is silently broken on the API side (returns unfiltered
+    global results — verified 2026-07-19), so we hit the nested
+    `/sets/{id}/cards` endpoint instead which does honor the scope
+    and returns the whole set in one payload (no pagination needed;
+    largest set observed is 356 cards)."""
+    d = await _fetch_json(client, f"/sets/{collectory_set_id}/cards")
+    return d.get("cards", []) if isinstance(d, dict) else []
 
 
 async def _build_ko_set_index(db) -> dict[str, tuple[str, str]]:
@@ -179,28 +163,62 @@ async def _build_ko_set_index(db) -> dict[str, tuple[str, str]]:
 
 def _match_collectory_set(
     coll_set: dict, ko_index: dict[str, tuple[str, str]]
-) -> tuple[str, str] | None:
+) -> tuple[str, str, float] | None:
     """Pick a KR set to attach this collectory set's cards under.
-    Priority: (1) set_code_ja direct match, (2) fuzzy name match on
-    name_ko above 0.7 similarity. Returns (our_ko_set_id, matched_name)
-    or None if no confident match."""
+    Returns (our_ko_set_id, matched_name, score) or None.
+
+    Score guides the winner-take-all pass in `_pick_best_matches`: a
+    set_code_ja direct hit scores 1.0; fuzzy name matches use their
+    SequenceMatcher ratio. Only ≥0.85 fuzzy hits are kept — the loose
+    0.7 threshold produced too many collisions across localized
+    reprints ("포켓몬 카드 151", "포켓몬 카드 151 (중판)", "151" all
+    matching the same ko-SV2a row and dumping 3× the card rows)."""
     scj = (coll_set.get("set_code_ja") or "").strip()
     if scj and scj in ko_index:
-        return ko_index[scj]
-    # Fuzzy name match — collectory's name_ko vs our ko-set name.
+        our_id, our_name = ko_index[scj]
+        return (our_id, our_name, 1.0)
+
     coll_name = _norm_name(coll_set.get("name_ko"))
     if not coll_name:
         return None
     best: tuple[str, str] | None = None
     best_score = 0.0
-    for tcg_id, (our_id, our_name) in ko_index.items():
+    for _tcg_id, (our_id, our_name) in ko_index.items():
         ratio = SequenceMatcher(None, coll_name, _norm_name(our_name)).ratio()
         if ratio > best_score:
             best_score = ratio
             best = (our_id, our_name)
-    if best_score >= 0.7:
-        return best
+    if best_score >= 0.85 and best is not None:
+        return (best[0], best[1], best_score)
     return None
+
+
+def _pick_best_matches(
+    coll_sets: list[dict], ko_index: dict[str, tuple[str, str]]
+) -> dict[str, dict]:
+    """Winner-take-all: for each of our ko-* set ids, pick exactly one
+    collectory set (highest score; tie-break on card_count desc).
+    Returns {our_ko_set_id: collectory_set_dict}. This is the fix for
+    the mid-run PK collisions we saw when multiple collectory sets
+    ('151', '포켓몬 카드 151', '포켓몬 카드 151 (중판)') all
+    matched ko-SV2a and their cards fought for `ko-SV2a-001`."""
+    # First pass: for each collectory set, compute its (target, score)
+    all_matches: list[tuple[str, float, int, dict]] = []
+    for cs in coll_sets:
+        if (cs.get("card_count") or 0) == 0:
+            continue
+        m = _match_collectory_set(cs, ko_index)
+        if m is None:
+            continue
+        our_id, _our_name, score = m
+        all_matches.append((our_id, score, cs.get("card_count") or 0, cs))
+    # Group by our_id, keep best (score desc, card_count desc)
+    best_per: dict[str, tuple[float, int, dict]] = {}
+    for our_id, score, cc, cs in all_matches:
+        prev = best_per.get(our_id)
+        if prev is None or (score, cc) > (prev[0], prev[1]):
+            best_per[our_id] = (score, cc, cs)
+    return {our_id: cs for our_id, (_s, _cc, cs) in best_per.items()}
 
 
 async def _upsert_kr_card(
@@ -282,40 +300,44 @@ async def run(only_set: str | None, dry_run: bool) -> None:
         coll_payload = await _fetch_json(client, "/sets")
         coll_sets = coll_payload.get("sets", coll_payload if isinstance(coll_payload, list) else [])
         log.info(f"collectory.cc sets: {len(coll_sets)}")
+        stats["collectory_sets_seen"] = sum(
+            1 for cs in coll_sets if (cs.get("card_count") or 0) > 0
+        )
 
-        # Filter to sets that actually have cards + optionally an
-        # only-set filter. If the only-set filter is one of ours
-        # (`ko-SV3`), find its collectory counterpart(s); if it's
-        # a raw collectory id, use that.
-        target_ko_ids: set[str] | None = None
-        if only_set:
-            target_ko_ids = {only_set}
+        # Winner-take-all: one collectory set per ko-* target. Prevents
+        # duplicate-key crashes we saw when several collectory reprints
+        # of the same physical expansion all matched the same ko-*
+        # set and their cards competed for the same primary keys.
+        best_matches = _pick_best_matches(coll_sets, ko_index)
+        log.info(f"unique ko-* -> collectory matches: {len(best_matches)}")
 
-        for cs in coll_sets:
-            if (cs.get("card_count") or 0) == 0:
-                continue
-            stats["collectory_sets_seen"] += 1
-            match = _match_collectory_set(cs, ko_index)
-            if match is None:
-                stats["sets_unmatched"] += 1
-                continue
-            our_id, our_name = match
-
-            if target_ko_ids and our_id not in target_ko_ids:
-                continue
-
-            matched_by = "code" if cs.get("set_code_ja") in ko_index else "name"
-            if matched_by == "code":
+        # Track which match came from set_code_ja (score=1.0) vs fuzzy
+        for our_id, cs in best_matches.items():
+            if (cs.get("set_code_ja") or "").strip() == _strip_tcgdex_prefix(our_id):
                 stats["sets_matched_via_code"] += 1
             else:
                 stats["sets_matched_via_name"] += 1
+        stats["sets_unmatched"] = stats["collectory_sets_seen"] - (
+            stats["sets_matched_via_code"] + stats["sets_matched_via_name"]
+        )
+
+        target_ko_ids: set[str] | None = {only_set} if only_set else None
+
+        for our_id, cs in best_matches.items():
+            if target_ko_ids and our_id not in target_ko_ids:
+                continue
+
+            _our_id_confirm, our_name = ko_index.get(our_id, (our_id, ""))
+            matched_by = "code" if (cs.get("set_code_ja") or "").strip() == _strip_tcgdex_prefix(our_id) else "name"
 
             log.info(
-                f"  match: collectory[{cs.get('set_code_ja') or cs.get('name_ko','')[:20]}] -> "
+                f"  match: collectory[{cs.get('set_code_ja') or (cs.get('name_ko') or '')[:20]}] -> "
                 f"{our_id} '{our_name[:30]}' via {matched_by}"
             )
 
-            # Fetch this collectory set's full card list
+            # Fetch this collectory set's full card list via the
+            # scoped endpoint (the /cards?set_id= filter is silently
+            # broken — see _list_all_cards_for_set for context).
             coll_id = cs.get("id")
             try:
                 cards = await _list_all_cards_for_set(client, coll_id)
@@ -323,12 +345,28 @@ async def run(only_set: str | None, dry_run: bool) -> None:
                 log.warning(f"  ! fetch failed for {coll_id}: {e}")
                 continue
 
+            # In-session dedupe: collectory occasionally lists the
+            # same card twice within a set (variant printings, promo
+            # reprints that carry the same number/069). Silently
+            # collapse to first-seen so the batch commit doesn't
+            # explode on a duplicate PK.
+            seen_card_ids: set[str] = set()
             local_added = local_updated = 0
             async with SessionLocal() as db:
                 for c in cards:
                     stats["cards_seen"] += 1
                     if dry_run:
                         continue
+                    stripped = _strip_tcgdex_prefix(our_id)
+                    num_raw = str(c.get("card_number") or "").strip()
+                    if not num_raw:
+                        stats["cards_skipped"] += 1
+                        continue
+                    cid = f"ko-{stripped}-{num_raw}"
+                    if cid in seen_card_ids:
+                        stats["cards_skipped"] += 1
+                        continue
+                    seen_card_ids.add(cid)
                     result, _ = await _upsert_kr_card(db, c, our_id, cs)
                     stats[f"cards_{result}"] += 1
                     if result == "added":
@@ -338,7 +376,7 @@ async def run(only_set: str | None, dry_run: bool) -> None:
                 if not dry_run:
                     await db.commit()
             log.info(
-                f"    -> {len(cards)} cards from collectory; "
+                f"    -> {len(cards)} cards from collectory ({len(seen_card_ids)} unique); "
                 f"added={local_added} updated={local_updated}"
             )
 

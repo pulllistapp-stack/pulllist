@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-19 ─────────────────────────────────────────────────
   {
     date: "2026-07-19",
+    emoji: "🇰🇷",
+    kr: "한국판 (KR) 카탈로그 정식 오픈 — 세트 페이지 상단 리전 탭에 🇰🇷 Korea + 🇨🇳 China 신규 추가. TCGdex 로 KR 세트 91개 (SV6 변환의 가면 / SV5a 크림슨헤이즈 / SV4M 미래의 일섬 등) + CN 세트 56개 (太晶盛聚 / 星彩晶璃 등) landing. KR 카드는 TCGdex 가 세트 메타만 있고 카드 arrays 비어있어서 collectory.cc (한국 팬 아카이브) 로 카드 8,475장 fill — 99% 한국 스캔 이미지 (cdn.collectory.cc) 사용. 76/91 KR 세트 카드 커버 (나머지 15세트는 collectory 에도 없는 옛날 promo). URL 은 JP 와 코드 충돌 방지 위해 KR 은 ko- 접두어 (예: /sets/ko-SV6), CN 은 zhcn- 접두어 사용. 가격 시세는 KR/CN 아직 미지원 (별도 phase 예정).",
+    en: "Korean (KR) catalog officially open — set page's region tab bar adds 🇰🇷 Korea and 🇨🇳 China alongside USA / Japan. TCGdex ingest landed 91 KR sets (SV6 변환의 가면 / SV5a 크림슨헤이즈 / SV4M 미래의 일섬 etc.) + 56 CN Simplified sets (太晶盛聚 / 星彩晶璃 etc.). TCGdex only carried set metadata for KR (empty cards arrays), so a second pass via collectory.cc (a Korean fan archive) filled 8,475 KR card rows with 99% native Korean scans on cdn.collectory.cc. 76 of 91 KR sets fully populated — the remaining 15 are legacy promos collectory doesn't index either. To avoid PK collision with JP (TCGdex uses the same set/card ids across all locales), KR ids get a `ko-` prefix (e.g. /sets/ko-SV6) and CN gets `zhcn-`. KR/CN pricing not yet wired — separate phase later.",
+  },
+  {
+    date: "2026-07-19",
     emoji: "🎯",
     kr: "세트 페이지와 카드 상세 페이지의 가격 표시 통일 — 카드 상세는 TCGplayer + eBay median 을 절반씩 섞은 컨센서스 (예: $75.65) 를 보여주는데, 세트 페이지 카드 타일은 TCG 원본 값 ($81.80) 만 보여줘서 유저가 '세트페이지 가격은 업데이트가 안된다' 고 오해했음. Refresh 엔드포인트 3곳 + 매일 밤 TCGCSV sync 다 컨센서스 저장하도록 수정. 5,673 장 카탈로그 한 번에 재계산해서 즉시 반영. 이제 두 화면 값 일치.",
     en: "Set-page and card-detail pages now show the SAME price — card detail computed a consensus (TCG + eBay)/2 client-side (e.g. $75.65) while set-page tiles read raw TCG from the DB ($81.80). Users read the mismatch as 'the set page never updates.' Fixed at three writers (unified Refresh, legacy Refresh, nightly TCGCSV sync) so the persisted headline market_price_usd is the consensus itself, and ran a one-shot backfill against prod that reblended 5,673 catalog rows in 55 seconds. Both views now agree on the same number.",
