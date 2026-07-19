@@ -120,6 +120,12 @@ async def crawl() -> list[NewsItem]:
         w for w in re.findall(r"[a-zA-Z0-9']+", topic)
         if w.lower() not in STOP and len(w) >= 2
     ]
+    # Prefer capitalized keywords (Pokemon names, artist names, proper
+    # nouns) — a topic like 'Charizard Anniversary Retrospective' should
+    # search 'Charizard' first, not 'Anniversary'. Fall through to any
+    # keyword in order-of-appearance when nothing is capitalized.
+    proper_nouns = [w for w in keywords if w[0].isupper()]
+    ranked_keywords = proper_nouns + [w for w in keywords if w not in proper_nouns]
 
     cards: list[dict] = []
     seen_ids: set[str] = set()
