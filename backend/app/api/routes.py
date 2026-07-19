@@ -1130,6 +1130,13 @@ async def trending_grading_premium(
     language: str = Query("all", pattern="^(all|en|ja|ko|zh)$"),
     min_samples: int = Query(2, ge=1, le=50),
     min_multiplier: float = Query(2.0, ge=1.0, le=100.0),
+    # Real PSA 10 premiums peak around ×100-150 even on legendary
+    # vintage. Anything above ~200 is almost certainly a placeholder
+    # asking price ($999,999 vintage-seller anchors) that survived
+    # into a median because n=2 pulls two of them at once. Cap it
+    # at the query layer until the scraper gets its own sanity band
+    # for graded snapshots.
+    max_multiplier: float = Query(300.0, ge=10.0, le=10000.0),
     limit: int = Query(100, ge=10, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -1202,6 +1209,7 @@ async def trending_grading_premium(
         WHERE c.market_price_usd IS NOT NULL
           AND c.market_price_usd > 1.0
           AND (l.tier_price / c.market_price_usd) >= :min_multiplier
+          AND (l.tier_price / c.market_price_usd) <= :max_multiplier
           AND (
             l.source != 'ebay_sold' OR
             COALESCE(l.sales_count, 0) >= :min_samples
@@ -1220,6 +1228,7 @@ async def trending_grading_premium(
                 "tier": tier,
                 "language": language,
                 "min_multiplier": min_multiplier,
+                "max_multiplier": max_multiplier,
                 "min_samples": min_samples,
                 "limit": limit,
             },
@@ -1251,6 +1260,7 @@ async def trending_grading_premium(
         "language": language,
         "min_samples": min_samples,
         "min_multiplier": min_multiplier,
+        "max_multiplier": max_multiplier,
         "count": len(items),
         "items": items,
     }
