@@ -35,17 +35,14 @@ export type BulkListItem = {
 };
 
 type Props = {
-  catalogLoading: boolean;
-  catalogError: string | null;
-  catalogCoverage: number | null;
   detected: BulkDetected | null;
-  closest: { cardId: string; distance: number; hash: string } | null;
+  identifying: boolean;
+  scanCount: number;
   list: BulkListItem[];
   adding: boolean;
   onAdd: () => void;
   onDismiss: () => void;
   onClearList: () => void;
-  onCatalogRetry: () => void;
 };
 
 function fmtPrice(v: number | null): string {
@@ -55,63 +52,19 @@ function fmtPrice(v: number | null): string {
 }
 
 export function BulkScanPanel({
-  catalogLoading,
-  catalogError,
-  catalogCoverage,
   detected,
-  closest,
+  identifying,
+  scanCount,
   list,
   adding,
   onAdd,
   onDismiss,
   onClearList,
-  onCatalogRetry,
 }: Props) {
   const total = list.reduce((s, it) => s + (it.priceUsd ?? 0), 0);
 
   return (
     <div className="w-full flex flex-col gap-3">
-      {/* Catalog state banner — only shows while loading or on error. */}
-      {catalogLoading && (
-        <div className="rounded-2xl border border-[#FDE2C7] bg-white px-4 py-3 flex items-center gap-3 shadow-sm">
-          <Loader2 className="h-4 w-4 animate-spin text-[#FACC15]" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-[#2D2A26]">
-              Loading card catalog…
-            </p>
-            <p className="text-[11px] text-[#8A7E72]">
-              One-time download, cached after this
-            </p>
-          </div>
-        </div>
-      )}
-      {catalogError && (
-        <div className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-700">
-              Couldn&apos;t load catalog
-            </p>
-            <p className="text-[11px] text-red-600 mt-0.5 break-words">
-              {catalogError}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onCatalogRetry}
-            className="shrink-0 rounded-full bg-red-600 text-white font-bold text-xs px-3 py-1.5 hover:bg-red-700 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {catalogCoverage != null && catalogCoverage < 0.5 && !catalogLoading && (
-        <div className="rounded-2xl border border-[#FDE2C7] bg-[#FFF3DE] px-4 py-2 text-center">
-          <p className="text-[11px] font-mono text-[#8A7E72]">
-            Catalog {(catalogCoverage * 100).toFixed(0)}% hashed — matches may
-            miss until backfill completes
-          </p>
-        </div>
-      )}
 
       {/* Detection banner — the star of the show. */}
       {detected && (
@@ -145,14 +98,9 @@ export function BulkScanPanel({
                 </span>
               )}
             </p>
-            <div className="flex items-baseline gap-2 mt-0.5">
-              <p className="text-lg font-black text-[#22C55E]">
-                {fmtPrice(detected.priceUsd)}
-              </p>
-              <p className="text-[10px] font-mono text-[#8A7E72]">
-                dist {detected.distance}
-              </p>
-            </div>
+            <p className="mt-0.5 text-lg font-black text-[#22C55E]">
+              {fmtPrice(detected.priceUsd)}
+            </p>
           </div>
           <div className="flex flex-col gap-1.5 shrink-0">
             <button
@@ -181,25 +129,34 @@ export function BulkScanPanel({
         </motion.div>
       )}
 
-      {/* Idle "waiting for card" hint + diagnostic. When there's a
-          closest match but it's above threshold, we still show it so
-          the accuracy problem is visible instead of silent. Hash
-          preview lets LO cross-check against a known catalog card's
-          stored hash (first 8 chars of 16). */}
-      {!detected && !catalogLoading && !catalogError && (
-        <div className="rounded-xl bg-white/90 border border-[#FDE2C7] px-3 py-2 shadow-sm">
-          <div className="flex items-center gap-2 mb-0.5">
-            <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse shrink-0" />
-            <span className="text-xs font-semibold text-[#8A7E72]">
-              {closest
-                ? `Closest: ${closest.cardId} · dist ${closest.distance} (need ≤26)`
-                : "Auto-scan running — hold a card in the frame"}
-            </span>
+      {/* Idle / status hint. Three visual states:
+          - identifying: yellow spinner, "reading card…"
+          - idle: green pulse, "hold a card"
+          Session scan count sits on the right so LO can see how many
+          Gemini calls this session has cost (roughly $0.0001 each). */}
+      {!detected && (
+        <div className="rounded-full bg-white/90 border border-[#FDE2C7] px-4 py-2 flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            {identifying ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#FACC15] shrink-0" />
+                <span className="text-xs font-semibold text-[#2D2A26]">
+                  Reading card…
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="w-2 h-2 rounded-full bg-[#22C55E] animate-pulse shrink-0" />
+                <span className="text-xs font-semibold text-[#8A7E72]">
+                  Hold a card steady in the frame
+                </span>
+              </>
+            )}
           </div>
-          {closest && (
-            <div className="text-[10px] font-mono text-[#B8A99A] pl-4 truncate">
-              hash {closest.hash}
-            </div>
+          {scanCount > 0 && (
+            <span className="text-[10px] font-mono text-[#8A7E72] shrink-0">
+              {scanCount} scan{scanCount === 1 ? "" : "s"}
+            </span>
           )}
         </div>
       )}

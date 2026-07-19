@@ -27,44 +27,36 @@ import {
   type ScanResponse,
   type VisionProvider,
 } from "@/lib/auth";
-import {
-  fetchPhashCatalog,
-  fetchPhashCatalogStats,
-  getCard,
-  type PhashCatalogResponse,
-} from "@/lib/api";
-import {
-  computePhash,
-  extractFrameForHash,
-  findNearest,
-} from "@/lib/phash";
+import { computePhash, extractFrameForHash, hammingDistance } from "@/lib/phash";
 
 type Mode = "camera" | "confirm";
-
-// Match threshold — hamming distance between a camera frame's pHash
-// and a catalog hash. Backend uses 5 for cache lookups on identical
-// re-scans; camera-vs-render is noisier (lighting / YUV / lens blur
-// each contribute a few bits). Set to 26 — anything under produces a
-// detection banner, anything above only surfaces as the diagnostic
-// "closest" line so LO can see how far real matches are landing.
-const BULK_MATCH_THRESHOLD = 26;
 
 // After the user adds or skips a card, don't re-detect the same
 // card_id for this many ms. Prevents an instant re-fire when the user
 // hasn't physically moved the card yet.
 const BULK_SKIP_TTL_MS = 6000;
 
-// Auto-capture cadence. Slow enough that the pHash + JSON search
-// stays off the render thread, fast enough that a stability window
-// still lands within a few seconds of user holding still.
-const BULK_TICK_MS = 700;
+// Auto-capture cadence. pHash stability check itself is cheap (~10ms);
+// slow enough here so we don't burn a Gemini call the moment the
+// camera settles between shakes.
+const BULK_TICK_MS = 500;
 
-// Stability requirement — the SAME card_id must be the top-1 nearest
-// match this many consecutive ticks before we surface a detection
-// banner. Filters camera micro-movement / autofocus jitter that
-// otherwise makes the banner flash a different card every 500 ms.
-// 3 ticks at 700 ms = ~2.1 s of the user actually holding still.
-const BULK_STABILITY_TICKS = 3;
+// Two consecutive frames must be within this hamming distance to
+// count as "stable" — the user has stopped moving the card enough
+// that firing an identifying call is worthwhile.
+const BULK_STABILITY_HAMMING = 5;
+
+// Number of consecutive stable ticks before we fire the vision call.
+// 2 ticks × 500 ms = ~1 s of holding still. Lower than the old
+// pHash-catalog design (which needed 3 same-card matches) because
+// stability here just means "camera has settled", not "matched to a
+// specific card yet — Gemini decides that.
+const BULK_STABILITY_TICKS = 2;
+
+// Provider used for bulk detection. Gemini is ~30x cheaper than
+// Claude at similar accuracy — ~$0.0001 per scan, so a 100-card
+// bulk session is roughly a cent.
+const BULK_VISION_PROVIDER: VisionProvider = "gemini";
 
 const LAST_SCAN_KEY = "pulllist:last_scanned";
 
@@ -139,32 +131,21 @@ export default function ScanPage() {
 
   // ── Bulk mode ──────────────────────────────────────────────────────
   const [scanMode, setScanMode] = useState<ScanMode>("single");
-  const [catalog, setCatalog] = useState<PhashCatalogResponse | null>(null);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [catalogCoverage, setCatalogCoverage] = useState<number | null>(null);
   const [bulkDetected, setBulkDetected] = useState<BulkDetected | null>(null);
   const [bulkList, setBulkList] = useState<BulkListItem[]>([]);
   const [bulkAdding, setBulkAdding] = useState(false);
-  // Diagnostic — the top-1 nearest catalog match every tick, whether
-  // or not it clears BULK_MATCH_THRESHOLD. Lets us see what real
-  // camera-vs-render distances look like so we can tune. The hash
-  // field carries the actual camera-computed pHash so we can compare
-  // it against the stored catalog value for the physical card LO is
-  // pointing at.
-  const [bulkClosest, setBulkClosest] = useState<{
-    cardId: string;
-    distance: number;
-    hash: string;
-  } | null>(null);
-  // Stability tracking — last N tick outcomes, used to demand
-  // consecutive matches before firing the detection banner.
-  const stabilityRef = useRef<string[]>([]);
+  const [bulkIdentifying, setBulkIdentifying] = useState(false);
+  const [bulkScanCount, setBulkScanCount] = useState(0);
+  // Consecutive-stable-tick counter — used to know when the frame
+  // has held still long enough to fire a Gemini call.
+  const stableTicksRef = useRef(0);
+  const lastHashRef = useRef<string | null>(null);
   // card_id → epoch ms until which we should ignore this card. Kept in
   // a ref so tick closure sees the latest without re-arming the
   // interval effect on every add / skip.
   const skipUntilRef = useRef<Map<string, number>>(new Map());
   const hashCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Hydrate last-scanned from localStorage on mount
   useEffect(() => {
@@ -302,49 +283,30 @@ export default function ScanPage() {
     if (lastScanned) router.push(`/cards/${lastScanned.cardId}`);
   };
 
-  // ── Bulk mode: lazy-load pHash catalog on first entry ──────────────
-  // Guarded on catalog + error + loading so a failed fetch doesn't
-  // re-arm the effect every re-render (previous version thrashed in a
-  // loading → error → loading cycle when the endpoint 404'd).
-  useEffect(() => {
-    if (scanMode !== "bulk") return;
-    if (catalog) return;
-    if (catalogLoading) return;
-    if (catalogError) return;
-    setCatalogLoading(true);
-    setCatalogError(null);
-    Promise.all([fetchPhashCatalog(), fetchPhashCatalogStats()])
-      .then(([cat, stats]) => {
-        setCatalog(cat);
-        const cov =
-          stats.cards_with_image > 0
-            ? stats.cards_with_phash / stats.cards_with_image
-            : 0;
-        setCatalogCoverage(cov);
-      })
-      .catch((e) => {
-        console.error("[bulk] catalog fetch failed", e);
-        setCatalogError(
-          e instanceof Error ? e.message : "Unknown error loading catalog",
-        );
-      })
-      .finally(() => setCatalogLoading(false));
-  }, [scanMode, catalog, catalogLoading, catalogError]);
-
   const onBulkCatalogRetry = useCallback(() => {
-    setCatalogError(null); // triggers the effect above to re-fire.
+    // Legacy prop — no catalog fetch in the Gemini-backed flow. Kept
+    // as a no-op so BulkScanPanel's error UI still compiles.
   }, []);
 
   // ── Bulk mode: auto-capture loop ───────────────────────────────────
+  // Every tick: hash the current frame, compare to previous. Two
+  // consecutive stable ticks (≈1 s of the user holding still) fire a
+  // Gemini call — much cheaper than shipping every frame to the vision
+  // API. pHash is only used here as a "did the camera settle?" signal
+  // now, not as the match itself.
   useEffect(() => {
     if (scanMode !== "bulk") return;
-    if (!camera.ready || !catalog) return;
-    if (bulkDetected) return; // pause polling while awaiting user action
+    if (!camera.ready) return;
+    if (bulkDetected || bulkIdentifying) return;
 
     if (!hashCanvasRef.current) {
       hashCanvasRef.current = document.createElement("canvas");
     }
-    const canvas = hashCanvasRef.current;
+    if (!captureCanvasRef.current) {
+      captureCanvasRef.current = document.createElement("canvas");
+    }
+    const stabCanvas = hashCanvasRef.current;
+    const captureCanvas = captureCanvasRef.current;
     let cancelled = false;
     let inFlight = false;
 
@@ -352,54 +314,89 @@ export default function ScanPage() {
       if (cancelled || inFlight) return;
       const video = camera.videoRef.current;
       if (!video) return;
-      const frame = extractFrameForHash(video, canvas);
+
+      // Stability check — hash the frame, compare to the last one.
+      const frame = extractFrameForHash(video, stabCanvas);
       if (!frame) return;
       const hash = computePhash(frame);
       if (!hash) return;
-      const match = findNearest(hash, catalog);
-      if (!match) return;
-      // Always publish the closest match for the diagnostic line —
-      // gives LO immediate insight into what distances are typical.
-      setBulkClosest({ cardId: match.cardId, distance: match.distance, hash });
-      if (match.distance > BULK_MATCH_THRESHOLD) {
-        // Miss — break the stability streak so a later match starts
-        // counting fresh instead of piggy-backing on an old streak.
-        stabilityRef.current = [];
-        return;
+
+      const prev = lastHashRef.current;
+      if (prev && hammingDistance(prev, hash) <= BULK_STABILITY_HAMMING) {
+        stableTicksRef.current += 1;
+      } else {
+        stableTicksRef.current = 0;
       }
-      const skipUntil = skipUntilRef.current.get(match.cardId);
-      if (skipUntil && skipUntil > Date.now()) return;
-      // Only fire the banner once the same card_id has been the
-      // top-1 match for BULK_STABILITY_TICKS ticks in a row. Camera
-      // micro-shakes otherwise flip the top match to whatever
-      // similar-hash card slips ahead this frame.
-      stabilityRef.current.push(match.cardId);
-      if (stabilityRef.current.length > BULK_STABILITY_TICKS) {
-        stabilityRef.current.shift();
+      lastHashRef.current = hash;
+
+      if (stableTicksRef.current < BULK_STABILITY_TICKS) return;
+
+      // Enough stability — capture a bigger frame for Gemini so the
+      // vision model has legible text to read.
+      const vw = video.videoWidth || 1280;
+      const vh = video.videoHeight || 720;
+      // Card-aspect crop centered on the video source (matches the
+      // yellow bracket area the user aligns the card into).
+      const CARD = 245 / 342;
+      let cw = vw;
+      let ch = vh;
+      if (vw / vh > CARD) {
+        ch = vh;
+        cw = ch * CARD;
+      } else {
+        cw = vw;
+        ch = cw / CARD;
       }
-      const stable =
-        stabilityRef.current.length >= BULK_STABILITY_TICKS &&
-        stabilityRef.current.every((c) => c === match.cardId);
-      if (!stable) return;
-      // Fetch card details so the detection banner has name / price /
-      // thumb. getCard hits our own catalog, no vision API involved.
+      // ~5% inset — same as the pHash extractor uses.
+      cw *= 0.9;
+      ch *= 0.9;
+      const cx = (vw - cw) / 2;
+      const cy = (vh - ch) / 2;
+      // Downscale to a manageable capture size (Gemini reads even
+      // 400-wide fine, and smaller payloads = faster upload).
+      const outW = 480;
+      const outH = Math.round(outW / CARD);
+      captureCanvas.width = outW;
+      captureCanvas.height = outH;
+      const ctx = captureCanvas.getContext("2d");
+      if (!ctx) return;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(video, cx, cy, cw, ch, 0, 0, outW, outH);
+      const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.85);
+      const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+
       inFlight = true;
+      setBulkIdentifying(true);
       try {
-        const card = await getCard(match.cardId);
+        const resp = await scanCard(b64, "image/jpeg", BULK_VISION_PROVIDER);
         if (cancelled) return;
+        setBulkScanCount((n) => n + 1);
+        const pick = resp.candidates[0] ?? null;
+        if (!pick) {
+          // Vision came back with no match — reset stability so the
+          // next attempt requires the frame to settle again instead
+          // of firing immediately.
+          stableTicksRef.current = 0;
+          return;
+        }
+        const skipUntil = skipUntilRef.current.get(pick.id);
+        if (skipUntil && skipUntil > Date.now()) return;
         setBulkDetected({
-          cardId: card.id,
-          name: card.name,
-          number: card.number,
-          setName: card.set_name,
-          imageUrl: card.image_small,
-          priceUsd: card.market_price_usd,
-          distance: match.distance,
+          cardId: pick.id,
+          name: pick.name,
+          number: pick.number,
+          setName: pick.set_name,
+          imageUrl: pick.image_small,
+          priceUsd: pick.market_price_usd,
+          distance: 0,
         });
       } catch (e) {
-        console.error("[bulk] getCard failed", e);
+        console.error("[bulk] vision call failed", e);
+        stableTicksRef.current = 0;
       } finally {
         inFlight = false;
+        setBulkIdentifying(false);
       }
     };
 
@@ -408,7 +405,13 @@ export default function ScanPage() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [scanMode, camera.ready, camera.videoRef, catalog, bulkDetected]);
+  }, [
+    scanMode,
+    camera.ready,
+    camera.videoRef,
+    bulkDetected,
+    bulkIdentifying,
+  ]);
 
   // ── Bulk mode: handlers ────────────────────────────────────────────
   const onBulkAdd = useCallback(async () => {
@@ -439,7 +442,8 @@ export default function ScanPage() {
         ...prev,
       ]);
       setBulkDetected(null);
-      stabilityRef.current = [];
+      stableTicksRef.current = 0;
+      lastHashRef.current = null;
     } catch (e) {
       console.error("[bulk] add failed", e);
       alert(e instanceof Error ? e.message : "Add failed");
@@ -457,7 +461,8 @@ export default function ScanPage() {
       Date.now() + BULK_SKIP_TTL_MS,
     );
     setBulkDetected(null);
-    stabilityRef.current = [];
+    stableTicksRef.current = 0;
+    lastHashRef.current = null;
   }, [bulkDetected]);
 
   const onBulkClearList = useCallback(() => {
@@ -513,17 +518,14 @@ export default function ScanPage() {
       onLastScannedTap={onLastScannedTap}
       scanMode={scanMode}
       onScanModeChange={onScanModeChange}
-      bulkCatalogLoading={catalogLoading}
-      bulkCatalogError={catalogError}
-      bulkCatalogCoverage={catalogCoverage}
       bulkDetected={bulkDetected}
-      bulkClosest={bulkClosest}
+      bulkIdentifying={bulkIdentifying}
+      bulkScanCount={bulkScanCount}
       bulkList={bulkList}
       bulkAdding={bulkAdding}
       onBulkAdd={onBulkAdd}
       onBulkDismiss={onBulkDismiss}
       onBulkClearList={onBulkClearList}
-      onBulkCatalogRetry={onBulkCatalogRetry}
     />
   );
 }

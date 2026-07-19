@@ -40,20 +40,17 @@ type Props = {
   onBack: () => void;
   onLastScannedTap?: () => void;
   // Bulk mode — presentational shell renders the toggle + panel and
-  // fires callbacks; parent runs the pHash catalog + capture loop.
+  // fires callbacks; parent runs the auto-capture loop + Gemini calls.
   scanMode: ScanMode;
   onScanModeChange: (mode: ScanMode) => void;
-  bulkCatalogLoading: boolean;
-  bulkCatalogError: string | null;
-  bulkCatalogCoverage: number | null;
   bulkDetected: BulkDetected | null;
-  bulkClosest: { cardId: string; distance: number; hash: string } | null;
+  bulkIdentifying: boolean;
+  bulkScanCount: number;
   bulkList: BulkListItem[];
   bulkAdding: boolean;
   onBulkAdd: () => void;
   onBulkDismiss: () => void;
   onBulkClearList: () => void;
-  onBulkCatalogRetry: () => void;
 };
 
 function fmtPrice(v: number | null): string {
@@ -82,17 +79,14 @@ export function ScanCamera({
   onLastScannedTap,
   scanMode,
   onScanModeChange,
-  bulkCatalogLoading,
-  bulkCatalogError,
-  bulkCatalogCoverage,
   bulkDetected,
-  bulkClosest,
+  bulkIdentifying,
+  bulkScanCount,
   bulkList,
   bulkAdding,
   onBulkAdd,
   onBulkDismiss,
   onBulkClearList,
-  onBulkCatalogRetry,
 }: Props) {
   const isBulk = scanMode === "bulk";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -240,17 +234,14 @@ export function ScanCamera({
             the single-mode "last scanned" pill below the viewfinder. */}
         {isBulk && (
           <BulkScanPanel
-            catalogLoading={bulkCatalogLoading}
-            catalogError={bulkCatalogError}
-            catalogCoverage={bulkCatalogCoverage}
             detected={bulkDetected}
-            closest={bulkClosest}
+            identifying={bulkIdentifying}
+            scanCount={bulkScanCount}
             list={bulkList}
             adding={bulkAdding}
             onAdd={onBulkAdd}
             onDismiss={onBulkDismiss}
             onClearList={onBulkClearList}
-            onCatalogRetry={onBulkCatalogRetry}
           />
         )}
 
