@@ -6,6 +6,7 @@ import { ArrowUpRight, Box, TrendingDown, TrendingUp } from "lucide-react";
 
 import { ProductLiveListings } from "@/components/products/ProductLiveListings";
 import { ProductOwnButtons } from "@/components/products/ProductOwnButtons";
+import { ProductRefreshButton } from "@/components/products/ProductRefreshButton";
 import { ProductPriceChart } from "@/components/products/ProductPriceChart";
 import { getProduct } from "@/lib/api";
 
@@ -189,16 +190,13 @@ export default async function ProductDetailPage({
             )}
           </div>
 
-          <div className="flex items-baseline gap-3 mb-2">
-            <span className="text-4xl font-extrabold text-accent-green">
-              {fmtPrice(product.market_price_usd)}
-            </span>
-            {product.low_price_usd != null && product.high_price_usd != null && (
-              <span className="text-xs font-mono text-text-tertiary">
-                {fmtPrice(product.low_price_usd)} –{" "}
-                {fmtPrice(product.high_price_usd)}
-              </span>
-            )}
+          <div className="mb-2">
+            <ProductRefreshButton
+              productId={product.id}
+              initialMarket={product.market_price_usd}
+              initialLow={product.low_price_usd}
+              initialHigh={product.high_price_usd}
+            />
           </div>
           {product.msrp_usd && (
             <div className="text-xs text-text-tertiary mb-4">

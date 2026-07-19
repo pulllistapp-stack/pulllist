@@ -983,6 +983,38 @@ export function deleteSealedOwnership(productId: string): Promise<{ ok: true }> 
   );
 }
 
+export type ProductRefreshResult = {
+  status: "refreshed";
+  product_id: string;
+  market_price_usd: number;
+  low_price_usd: number | null;
+  high_price_usd: number | null;
+  cooldown_until: number;
+};
+
+// Public — the sealed product Refresh button hits this without a token
+// (TCGCSV pricing is public data; anonymous visitors get the same
+// pipeline, gated only by the 5-min per-product cooldown).
+export async function refreshSealedProduct(
+  productId: string,
+): Promise<ProductRefreshResult> {
+  const res = await fetch(`${API_BASE}/products/${productId}/refresh`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let detail = `API ${res.status}`;
+    try {
+      const body = await res.json();
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail);
+  }
+  return res.json() as Promise<ProductRefreshResult>;
+}
+
 export function listSealedWishlist(): Promise<SealedWishlistList> {
   return authJson<SealedWishlistList>("/sealed/wishlist");
 }

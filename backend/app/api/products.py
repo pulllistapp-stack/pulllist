@@ -339,6 +339,162 @@ async def get_product_history(
     }
 
 
+# Per-product refresh cooldown, keyed by product_id → last-fire epoch.
+# 5 minutes covers accidental double-taps but stays generous — sealed
+# TCGCSV prices only move once a day so anything below 5 min would
+# hammer the upstream feed without changing the number.
+_PRODUCT_REFRESH_LAST_FIRE: dict[str, float] = {}
+_PRODUCT_REFRESH_COOLDOWN_SECONDS = 60 * 5
+
+_TCGCSV_BASE = "https://tcgcsv.com/tcgplayer"
+_POKEMON_CATEGORY_ID = 3
+_TCGCSV_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/130.0.0.0 Safari/537.36"
+)
+
+
+@router.post("/{product_id}/refresh", response_model=dict)
+async def refresh_product_price(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Pull fresh TCGCSV prices for one sealed product on demand.
+
+    Sealed products don't have the graded-tier + eBay ladder that
+    singles carry, so the refresh is one HTTP call — fetch the
+    product's group prices from TCGCSV, pluck our productId, write
+    back to the Product row + insert today's snapshot. 5-min per-
+    product cooldown; repeated clicks inside the window return the
+    cached state so the frontend can still flash the "Up to date"
+    badge without lying about a backend refresh.
+
+    Returns:
+      * 202 with {status: "refreshed", market_price_usd, low, high,
+        cooldown_until}
+      * 429 if the cooldown is active
+      * 404 if product is missing or has no TCGplayer group id
+      * 503 if TCGCSV was unreachable — caller should try again
+    """
+    import os as _os  # noqa: F401  (retained for parity with card refresh)
+    import time as _time
+
+    import httpx as _httpx
+
+    product = await db.get(Product, product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if product.tcgplayer_product_id is None or product.tcgplayer_group_id is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Product has no TCGplayer id / group — refresh only works "
+                "for products imported from TCGCSV"
+            ),
+        )
+
+    now = _time.time()
+    last = _PRODUCT_REFRESH_LAST_FIRE.get(product_id, 0.0)
+    if now - last < _PRODUCT_REFRESH_COOLDOWN_SECONDS:
+        wait = int(_PRODUCT_REFRESH_COOLDOWN_SECONDS - (now - last))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Cooldown active — try again in {wait}s",
+        )
+
+    pid = int(product.tcgplayer_product_id)
+    gid = int(product.tcgplayer_group_id)
+
+    try:
+        async with _httpx.AsyncClient(
+            timeout=20.0, headers={"User-Agent": _TCGCSV_UA}
+        ) as client:
+            pr = await client.get(
+                f"{_TCGCSV_BASE}/{_POKEMON_CATEGORY_ID}/{gid}/prices"
+            )
+            pr.raise_for_status()
+            price_row = next(
+                (r for r in pr.json().get("results", []) if r.get("productId") == pid),
+                None,
+            )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"TCGCSV unreachable: {exc}",
+        )
+
+    if price_row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="TCGCSV group does not include this product",
+        )
+
+    market = price_row.get("marketPrice") or price_row.get("midPrice") or price_row.get("lowPrice")
+    low = price_row.get("lowPrice")
+    high = price_row.get("highPrice")
+
+    if market is None:
+        raise HTTPException(
+            status_code=503,
+            detail="TCGCSV returned no usable price for this product",
+        )
+
+    # Update Product row
+    product.market_price_usd = float(market)
+    if low is not None:
+        product.low_price_usd = float(low)
+    if high is not None:
+        product.high_price_usd = float(high)
+
+    # Upsert today's snapshot
+    from sqlalchemy.dialects.postgresql import insert as _pg_insert
+    from sqlalchemy.dialects.sqlite import insert as _sqlite_insert
+
+    today = date.today().isoformat()
+    dialect = db.bind.dialect.name
+    ins_cls = _pg_insert if dialect == "postgresql" else _sqlite_insert
+    stmt = ins_cls(ProductPriceSnapshot).values(
+        [
+            {
+                "product_id": product.id,
+                "source": "tcgplayer",
+                "market_price_usd": float(market),
+                "low_price_usd": float(low) if low is not None else None,
+                "mid_price_usd": (
+                    float(price_row.get("midPrice"))
+                    if price_row.get("midPrice") is not None
+                    else None
+                ),
+                "high_price_usd": float(high) if high is not None else None,
+                "snapshot_date": today,
+            }
+        ]
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["product_id", "source", "snapshot_date"],
+        set_={
+            "market_price_usd": stmt.excluded.market_price_usd,
+            "low_price_usd": stmt.excluded.low_price_usd,
+            "mid_price_usd": stmt.excluded.mid_price_usd,
+            "high_price_usd": stmt.excluded.high_price_usd,
+        },
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+    _PRODUCT_REFRESH_LAST_FIRE[product_id] = now
+
+    return {
+        "status": "refreshed",
+        "product_id": product_id,
+        "market_price_usd": float(market),
+        "low_price_usd": float(low) if low is not None else None,
+        "high_price_usd": float(high) if high is not None else None,
+        "cooldown_until": int(now + _PRODUCT_REFRESH_COOLDOWN_SECONDS),
+    }
+
+
 @router.get("/{product_id}/live-listings", response_model=dict)
 async def get_product_live_listings(
     product_id: str,
