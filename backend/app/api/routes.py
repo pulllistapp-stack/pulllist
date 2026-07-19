@@ -150,11 +150,18 @@ async def list_sets(
                 select(Product.set_id).where(Product.set_id.is_not(None)).distinct()
             )).scalars().all()
         )
+        from datetime import date as _date
+        _today = _date.today()
         rows = [
             r for r in rows
             if r[0].logo_url is not None
             or r[1] > 0
             or r[0].id in sealed_set_ids
+            # Upcoming drops are legitimately empty (no logo yet, no
+            # cards yet, no sealed SKUs yet) but /drops needs to see
+            # them — release_date in the future is a valid presence
+            # signal on its own.
+            or (r[0].release_date is not None and r[0].release_date > _today)
         ]
 
     # Per-user owned counts in one query if logged in
