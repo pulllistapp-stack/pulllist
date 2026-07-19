@@ -106,6 +106,13 @@ const nextConfig = {
       { protocol: "https", hostname: "img.w-shopping.co.kr" },
       { protocol: "https", hostname: "i3.ruliweb.com" },
       { protocol: "https", hostname: "static.mercdn.net" },
+      // ─── zh-tw catalog source (2026-07-19) ───────────────────────
+      // Pokemon Company Taiwan official training-site card CDN. Every
+      // Taiwan-market card image lives at asia.pokemon-card.com/tw/
+      // card-img/tw{PADDED_ID}.png — scraped by
+      // import_zhtw_from_official.py for the full SV + Mega Evolution
+      // Traditional Chinese catalog (TCGdex zh-tw feed is stale).
+      { protocol: "https", hostname: "asia.pokemon-card.com" },
     ],
   },
   async rewrites() {

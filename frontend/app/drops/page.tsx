@@ -30,6 +30,7 @@ const REGIONS: {
   { key: "ja", label: "JP", flag: "🇯🇵" },
   { key: "ko", label: "KR", flag: "🇰🇷" },
   { key: "zh-cn", label: "CN", flag: "🇨🇳" },
+  { key: "zh-tw", label: "TW", flag: "🇹🇼" },
 ];
 
 // Region → accent color used for the left rail dot next to each entry.
@@ -38,6 +39,7 @@ const REGION_COLOR: Record<string, string> = {
   ja: "bg-rose-400",
   ko: "bg-amber-400",
   "zh-cn": "bg-emerald-400",
+  "zh-tw": "bg-cyan-400",
 };
 
 const REGION_LABEL: Record<string, string> = {
@@ -45,6 +47,7 @@ const REGION_LABEL: Record<string, string> = {
   ja: "JP",
   ko: "KR",
   "zh-cn": "CN",
+  "zh-tw": "TW",
 };
 
 const MONTH_NAMES = [
@@ -92,7 +95,7 @@ export default function ReleaseCalendarPage() {
     let cancelled = false;
     setLoading(true);
     Promise.all(
-      (["en", "ja", "ko", "zh-cn"] as CatalogRegion[]).map((r) =>
+      (["en", "ja", "ko", "zh-cn", "zh-tw"] as CatalogRegion[]).map((r) =>
         listSets({ region: r }).catch(() => [] as SetWithCardCount[]),
       ),
     )

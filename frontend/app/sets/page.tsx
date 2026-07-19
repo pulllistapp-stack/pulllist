@@ -10,7 +10,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const _VALID_REGIONS: CatalogRegion[] = ["en", "ja", "ko", "zh-cn"];
+const _VALID_REGIONS: CatalogRegion[] = ["en", "ja", "ko", "zh-cn", "zh-tw"];
 
 function normalizeRegion(raw: string | string[] | undefined): CatalogRegion {
   const v = Array.isArray(raw) ? raw[0] : raw;

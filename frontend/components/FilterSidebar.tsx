@@ -18,7 +18,7 @@ type Props = {
    * `?language=` URL param, then to 'en'. Set-detail pages pass the
    * set's own language so the sidebar renders the right taxonomy
    * even though the URL has no language param. */
-  language?: "en" | "ja" | "ko" | "zh-cn";
+  language?: "en" | "ja" | "ko" | "zh-cn" | "zh-tw";
 };
 
 const EN_RARITY_GROUPS: Record<string, string[]> = {
