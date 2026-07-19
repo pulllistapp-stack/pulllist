@@ -44,6 +44,7 @@ type Props = {
   onAdd: () => void;
   onDismiss: () => void;
   onClearList: () => void;
+  onCatalogRetry: () => void;
 };
 
 function fmtPrice(v: number | null): string {
@@ -62,6 +63,7 @@ export function BulkScanPanel({
   onAdd,
   onDismiss,
   onClearList,
+  onCatalogRetry,
 }: Props) {
   const total = list.reduce((s, it) => s + (it.priceUsd ?? 0), 0);
 
@@ -82,11 +84,22 @@ export function BulkScanPanel({
         </div>
       )}
       {catalogError && (
-        <div className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3">
-          <p className="text-sm font-bold text-red-700">
-            Couldn&apos;t load catalog
-          </p>
-          <p className="text-[11px] text-red-600 mt-0.5">{catalogError}</p>
+        <div className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-700">
+              Couldn&apos;t load catalog
+            </p>
+            <p className="text-[11px] text-red-600 mt-0.5 break-words">
+              {catalogError}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCatalogRetry}
+            className="shrink-0 rounded-full bg-red-600 text-white font-bold text-xs px-3 py-1.5 hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
       {catalogCoverage != null && catalogCoverage < 0.5 && !catalogLoading && (

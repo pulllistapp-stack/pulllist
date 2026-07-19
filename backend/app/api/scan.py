@@ -37,6 +37,11 @@ from app.services.image_hash import (
 
 log = logging.getLogger("scan")
 router = APIRouter(prefix="/cards", tags=["cards"])
+# Bulk-scan pHash catalog lives under /scan/ to sidestep the
+# /cards/{card_id} catch-all in the general cards router (a request to
+# /cards/phash-catalog otherwise gets parsed as a card_id lookup and
+# 404s before reaching us).
+bulk_router = APIRouter(prefix="/scan", tags=["scan-bulk"])
 
 
 # ────────── schemas ──────────
@@ -354,7 +359,7 @@ class PhashCatalogResponse(BaseModel):
     hashes: list[str]
 
 
-@router.get("/phash-catalog", response_model=PhashCatalogResponse)
+@bulk_router.get("/phash-catalog", response_model=PhashCatalogResponse)
 async def get_phash_catalog(
     db: AsyncSession = Depends(get_db),
 ) -> PhashCatalogResponse:
@@ -392,7 +397,7 @@ async def get_phash_catalog(
     return resp
 
 
-@router.get("/phash-catalog/stats")
+@bulk_router.get("/phash-catalog/stats")
 async def get_phash_catalog_stats(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:

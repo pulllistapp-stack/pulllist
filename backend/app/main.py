@@ -13,7 +13,7 @@ from app.api.master_sets import router as master_sets_router
 from app.api.news import router as news_router
 from app.api.products import router as products_router
 from app.api.routes import router as api_router
-from app.api.scan import router as scan_router
+from app.api.scan import bulk_router as scan_bulk_router, router as scan_router
 from app.api.sealed_collection import router as sealed_collection_router
 from app.api.series import router as series_router
 from app.api.set_reports import router as set_reports_router
@@ -58,6 +58,7 @@ app.include_router(collection_router, prefix="/api/v1")
 app.include_router(master_sets_router, prefix="/api/v1")
 app.include_router(wishlist_router, prefix="/api/v1")
 app.include_router(scan_router, prefix="/api/v1")
+app.include_router(scan_bulk_router, prefix="/api/v1")
 app.include_router(sharing_router, prefix="/api/v1")
 app.include_router(news_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")

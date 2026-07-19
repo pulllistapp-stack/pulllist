@@ -168,11 +168,11 @@ export type PhashCatalogStats = {
 };
 
 export async function fetchPhashCatalog(): Promise<PhashCatalogResponse> {
-  return apiFetch<PhashCatalogResponse>("/cards/phash-catalog");
+  return apiFetch<PhashCatalogResponse>("/scan/phash-catalog");
 }
 
 export async function fetchPhashCatalogStats(): Promise<PhashCatalogStats> {
-  return apiFetch<PhashCatalogStats>("/cards/phash-catalog/stats");
+  return apiFetch<PhashCatalogStats>("/scan/phash-catalog/stats");
 }
 
 export type Suggestion = {

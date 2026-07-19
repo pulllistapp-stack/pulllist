@@ -270,9 +270,14 @@ export default function ScanPage() {
   };
 
   // ── Bulk mode: lazy-load pHash catalog on first entry ──────────────
+  // Guarded on catalog + error + loading so a failed fetch doesn't
+  // re-arm the effect every re-render (previous version thrashed in a
+  // loading → error → loading cycle when the endpoint 404'd).
   useEffect(() => {
     if (scanMode !== "bulk") return;
-    if (catalog || catalogLoading) return;
+    if (catalog) return;
+    if (catalogLoading) return;
+    if (catalogError) return;
     setCatalogLoading(true);
     setCatalogError(null);
     Promise.all([fetchPhashCatalog(), fetchPhashCatalogStats()])
@@ -291,7 +296,11 @@ export default function ScanPage() {
         );
       })
       .finally(() => setCatalogLoading(false));
-  }, [scanMode, catalog, catalogLoading]);
+  }, [scanMode, catalog, catalogLoading, catalogError]);
+
+  const onBulkCatalogRetry = useCallback(() => {
+    setCatalogError(null); // triggers the effect above to re-fire.
+  }, []);
 
   // ── Bulk mode: auto-capture loop ───────────────────────────────────
   useEffect(() => {
@@ -457,6 +466,7 @@ export default function ScanPage() {
       onBulkAdd={onBulkAdd}
       onBulkDismiss={onBulkDismiss}
       onBulkClearList={onBulkClearList}
+      onBulkCatalogRetry={onBulkCatalogRetry}
     />
   );
 }

@@ -52,6 +52,7 @@ type Props = {
   onBulkAdd: () => void;
   onBulkDismiss: () => void;
   onBulkClearList: () => void;
+  onBulkCatalogRetry: () => void;
 };
 
 function fmtPrice(v: number | null): string {
@@ -89,6 +90,7 @@ export function ScanCamera({
   onBulkAdd,
   onBulkDismiss,
   onBulkClearList,
+  onBulkCatalogRetry,
 }: Props) {
   const isBulk = scanMode === "bulk";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -245,6 +247,7 @@ export function ScanCamera({
             onAdd={onBulkAdd}
             onDismiss={onBulkDismiss}
             onClearList={onBulkClearList}
+            onCatalogRetry={onBulkCatalogRetry}
           />
         )}
 
