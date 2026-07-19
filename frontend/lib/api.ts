@@ -862,10 +862,13 @@ export function getSeries(slug: string): Promise<SeriesDetail> {
 
 // ── Sealed collection / wishlist (Products roadmap §10.8 B) ──────
 
+export type SealedCondition = "sealed" | "opened" | "damaged";
+
 export type SealedCollectionItem = {
   id: number;
   product_id: string;
   qty: number;
+  condition: SealedCondition;
   purchase_price_usd: number | null;
   acquisition_type: string | null;
   acquired_at: string | null;
@@ -916,6 +919,7 @@ export type SealedState = {
 
 export type SealedCollectionWrite = {
   qty?: number;
+  condition?: SealedCondition | null;
   purchase_price_usd?: number | null;
   acquisition_type?: string | null;
   acquired_at?: string | null;

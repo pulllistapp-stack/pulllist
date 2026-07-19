@@ -83,3 +83,13 @@ async def init_db() -> None:
             "WHERE source = 'ebay' AND grade = 'raw' "
             "AND market_price_usd IS NOT NULL"
         ))
+        # Physical condition on sealed inventory rows — 'sealed' /
+        # 'opened' / 'damaged'. Cards have a matching condition
+        # column already; sealed products get a coarser 3-bucket
+        # split (grading isn't a concept for sealed). Server default
+        # covers existing rows so nothing needs a backfill.
+        await conn.execute(text(
+            "ALTER TABLE sealed_collection_items "
+            "ADD COLUMN IF NOT EXISTS condition VARCHAR(16) "
+            "NOT NULL DEFAULT 'sealed'"
+        ))

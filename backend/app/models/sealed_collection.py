@@ -50,7 +50,18 @@ class SealedCollectionItem(Base):
 
     qty: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
-    acquired_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    condition: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="sealed", default="sealed"
+    )
+    """Physical state of the sealed product:
+        'sealed'  — factory sealed, unopened (default)
+        'opened'  — box opened, contents intact
+        'damaged' — box or contents damaged (water/tear/crush)
+    Grading isn't a concept for sealed products — cards get graded,
+    boxes don't. Keeping this coarse (3 buckets) is deliberate: any
+    finer split (mint sealed vs shelfwear vs dented corner) turns
+    into subjective grading that would need an authority to
+    standardize, which nobody publishes for sealed."""
     purchase_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     acquisition_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """Purchase / Gift / Trade / Other — mirrors CollectionItem."""

@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,7 @@ class SealedCollectionItemRead(BaseModel):
     id: int
     product_id: str
     qty: int
+    condition: str
     purchase_price_usd: float | None
     acquisition_type: str | None
     acquired_at: str | None
@@ -43,6 +44,13 @@ class SealedCollectionItemRead(BaseModel):
 
 class SealedCollectionItemWrite(BaseModel):
     qty: int = 1
+    # sealed / opened / damaged — see model docstring. Server-side
+    # pattern gate rejects anything off-list, so the frontend can't
+    # send a random string and end up with a mystery bucket in the
+    # portfolio.
+    condition: str | None = Field(
+        default=None, pattern="^(sealed|opened|damaged)$"
+    )
     purchase_price_usd: float | None = None
     acquisition_type: str | None = None
     acquired_at: str | None = None  # ISO YYYY-MM-DD
@@ -166,11 +174,13 @@ async def upsert_collection_entry(
         except ValueError:
             raise HTTPException(400, "acquired_at must be YYYY-MM-DD")
 
+    condition = payload.condition or "sealed"
     if row is None:
         row = SealedCollectionItem(
             user_id=user.id,
             product_id=product_id,
             qty=max(1, payload.qty),
+            condition=condition,
             purchase_price_usd=payload.purchase_price_usd,
             acquisition_type=payload.acquisition_type,
             acquired_at=parsed_acquired_at,
@@ -179,6 +189,7 @@ async def upsert_collection_entry(
         db.add(row)
     else:
         row.qty = max(1, payload.qty)
+        row.condition = condition
         row.purchase_price_usd = payload.purchase_price_usd
         row.acquisition_type = payload.acquisition_type
         row.acquired_at = parsed_acquired_at

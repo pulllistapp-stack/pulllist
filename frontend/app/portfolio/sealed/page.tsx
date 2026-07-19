@@ -10,19 +10,27 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bookmark, Loader2, Trash2 } from "lucide-react";
+import { Bookmark, LineChart, Loader2, Pencil, Trash2 } from "lucide-react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
+import { SealedItemEditModal } from "@/components/portfolio/SealedItemEditModal";
 import {
   deleteSealedOwnership,
   listSealedCollection,
   listSealedWishlist,
+  SealedCollectionEntry,
   SealedCollectionList,
   SealedWishlistList,
   toggleSealedWishlist,
 } from "@/lib/api";
+
+const CONDITION_LABEL: Record<string, string> = {
+  sealed: "Sealed",
+  opened: "Opened",
+  damaged: "Damaged",
+};
 
 const TYPE_LABEL: Record<string, string> = {
   booster_box: "Booster Box",
@@ -48,6 +56,16 @@ export default function SealedPortfolioPage() {
   const [collection, setCollection] = useState<SealedCollectionList | null>(null);
   const [wishlist, setWishlist] = useState<SealedWishlistList | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<SealedCollectionEntry | null>(null);
+
+  const reloadCollection = async () => {
+    try {
+      const c = await listSealedCollection();
+      setCollection(c);
+    } catch {
+      /* silent */
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -168,6 +186,7 @@ export default function SealedPortfolioPage() {
                 key={entry.product.id}
                 entry={entry}
                 onRemove={() => removeOwned(entry.product.id)}
+                onEdit={() => setEditing(entry)}
                 removeIcon="trash"
               />
             ))}
@@ -200,6 +219,14 @@ export default function SealedPortfolioPage() {
           />
         )}
       </section>
+      {editing && (
+        <SealedItemEditModal
+          entry={editing}
+          onClose={() => setEditing(null)}
+          onSaved={reloadCollection}
+          onDeleted={reloadCollection}
+        />
+      )}
     </main>
   );
 }
@@ -207,6 +234,7 @@ export default function SealedPortfolioPage() {
 function SealedTile({
   entry,
   onRemove,
+  onEdit,
   removeIcon,
 }: {
   entry: {
@@ -218,9 +246,16 @@ function SealedTile({
       market_price_usd: number | null;
       image_url: string | null;
     };
-    item: { qty: number; purchase_price_usd: number | null } | null;
+    item:
+      | {
+          qty: number;
+          condition?: string;
+          purchase_price_usd: number | null;
+        }
+      | null;
   };
   onRemove: () => void;
+  onEdit?: () => void;
   removeIcon: "trash" | "bookmark";
 }) {
   const [removing, setRemoving] = useState(false);
@@ -273,24 +308,74 @@ function SealedTile({
               </span>
             )}
           </div>
+          {entry.item && (
+            <div className="mt-1 flex items-center gap-1 text-[10px] font-mono text-text-tertiary">
+              {entry.item.condition && (
+                <span
+                  className={
+                    "rounded px-1.5 py-[1px] uppercase tracking-wider " +
+                    (entry.item.condition === "sealed"
+                      ? "bg-accent-green/15 text-accent-green"
+                      : entry.item.condition === "opened"
+                      ? "bg-amber-500/15 text-amber-400"
+                      : "bg-red-500/15 text-red-400")
+                  }
+                >
+                  {CONDITION_LABEL[entry.item.condition] ?? entry.item.condition}
+                </span>
+              )}
+              {entry.item.purchase_price_usd != null && (
+                <span>paid ${entry.item.purchase_price_usd.toFixed(2)}</span>
+              )}
+            </div>
+          )}
         </div>
       </Link>
-      <button
-        onClick={handleRemove}
-        disabled={removing}
-        aria-label={
-          removeIcon === "trash" ? "Remove from collection" : "Remove from wishlist"
-        }
-        className="absolute right-1.5 top-1.5 rounded-full border border-border bg-bg/80 p-1.5 text-text-tertiary opacity-0 backdrop-blur transition group-hover:opacity-100 hover:text-accent-red disabled:opacity-30"
-      >
-        {removing ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : removeIcon === "trash" ? (
-          <Trash2 className="h-3.5 w-3.5" />
-        ) : (
-          <Bookmark className="h-3.5 w-3.5" fill="currentColor" />
+      {/* Action rail — appears on hover / touch. Edit + chart-link
+          only surface for owned rows (wishlist tiles hide them). */}
+      <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition group-hover:opacity-100">
+        {onEdit && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEdit();
+            }}
+            aria-label="Edit"
+            className="rounded-full border border-border bg-bg/80 p-1.5 text-text-tertiary backdrop-blur hover:text-accent-yellow transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
         )}
-      </button>
+        <Link
+          href={`/products/${entry.product.id}`}
+          aria-label="Price history"
+          className="rounded-full border border-border bg-bg/80 p-1.5 text-text-tertiary backdrop-blur hover:text-accent-yellow transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <LineChart className="h-3.5 w-3.5" />
+        </Link>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleRemove();
+          }}
+          disabled={removing}
+          aria-label={
+            removeIcon === "trash" ? "Remove from collection" : "Remove from wishlist"
+          }
+          className="rounded-full border border-border bg-bg/80 p-1.5 text-text-tertiary backdrop-blur hover:text-accent-red disabled:opacity-30 transition-colors"
+        >
+          {removing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : removeIcon === "trash" ? (
+            <Trash2 className="h-3.5 w-3.5" />
+          ) : (
+            <Bookmark className="h-3.5 w-3.5" fill="currentColor" />
+          )}
+        </button>
+      </div>
     </div>
   );
 }
