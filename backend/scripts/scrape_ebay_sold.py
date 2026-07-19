@@ -725,34 +725,9 @@ async def run(
                 graded_tier=graded_tier,
             )
 
-            # === Beckett synonym pass (BGS tiers only) ===
-            # BGS = Beckett Grading Services. A meaningful fraction of
-            # sellers write "Beckett 10" instead of "BGS 10" (or list
-            # under both). Only fires when the BGS pass didn't clear
-            # MIN, and only for BGS-family tiers where the swap makes
-            # sense. Adds ~1 query per BGS card when needed, ~0 impact
-            # on PSA/CGC tiers.
-            if wanted_grade.startswith("bgs") and n_sold < per_card_min:
-                beckett_query = _bgs_beckett_variant(query)
-                if beckett_query:
-                    log.info(f"  (fallback → beckett variant) {beckett_query!r}")
-                    n_beckett = await _scrape_pass(
-                        browser=browser,
-                        query=beckett_query,
-                        card=card,
-                        wanted_grade=wanted_grade,
-                        source_tag=SOURCE,
-                        sold_only=True,
-                        snapshot_date=snapshot_date,
-                        dry_run=dry_run,
-                        ipg=ipg,
-                        max_attempts=tier_max_attempts,
-                        stats=stats,
-                        idx=stats["cards_seen"],
-                        total=len(cards),
-                        graded_tier=graded_tier,
-                    )
-                    n_sold = max(n_sold, n_beckett)
+            # (Round 5 measured Beckett fallback at 0/1318 hit rate —
+            #  eBay auto-relaxes the "Beckett" variant too hard to be
+            #  worth the extra queries. Removed. See §11.34.)
 
             # === Asking fallback ===
             # Only fires when sold data didn't clear the tier's MIN and
