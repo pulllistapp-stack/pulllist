@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/AuthProvider";
@@ -8,7 +8,12 @@ import { useCamera } from "@/hooks/useCamera";
 import {
   ScanCamera,
   type LastScanned,
+  type ScanMode,
 } from "@/components/scan/ScanCamera";
+import type {
+  BulkDetected,
+  BulkListItem,
+} from "@/components/scan/BulkScanPanel";
 import {
   ScanConfirm,
   type MatchedCardForConfirm,
@@ -17,8 +22,36 @@ import {
   createCollectionItem,
 } from "@/lib/auth";
 import { scanCard, type ScanCandidate, type ScanResponse } from "@/lib/auth";
+import {
+  fetchPhashCatalog,
+  fetchPhashCatalogStats,
+  getCard,
+  type PhashCatalogResponse,
+} from "@/lib/api";
+import {
+  computePhash,
+  extractFrameForHash,
+  findNearest,
+} from "@/lib/phash";
 
 type Mode = "camera" | "confirm";
+
+// Match threshold — hamming distance between a camera frame's pHash
+// and a catalog hash. Backend uses 5 for cache lookups on very-similar
+// re-scans of the SAME photo; camera-vs-render is noisier so we loosen
+// to 18. Tune down if we see too many false positives, up if
+// legitimate cards aren't matching.
+const BULK_MATCH_THRESHOLD = 18;
+
+// After the user adds or skips a card, don't re-detect the same
+// card_id for this many ms. Prevents an instant re-fire when the user
+// hasn't physically moved the card yet.
+const BULK_SKIP_TTL_MS = 6000;
+
+// Auto-capture cadence. Fast enough to feel responsive when a new
+// card lands in frame, slow enough that the pHash + JSON search stays
+// off the render thread.
+const BULK_TICK_MS = 500;
 
 const LAST_SCAN_KEY = "pulllist:last_scanned";
 
@@ -84,6 +117,21 @@ export default function ScanPage() {
   const [addedSuccess, setAddedSuccess] = useState(false);
   const [lastScanned, setLastScanned] = useState<LastScanned | null>(null);
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Bulk mode ──────────────────────────────────────────────────────
+  const [scanMode, setScanMode] = useState<ScanMode>("single");
+  const [catalog, setCatalog] = useState<PhashCatalogResponse | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogCoverage, setCatalogCoverage] = useState<number | null>(null);
+  const [bulkDetected, setBulkDetected] = useState<BulkDetected | null>(null);
+  const [bulkList, setBulkList] = useState<BulkListItem[]>([]);
+  const [bulkAdding, setBulkAdding] = useState(false);
+  // card_id → epoch ms until which we should ignore this card. Kept in
+  // a ref so tick closure sees the latest without re-arming the
+  // interval effect on every add / skip.
+  const skipUntilRef = useRef<Map<string, number>>(new Map());
+  const hashCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Hydrate last-scanned from localStorage on mount
   useEffect(() => {
@@ -221,6 +269,144 @@ export default function ScanPage() {
     if (lastScanned) router.push(`/cards/${lastScanned.cardId}`);
   };
 
+  // ── Bulk mode: lazy-load pHash catalog on first entry ──────────────
+  useEffect(() => {
+    if (scanMode !== "bulk") return;
+    if (catalog || catalogLoading) return;
+    setCatalogLoading(true);
+    setCatalogError(null);
+    Promise.all([fetchPhashCatalog(), fetchPhashCatalogStats()])
+      .then(([cat, stats]) => {
+        setCatalog(cat);
+        const cov =
+          stats.cards_with_image > 0
+            ? stats.cards_with_phash / stats.cards_with_image
+            : 0;
+        setCatalogCoverage(cov);
+      })
+      .catch((e) => {
+        console.error("[bulk] catalog fetch failed", e);
+        setCatalogError(
+          e instanceof Error ? e.message : "Unknown error loading catalog",
+        );
+      })
+      .finally(() => setCatalogLoading(false));
+  }, [scanMode, catalog, catalogLoading]);
+
+  // ── Bulk mode: auto-capture loop ───────────────────────────────────
+  useEffect(() => {
+    if (scanMode !== "bulk") return;
+    if (!camera.ready || !catalog) return;
+    if (bulkDetected) return; // pause polling while awaiting user action
+
+    if (!hashCanvasRef.current) {
+      hashCanvasRef.current = document.createElement("canvas");
+    }
+    const canvas = hashCanvasRef.current;
+    let cancelled = false;
+    let inFlight = false;
+
+    const tick = async () => {
+      if (cancelled || inFlight) return;
+      const video = camera.videoRef.current;
+      if (!video) return;
+      const frame = extractFrameForHash(video, canvas);
+      if (!frame) return;
+      const hash = computePhash(frame);
+      if (!hash) return;
+      const match = findNearest(hash, catalog);
+      if (!match || match.distance > BULK_MATCH_THRESHOLD) return;
+      const skipUntil = skipUntilRef.current.get(match.cardId);
+      if (skipUntil && skipUntil > Date.now()) return;
+      // Fetch card details so the detection banner has name / price /
+      // thumb. getCard hits our own catalog, no vision API involved.
+      inFlight = true;
+      try {
+        const card = await getCard(match.cardId);
+        if (cancelled) return;
+        setBulkDetected({
+          cardId: card.id,
+          name: card.name,
+          number: card.number,
+          setName: card.set_name,
+          imageUrl: card.image_small,
+          priceUsd: card.market_price_usd,
+          distance: match.distance,
+        });
+      } catch (e) {
+        console.error("[bulk] getCard failed", e);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = setInterval(tick, BULK_TICK_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [scanMode, camera.ready, camera.videoRef, catalog, bulkDetected]);
+
+  // ── Bulk mode: handlers ────────────────────────────────────────────
+  const onBulkAdd = useCallback(async () => {
+    if (!bulkDetected || bulkAdding) return;
+    setBulkAdding(true);
+    try {
+      await createCollectionItem({
+        card_id: bulkDetected.cardId,
+        qty: 1,
+        variant: "normal",
+        condition: "NM",
+        is_graded: false,
+        grade: null,
+        purchase_price_usd: null,
+      });
+      skipUntilRef.current.set(
+        bulkDetected.cardId,
+        Date.now() + BULK_SKIP_TTL_MS,
+      );
+      setBulkList((prev) => [
+        {
+          cardId: bulkDetected.cardId,
+          name: bulkDetected.name,
+          imageUrl: bulkDetected.imageUrl,
+          priceUsd: bulkDetected.priceUsd,
+          addedAt: Date.now(),
+        },
+        ...prev,
+      ]);
+      setBulkDetected(null);
+    } catch (e) {
+      console.error("[bulk] add failed", e);
+      alert(e instanceof Error ? e.message : "Add failed");
+    } finally {
+      setBulkAdding(false);
+    }
+  }, [bulkDetected, bulkAdding]);
+
+  const onBulkDismiss = useCallback(() => {
+    if (!bulkDetected) return;
+    // Same TTL as add so the next detection has to come from a real
+    // card swap, not the same card sitting there.
+    skipUntilRef.current.set(
+      bulkDetected.cardId,
+      Date.now() + BULK_SKIP_TTL_MS,
+    );
+    setBulkDetected(null);
+  }, [bulkDetected]);
+
+  const onBulkClearList = useCallback(() => {
+    setBulkList([]);
+    skipUntilRef.current.clear();
+  }, []);
+
+  const onScanModeChange = useCallback((next: ScanMode) => {
+    setScanMode(next);
+    // Wipe any stale detection so switching modes doesn't leave a
+    // ghost banner hanging on the other view.
+    setBulkDetected(null);
+  }, []);
+
   if (authLoading || !user) {
     return (
       <main className="mx-auto max-w-md px-4 py-16 text-center text-text-tertiary text-sm">
@@ -260,6 +446,17 @@ export default function ScanPage() {
       onFlipCamera={camera.flip}
       onBack={() => router.back()}
       onLastScannedTap={onLastScannedTap}
+      scanMode={scanMode}
+      onScanModeChange={onScanModeChange}
+      bulkCatalogLoading={catalogLoading}
+      bulkCatalogError={catalogError}
+      bulkCatalogCoverage={catalogCoverage}
+      bulkDetected={bulkDetected}
+      bulkList={bulkList}
+      bulkAdding={bulkAdding}
+      onBulkAdd={onBulkAdd}
+      onBulkDismiss={onBulkDismiss}
+      onBulkClearList={onBulkClearList}
     />
   );
 }

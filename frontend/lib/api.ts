@@ -154,6 +154,27 @@ export async function getCard(cardId: string): Promise<Card> {
   return apiFetch<Card>(`/cards/${cardId}`);
 }
 
+export type PhashCatalogResponse = {
+  count: number;
+  generated_at: string;
+  ids: string[];
+  hashes: string[];
+};
+
+export type PhashCatalogStats = {
+  total_cards: number;
+  cards_with_image: number;
+  cards_with_phash: number;
+};
+
+export async function fetchPhashCatalog(): Promise<PhashCatalogResponse> {
+  return apiFetch<PhashCatalogResponse>("/cards/phash-catalog");
+}
+
+export async function fetchPhashCatalogStats(): Promise<PhashCatalogStats> {
+  return apiFetch<PhashCatalogStats>("/cards/phash-catalog/stats");
+}
+
 export type Suggestion = {
   id: string;
   name: string;
