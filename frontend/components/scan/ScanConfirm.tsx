@@ -104,7 +104,7 @@ export function ScanConfirm({
   return (
     <div className="min-h-[100dvh] bg-[#FFF8E7] text-[#2D2A26] flex flex-col max-w-md mx-auto relative overflow-hidden border-x border-[#FDE2C7]">
       {/* Header */}
-      <header className="p-5 flex items-center justify-between relative z-10">
+      <header className="p-5 pt-[calc(1.25rem_+_env(safe-area-inset-top))] flex items-center justify-between relative z-10">
         <button
           type="button"
           onClick={onBack}
@@ -368,7 +368,7 @@ export function ScanConfirm({
       </main>
 
       {/* Footer */}
-      <footer className="p-5 pt-3 pb-8 flex gap-3 items-center relative z-10 bg-[#FFF8E7] border-t border-[#FDE2C7]/40">
+      <footer className="p-5 pt-3 pb-[calc(2rem_+_env(safe-area-inset-bottom))] flex gap-3 items-center relative z-10 bg-[#FFF8E7] border-t border-[#FDE2C7]/40">
         <button
           type="button"
           onClick={onDiscard}

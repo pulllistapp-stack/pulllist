@@ -124,7 +124,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body className="bg-bg text-text-primary min-h-[100dvh] pb-[calc(4.5rem_+_env(safe-area-inset-bottom))] md:pb-0">
+      <body className="bg-bg text-text-primary min-h-[100dvh]">
         <ThemeProvider>
           <AuthProvider>
             <CollectionProvider>

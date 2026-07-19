@@ -77,7 +77,7 @@ export function ScanCamera({
   return (
     <div className="min-h-[100dvh] bg-[#FFF8E7] text-[#2D2A26] flex flex-col max-w-md mx-auto relative overflow-hidden border-x border-[#FDE2C7]">
       {/* Header */}
-      <header className="p-5 flex items-center justify-between relative z-10">
+      <header className="p-5 pt-[calc(1.25rem_+_env(safe-area-inset-top))] flex items-center justify-between relative z-10">
         <button
           type="button"
           onClick={onBack}
@@ -233,7 +233,7 @@ export function ScanCamera({
       </main>
 
       {/* Bottom controls */}
-      <footer className="p-6 pb-10 flex items-center justify-between relative z-10">
+      <footer className="p-6 pb-[calc(2.5rem_+_env(safe-area-inset-bottom))] flex items-center justify-between relative z-10">
         <button
           type="button"
           onClick={openGalleryPicker}

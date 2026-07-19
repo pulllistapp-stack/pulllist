@@ -29,6 +29,12 @@ export const UPDATES: UpdateEntry[] = [
   // ── 2026-07-19 ─────────────────────────────────────────────────
   {
     date: "2026-07-19",
+    emoji: "🐛",
+    kr: "스캔 화면에서 상단 컨트롤 (뒤로가기 / PullList pill / 플래시) 이 iOS 다이내믹아일랜드에 겹치던 버그 수정. ScanCamera + ScanConfirm 헤더에 safe-area-inset-top 반영, 하단 셔터 / 추가 버튼도 홈 인디케이터에 안 눌리게 safe-area-inset-bottom 적용. 함께 발견: 저번 턴 body 에 무조건 pb-4.5rem 걸어놓은 게 스캔 페이지처럼 자체 100dvh 잡는 화면에서 오버플로 유발. Bottom nav 안 뜨는 페이지에선 여백도 필요없어야 하니 spacer 를 BottomTabNav 안으로 옮김 (같은 hide 조건 공유).",
+    en: "Fixed: on the scan screen, the top controls (back / PullList pill / flash) overlapped iOS Dynamic Island. Added safe-area-inset-top to the ScanCamera + ScanConfirm headers, and safe-area-inset-bottom to the shutter / add-to-collection footers so the home indicator no longer crowds them. Also caught a regression from the previous turn — body carried an unconditional pb-4.5rem which caused pages with their own 100dvh container (scan) to overflow. Moved the spacer into BottomTabNav itself so it shares the nav's hide list; pages that hide the nav no longer inherit dead padding.",
+  },
+  {
+    date: "2026-07-19",
     emoji: "🧹",
     kr: "KR 카탈로그 정리 — 이전 대량 import (collectory) 가 CN/US/JP 세트도 KR 로 잘못 넣어서 브라우저에 태晶盛聚 (中), Chaos Rising (US), Battle Academy (CN) 같은 게 섞여있던 문제 수정. 각 세트 카드 이미지 CDN 경로로 지역 판정 (majority vote) 후: CN 128 세트 (12,890 카드) → CN 카탈로그로 이동, US 99 + JP 28 + scrydex 4 = 131 세트 (7,750 카드) → 삭제 (이미 EN/JP 카탈로그에 있음), KR 147 유지. 결과: KR 세트 502 → 243, CN 세트 56 → 184, EN 187 완전 미변경 (safeguard 유지). 이제 /sets?region=ko 에는 한국 발매판만.",
     en: "KR catalog cleanup — a prior bulk import (collectory --include-new-sets) pulled every un-matched set into KR regardless of actual locale, so 太晶盛聚 (CN), Chaos Rising (US), Battle Academy (CN) etc. all appeared as Korean sets in the browser. Classified each ko-c-* set by the CDN prefix of its cards' image URLs (majority vote): CN 128 sets / 12,890 cards → moved to CN region, US 99 + JP 28 + scrydex 4 = 131 sets / 7,750 cards → deleted (already covered by EN/JP catalogs), KR 147 kept. Net: KR sets 502 → 243, CN sets 56 → 184, EN 187 rows completely untouched (script safeguard enforced). /sets?region=ko now shows only Korean releases.",

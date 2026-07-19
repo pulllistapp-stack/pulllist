@@ -32,16 +32,24 @@ export function BottomTabNav() {
   const meMatch = user ? "/me" : "/login";
 
   return (
-    <nav
-      aria-label="Primary"
-      className="
-        fixed bottom-0 left-0 right-0 z-40 md:hidden
-        border-t border-border bg-bg/95 backdrop-blur-md
-        pb-[env(safe-area-inset-bottom)]
-        pl-[env(safe-area-inset-left)]
-        pr-[env(safe-area-inset-right)]
-      "
-    >
+    <>
+      {/* In-flow spacer so page content clears the fixed nav. Kept
+          alongside the nav itself so pages that hide the nav (scan,
+          auth, card detail) don't inherit dead padding. */}
+      <div
+        aria-hidden
+        className="md:hidden h-[calc(4.5rem_+_env(safe-area-inset-bottom))]"
+      />
+      <nav
+        aria-label="Primary"
+        className="
+          fixed bottom-0 left-0 right-0 z-40 md:hidden
+          border-t border-border bg-bg/95 backdrop-blur-md
+          pb-[env(safe-area-inset-bottom)]
+          pl-[env(safe-area-inset-left)]
+          pr-[env(safe-area-inset-right)]
+        "
+      >
       <ul className="grid grid-cols-5 items-end h-16">
         <Tab
           href="/sets"
@@ -71,6 +79,7 @@ export function BottomTabNav() {
         />
       </ul>
     </nav>
+    </>
   );
 }
 
