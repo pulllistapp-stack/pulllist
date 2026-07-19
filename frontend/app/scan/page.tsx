@@ -49,10 +49,17 @@ const BULK_MATCH_THRESHOLD = 26;
 // hasn't physically moved the card yet.
 const BULK_SKIP_TTL_MS = 6000;
 
-// Auto-capture cadence. Fast enough to feel responsive when a new
-// card lands in frame, slow enough that the pHash + JSON search stays
-// off the render thread.
-const BULK_TICK_MS = 500;
+// Auto-capture cadence. Slow enough that the pHash + JSON search
+// stays off the render thread, fast enough that a stability window
+// still lands within a few seconds of user holding still.
+const BULK_TICK_MS = 700;
+
+// Stability requirement — the SAME card_id must be the top-1 nearest
+// match this many consecutive ticks before we surface a detection
+// banner. Filters camera micro-movement / autofocus jitter that
+// otherwise makes the banner flash a different card every 500 ms.
+// 3 ticks at 700 ms = ~2.1 s of the user actually holding still.
+const BULK_STABILITY_TICKS = 3;
 
 const LAST_SCAN_KEY = "pulllist:last_scanned";
 
@@ -130,11 +137,18 @@ export default function ScanPage() {
   const [bulkAdding, setBulkAdding] = useState(false);
   // Diagnostic — the top-1 nearest catalog match every tick, whether
   // or not it clears BULK_MATCH_THRESHOLD. Lets us see what real
-  // camera-vs-render distances look like so we can tune.
+  // camera-vs-render distances look like so we can tune. The hash
+  // field carries the actual camera-computed pHash so we can compare
+  // it against the stored catalog value for the physical card LO is
+  // pointing at.
   const [bulkClosest, setBulkClosest] = useState<{
     cardId: string;
     distance: number;
+    hash: string;
   } | null>(null);
+  // Stability tracking — last N tick outcomes, used to demand
+  // consecutive matches before firing the detection banner.
+  const stabilityRef = useRef<string[]>([]);
   // card_id → epoch ms until which we should ignore this card. Kept in
   // a ref so tick closure sees the latest without re-arming the
   // interval effect on every add / skip.
@@ -335,10 +349,27 @@ export default function ScanPage() {
       if (!match) return;
       // Always publish the closest match for the diagnostic line —
       // gives LO immediate insight into what distances are typical.
-      setBulkClosest({ cardId: match.cardId, distance: match.distance });
-      if (match.distance > BULK_MATCH_THRESHOLD) return;
+      setBulkClosest({ cardId: match.cardId, distance: match.distance, hash });
+      if (match.distance > BULK_MATCH_THRESHOLD) {
+        // Miss — break the stability streak so a later match starts
+        // counting fresh instead of piggy-backing on an old streak.
+        stabilityRef.current = [];
+        return;
+      }
       const skipUntil = skipUntilRef.current.get(match.cardId);
       if (skipUntil && skipUntil > Date.now()) return;
+      // Only fire the banner once the same card_id has been the
+      // top-1 match for BULK_STABILITY_TICKS ticks in a row. Camera
+      // micro-shakes otherwise flip the top match to whatever
+      // similar-hash card slips ahead this frame.
+      stabilityRef.current.push(match.cardId);
+      if (stabilityRef.current.length > BULK_STABILITY_TICKS) {
+        stabilityRef.current.shift();
+      }
+      const stable =
+        stabilityRef.current.length >= BULK_STABILITY_TICKS &&
+        stabilityRef.current.every((c) => c === match.cardId);
+      if (!stable) return;
       // Fetch card details so the detection banner has name / price /
       // thumb. getCard hits our own catalog, no vision API involved.
       inFlight = true;
@@ -397,6 +428,7 @@ export default function ScanPage() {
         ...prev,
       ]);
       setBulkDetected(null);
+      stabilityRef.current = [];
     } catch (e) {
       console.error("[bulk] add failed", e);
       alert(e instanceof Error ? e.message : "Add failed");
@@ -414,6 +446,7 @@ export default function ScanPage() {
       Date.now() + BULK_SKIP_TTL_MS,
     );
     setBulkDetected(null);
+    stabilityRef.current = [];
   }, [bulkDetected]);
 
   const onBulkClearList = useCallback(() => {

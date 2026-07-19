@@ -47,7 +47,7 @@ type Props = {
   bulkCatalogError: string | null;
   bulkCatalogCoverage: number | null;
   bulkDetected: BulkDetected | null;
-  bulkClosest: { cardId: string; distance: number } | null;
+  bulkClosest: { cardId: string; distance: number; hash: string } | null;
   bulkList: BulkListItem[];
   bulkAdding: boolean;
   onBulkAdd: () => void;
