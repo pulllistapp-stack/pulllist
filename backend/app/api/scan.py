@@ -436,10 +436,10 @@ async def scan_card_gemini(
         )
     except Exception as e:
         log.error("Gemini call failed: %s", e)
+        msg = str(e)
         # 429 = quota exceeded. Surface a clean message with the
         # retry hint from Google's response instead of dumping the
         # whole traceback into the panel.
-        msg = str(e)
         if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
             import re as _re
             match = _re.search(r"retry in (\d+)", msg, _re.IGNORECASE)
@@ -448,7 +448,20 @@ async def scan_card_gemini(
                 status_code=429,
                 detail=(
                     f"Gemini quota exceeded for {settings.gemini_model}."
-                    f"{hint} Consider enabling billing or switching model."
+                    f"{hint} Enable billing or set GEMINI_MODEL to a"
+                    f" different variant."
+                ),
+            )
+        # 404 = model doesn't exist / has been retired from this API
+        # version. Common when a model gets deprecated between SDK
+        # releases; operator swaps GEMINI_MODEL env var to fix.
+        if "404" in msg or "NOT_FOUND" in msg or "is not found" in msg:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Gemini model '{settings.gemini_model}' not available."
+                    f" Set GEMINI_MODEL to gemini-2.5-flash /"
+                    f" gemini-2.5-flash-lite / gemini-2.0-flash-lite."
                 ),
             )
         raise HTTPException(status_code=502, detail=f"Vision API error: {e}")

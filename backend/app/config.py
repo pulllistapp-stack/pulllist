@@ -37,11 +37,14 @@ class Settings(BaseSettings):
     # falls back.
     gemini_api_key: str = ""
 
-    # Which Gemini model to hit. `gemini-1.5-flash` is the safest
-    # default — free-tier friendly on every AI Studio account. Once a
-    # project enables billing the operator can override to
-    # `gemini-2.0-flash` (or -flash-lite / -pro) via env var.
-    gemini_model: str = "gemini-1.5-flash"
+    # Which Gemini model to hit. `gemini-2.5-flash-lite` is the safest
+    # default: real free-tier quota (1000 RPD) without needing to
+    # enable billing on the Google Cloud project, and card OCR
+    # quality is fine. `gemini-1.5-flash` was retired from the v1beta
+    # endpoint; `gemini-2.0-flash` gates its free tier behind
+    # billing-enabled (returns 429 quota-0 otherwise). Once billing
+    # is on, override via GEMINI_MODEL env var to a bigger model.
+    gemini_model: str = "gemini-2.5-flash-lite"
 
     env: str = "development"
     debug: bool = True
