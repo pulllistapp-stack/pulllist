@@ -44,7 +44,7 @@ logging.basicConfig(
 )
 
 import httpx
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -431,6 +431,48 @@ async def sync(
                     )
                     card_map = {c.id: c for c in result.scalars()}
 
+                # Batch-fetch the most recent RAW eBay median per card so
+                # we can persist the consensus (tcg + ebay) / 2 as the
+                # card's headline market. Without this the nightly sync
+                # would overwrite user-triggered Refresh consensus values
+                # with TCG-only every 24h, and users would see set-page
+                # prices drift back to the raw TCG number that mismatches
+                # the card-detail hero. Single query per group beats
+                # per-card round-trips.
+                ebay_median_map: dict[str, float] = {}
+                if wanted_ids:
+                    # DISTINCT ON keeps only the freshest snapshot per
+                    # card. Uses the same index the price chart uses.
+                    dialect = db.bind.dialect.name
+                    if dialect == "postgresql":
+                        ebay_stmt = text(
+                            "SELECT DISTINCT ON (card_id) card_id, "
+                            "market_price_usd FROM card_price_snapshots "
+                            "WHERE card_id = ANY(:ids) AND source = 'ebay' "
+                            "AND grade = 'raw' AND market_price_usd IS NOT NULL "
+                            "ORDER BY card_id, snapshot_at DESC"
+                        )
+                        r = await db.execute(ebay_stmt, {"ids": wanted_ids})
+                        ebay_median_map = {row[0]: float(row[1]) for row in r}
+                    else:
+                        # SQLite fallback for local dev — subquery per id.
+                        r = await db.execute(
+                            select(
+                                CardPriceSnapshot.card_id,
+                                CardPriceSnapshot.market_price_usd,
+                            )
+                            .where(
+                                CardPriceSnapshot.card_id.in_(wanted_ids),
+                                CardPriceSnapshot.source == "ebay",
+                                CardPriceSnapshot.grade == "raw",
+                                CardPriceSnapshot.market_price_usd.is_not(None),
+                            )
+                            .order_by(CardPriceSnapshot.snapshot_at.desc())
+                        )
+                        for cid, price in r:
+                            if cid not in ebay_median_map:
+                                ebay_median_map[cid] = float(price)
+
                 for product_id, prices in by_product.items():
                     card_id = product_to_card.get(product_id)
                     if not card_id:
@@ -456,6 +498,20 @@ async def sync(
                             card_id, market, cap, existing.rarity or "?",
                         )
                         market = None
+                    # Blend with latest eBay median so the persisted
+                    # Card.market_price_usd matches what the card-detail
+                    # hero shows (which averages TCG + eBay client-side).
+                    # Without the blend, /sets/[id] tiles keep drifting
+                    # back to raw TCG on every nightly sync.
+                    new_market: float | None
+                    if market is not None:
+                        ebay_med = ebay_median_map.get(card_id)
+                        if ebay_med is not None:
+                            new_market = (market + ebay_med) / 2
+                        else:
+                            new_market = market
+                    else:
+                        new_market = None
                     lo, hi = _low_high_from_prices(
                         prices, existing.rarity, _rarity_ceiling
                     )
@@ -472,16 +528,16 @@ async def sync(
                     if not dry_run:
                         changed = (
                             existing.tcgplayer_prices != prices
-                            or (market is not None
-                                and _r(existing.market_price_usd) != _r(market))
+                            or (new_market is not None
+                                and _r(existing.market_price_usd) != _r(new_market))
                             or _r(existing.low_price_usd) != _r(lo)
                             or _r(existing.high_price_usd) != _r(hi)
                             or _r(existing.mid_price_usd) != _r(new_mid)
                         )
                         if changed:
                             existing.tcgplayer_prices = prices
-                            if market is not None:
-                                existing.market_price_usd = market
+                            if new_market is not None:
+                                existing.market_price_usd = new_market
                             # low/high refresh regardless of market cap —
                             # they feed the set price-range banner, which
                             # is interesting even when the headline market

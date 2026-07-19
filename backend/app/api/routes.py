@@ -1259,8 +1259,33 @@ async def _refresh_raw_price_from_tcgcsv(
     if headline_market is None:
         return None
 
-    # Update card row
-    card.market_price_usd = headline_market
+    # Consensus with the most recent eBay median so the card's headline
+    # market matches what the CardPriceHero component computes on the
+    # detail page. Without this, the set page's CardThumb shows the raw
+    # TCG value ($81.80) while the detail page shows (tcg+ebay)/2 =
+    # $75.65, and users read the set-page "old" number as stale.
+    ebay_median_stmt = (
+        select(CardPriceSnapshot.market_price_usd)
+        .where(
+            CardPriceSnapshot.card_id == card.id,
+            CardPriceSnapshot.source == "ebay",
+            CardPriceSnapshot.grade == "raw",
+            CardPriceSnapshot.market_price_usd.is_not(None),
+        )
+        .order_by(CardPriceSnapshot.snapshot_at.desc())
+        .limit(1)
+    )
+    ebay_median = (await db.execute(ebay_median_stmt)).scalar_one_or_none()
+    consensus = (
+        (float(headline_market) + float(ebay_median)) / 2
+        if ebay_median is not None
+        else float(headline_market)
+    )
+
+    # Update card row — market_price_usd holds the consensus so BOTH
+    # set page (raw column read) and card detail (computes same avg
+    # client-side but from fresh data) show the same number.
+    card.market_price_usd = consensus
     card.low_price_usd = headline.get("lowPrice")
     card.mid_price_usd = headline.get("midPrice")
     card.high_price_usd = headline.get("highPrice")
@@ -2070,6 +2095,15 @@ async def refresh_card_price(
         market_price = (tcg_market + ebay_median) / 2
     else:
         market_price = tcg_market if tcg_market is not None else ebay_median
+
+    # Persist the consensus onto the card row so the set-page CardThumb
+    # (which reads Card.market_price_usd directly) shows the same
+    # number the card-detail hero computes. Prior to this write the
+    # column was TCG-only, so users saw $81.80 on /sets/[id] and
+    # $75.65 on /cards/[id] for the same card — reads as "stale".
+    if market_price is not None and not cached:
+        card.market_price_usd = market_price
+        await db.commit()
 
     return {
         "card_id": card_id,
