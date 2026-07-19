@@ -40,6 +40,7 @@ type Props = {
   scanCount: number;
   drift: number | null;
   stableTicks: number;
+  tickCount: number;
   list: BulkListItem[];
   adding: boolean;
   onAdd: () => void;
@@ -60,6 +61,7 @@ export function BulkScanPanel({
   scanCount,
   drift,
   stableTicks,
+  tickCount,
   list,
   adding,
   onAdd,
@@ -171,8 +173,8 @@ export function BulkScanPanel({
           </div>
           <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
             <span className="text-[10px] font-mono text-[#B8A99A]">
-              drift{" "}
-              {drift == null ? "—" : `${drift}/28`} · steady {stableTicks}/1
+              t{tickCount} · drift{" "}
+              {drift == null ? "—" : `${drift}/40`} · steady {stableTicks}/1
             </span>
             <button
               type="button"

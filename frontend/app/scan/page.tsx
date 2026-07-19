@@ -41,18 +41,20 @@ const BULK_SKIP_TTL_MS = 6000;
 // camera settles between shakes.
 const BULK_TICK_MS = 500;
 
-// Two consecutive frames must be within this hamming distance to
-// count as "stable". Even a held-still iPhone drifts ~18-25 bits
-// between frames because of autofocus + auto-exposure micro-
-// adjustments, so we allow up to 28 bits — anything below means
-// the user is actually holding the card, not swiping past.
-const BULK_STABILITY_HAMMING = 28;
+// Threshold above which we consider two frames "not stable enough".
+// Set very permissively — real cameras drift ~30-35 bits even at
+// rest. Anything below means the user isn't actively swiping past.
+const BULK_STABILITY_HAMMING = 40;
 
 // Number of consecutive stable ticks before we fire the vision call.
-// 1 tick × 500 ms = fire as soon as any stability is detected.
-// Gemini is cheap ($0.0001/call), and the same-card cooldown stops
-// duplicate charges — so bias toward firing early.
+// 1 tick × 500 ms = fire on first stability signal.
 const BULK_STABILITY_TICKS = 1;
+
+// Safety net: if nothing has fired after this many ms of the
+// capture loop running, fire anyway. Prevents "stuck at 'hold a
+// card' forever" cases where whatever pHash the camera produces
+// stays above the stability threshold.
+const BULK_MAX_WAIT_MS = 6000;
 
 // Provider used for bulk detection. Gemini is ~30x cheaper than
 // Claude at similar accuracy — ~$0.0001 per scan, so a 100-card
@@ -145,10 +147,12 @@ export default function ScanPage() {
   const [bulkDiag, setBulkDiag] = useState<{
     drift: number | null;
     stableTicks: number;
-  }>({ drift: null, stableTicks: 0 });
+    tickCount: number;
+  }>({ drift: null, stableTicks: 0, tickCount: 0 });
   const stableTicksRef = useRef(0);
   const lastHashRef = useRef<string | null>(null);
   const forceScanRef = useRef(false);
+  const loopStartRef = useRef<number>(0);
   // card_id → epoch ms until which we should ignore this card. Kept in
   // a ref so tick closure sees the latest without re-arming the
   // interval effect on every add / skip.
@@ -318,11 +322,14 @@ export default function ScanPage() {
     const captureCanvas = captureCanvasRef.current;
     let cancelled = false;
     let inFlight = false;
+    let tickN = 0;
+    loopStartRef.current = performance.now();
 
     const tick = async () => {
       if (cancelled || inFlight) return;
       const video = camera.videoRef.current;
       if (!video) return;
+      tickN += 1;
 
       // Stability check — hash the frame, compare to the last one.
       const frame = extractFrameForHash(video, stabCanvas);
@@ -338,11 +345,23 @@ export default function ScanPage() {
         stableTicksRef.current = 0;
       }
       lastHashRef.current = hash;
-      setBulkDiag({ drift, stableTicks: stableTicksRef.current });
+      setBulkDiag({
+        drift,
+        stableTicks: stableTicksRef.current,
+        tickCount: tickN,
+      });
 
       const forced = forceScanRef.current;
       if (forced) forceScanRef.current = false;
-      if (!forced && stableTicksRef.current < BULK_STABILITY_TICKS) return;
+      const elapsed = performance.now() - loopStartRef.current;
+      const timedOut = elapsed >= BULK_MAX_WAIT_MS;
+      if (
+        !forced &&
+        !timedOut &&
+        stableTicksRef.current < BULK_STABILITY_TICKS
+      ) {
+        return;
+      }
 
       // Enough stability — capture a bigger frame for Gemini so the
       // vision model has legible text to read.
@@ -544,6 +563,7 @@ export default function ScanPage() {
       bulkScanCount={bulkScanCount}
       bulkDrift={bulkDiag.drift}
       bulkStableTicks={bulkDiag.stableTicks}
+      bulkTickCount={bulkDiag.tickCount}
       bulkList={bulkList}
       bulkAdding={bulkAdding}
       onBulkAdd={onBulkAdd}

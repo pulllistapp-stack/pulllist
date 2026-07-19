@@ -48,6 +48,7 @@ type Props = {
   bulkScanCount: number;
   bulkDrift: number | null;
   bulkStableTicks: number;
+  bulkTickCount: number;
   bulkList: BulkListItem[];
   bulkAdding: boolean;
   onBulkAdd: () => void;
@@ -87,6 +88,7 @@ export function ScanCamera({
   bulkScanCount,
   bulkDrift,
   bulkStableTicks,
+  bulkTickCount,
   bulkList,
   bulkAdding,
   onBulkAdd,
@@ -245,6 +247,7 @@ export function ScanCamera({
             scanCount={bulkScanCount}
             drift={bulkDrift}
             stableTicks={bulkStableTicks}
+            tickCount={bulkTickCount}
             list={bulkList}
             adding={bulkAdding}
             onAdd={onBulkAdd}
