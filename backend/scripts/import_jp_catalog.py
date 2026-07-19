@@ -26,6 +26,7 @@ import argparse
 import asyncio
 import logging
 from datetime import date, datetime
+from urllib.parse import quote
 
 import httpx
 from sqlalchemy import select
@@ -216,8 +217,17 @@ async def _upsert_card(db, raw: dict, set_id: str, lang: str) -> Card | None:
 
 
 async def _fetch_json(client: httpx.AsyncClient, url: str) -> dict | list | None:
+    # httpx treats '+' as a literal in path components, but TCGdex
+    # expects it URL-encoded ('SM1+' -> 'SM1%2B'). Same for other
+    # reserved chars that appear in TCGdex ids (mostly the '+' suffix
+    # on JP-era Enhanced Expansion sets like SM1+/SM3+/SM4+/SM5+;
+    # the KR /ko/sets index still surfaces those and the request 404s
+    # if left unencoded). Encode only the last path segment — leaves
+    # scheme, host, and static path pieces alone.
+    head, _, tail = url.rpartition("/")
+    safe_url = f"{head}/{quote(tail, safe='')}"
     try:
-        r = await client.get(url, timeout=20)
+        r = await client.get(safe_url, timeout=20)
         r.raise_for_status()
         return r.json()
     except httpx.HTTPError as e:
