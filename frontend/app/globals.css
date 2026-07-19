@@ -49,8 +49,12 @@
        long headline) must not turn the whole document into a
        horizontally-scrollable strip — a stray finger drift then
        shifts every page element sideways. Individual containers can
-       still opt into internal overflow-x-auto for wide content. */
-    overflow-x: hidden;
+       still opt into internal overflow-x-auto for wide content.
+       Use `clip` (not `hidden`) so we don't create a scroll container
+       on html / body — `hidden` on both was turning them into nested
+       root scrollers and desktop browsers lost track of which one
+       actually scrolls, so wheel + scrollbar stopped responding. */
+    overflow-x: clip;
   }
 }
 
