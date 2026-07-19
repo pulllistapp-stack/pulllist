@@ -2,11 +2,11 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/components/AuthProvider";
+import { BottomTabNav } from "@/components/BottomTabNav";
 import { CollectionProvider } from "@/components/CollectionProvider";
 import { CookieBanner } from "@/components/CookieBanner";
 import { Footer } from "@/components/Footer";
 import { PWARegister } from "@/components/PWARegister";
-import { ScanFAB } from "@/components/ScanFAB";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopNav } from "@/components/TopNav";
 import { TrackVisit } from "@/components/TrackVisit";
@@ -124,7 +124,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body className="bg-bg text-text-primary min-h-[100dvh]">
+      <body className="bg-bg text-text-primary min-h-[100dvh] pb-[calc(4.5rem_+_env(safe-area-inset-bottom))] md:pb-0">
         <ThemeProvider>
           <AuthProvider>
             <CollectionProvider>
@@ -134,7 +134,7 @@ export default function RootLayout({
                 <TopNav />
                 {children}
                 <Footer />
-                <ScanFAB />
+                <BottomTabNav />
                 <CookieBanner />
               </WishlistProvider>
             </CollectionProvider>

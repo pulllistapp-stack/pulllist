@@ -30,6 +30,12 @@ export const UPDATES: UpdateEntry[] = [
   {
     date: "2026-07-19",
     emoji: "📱",
+    kr: "모바일 하단 탭 네비 신설 — 화면 하단에 고정된 5개 탭 (Sets / Portfolio / Scan / Wishlist / Me) 이 모든 모바일 화면에 뜸. Scan 은 가운데 강조된 노란 원형 CTA 로 승격 (기존 우측 하단 ScanFAB 완전히 대체). 아이콘은 lucide-react. 로그아웃 상태에선 Me 탭이 'Sign in' 으로 바뀜. 몰입형 스캔 카메라 (`/scan`), auth (`/login`, `/signup`), 자체 하단 CTA 있는 카드 상세 (`/cards/[id]`) 에선 자동 숨김. 데스크탑 (md+) 에선 안 뜸. body min-h 에 safe-area 반영한 하단 여백 추가해서 콘텐츠 안 가려짐.",
+    en: "Mobile bottom tab bar shipped — five fixed tabs on every mobile screen (Sets / Portfolio / Scan / Wishlist / Me). Scan lives as the elevated yellow FAB in the center slot and fully replaces the old bottom-right ScanFAB. Icons from lucide-react. Logged-out users see the last tab as 'Sign in' instead of 'Me'. Auto-hidden on the immersive scan camera (/scan), auth pages (/login, /signup), and the card detail page (/cards/[id]) which has its own sticky buy CTA. Desktop (md+) is unchanged. Body padding-bottom respects safe-area so no page content sits behind the bar.",
+  },
+  {
+    date: "2026-07-19",
+    emoji: "📱",
     kr: "iOS 노치 / 다이나믹아일랜드 / 홈 인디케이터 safe-area 지원 — PWA standalone 모드에서 상단 nav 가 노치 뒤로 밀리거나 하단 스캔 FAB / 쿠키 배너가 홈 인디케이터에 겹치던 문제 수정. viewport-fit: cover 로 콘텐츠가 노치 밑까지 뻗도록 하고, 모든 sticky / fixed 요소 (TopNav, ScanFAB, CookieBanner, Footer) 에 env(safe-area-inset-*) 패딩 적용. 랜드스케이프 좌우 노치 컷도 대응. body min-height 를 100dvh 로 바꿔서 iOS Safari 주소창 등장 / 사라짐 layout jank 완화. 모바일 UX 개편 1단계 (다음: 하단 탭 네비 / 관리자 페이지 mobile 대응).",
     en: "iOS notch / dynamic island / home-indicator safe-area support — in standalone PWA the sticky top nav slid under the notch and the scan FAB + cookie banner overlapped the home indicator. Added viewport-fit: cover so content extends behind system UI, and every sticky / fixed element (TopNav, ScanFAB, CookieBanner, Footer) now pads with env(safe-area-inset-*). Landscape notch cut-outs handled too. Body min-height switched to 100dvh to reduce iOS Safari's URL-bar show/hide layout jank. Phase 1 of a mobile UX pass — bottom tab nav and mobile-friendly admin pages coming next.",
   },
