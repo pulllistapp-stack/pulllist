@@ -444,11 +444,15 @@ export default function ScanPage() {
       ch *= 0.9;
       const cx = (vw - cw) / 2;
       const cy = (vh - ch) / 2;
-      // CLIP-B/32 expects 224 × 224 input. We draw the crop at that
-      // exact size so the processor doesn't have to resize again and
-      // JPEG-encoding cost drops for the fallback path.
-      const outW = 224;
-      const outH = 224;
+      // Capture at 480 × 670 (card-aspect). Two consumers share
+      // this canvas: (1) CLIP — the transformers.js processor
+      // resizes to 224 × 224 internally, so bigger input just
+      // means it starts from cleaner pixels; (2) Gemini fallback —
+      // reads card text as OCR, needs the sharpness. 224 × 224
+      // (an earlier attempt to save a resize) blurred the text
+      // enough that Gemini returned no match every time.
+      const outW = 480;
+      const outH = Math.round(outW / CARD);
       captureCanvas.width = outW;
       captureCanvas.height = outH;
       const ctx = captureCanvas.getContext("2d");
