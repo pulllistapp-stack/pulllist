@@ -61,6 +61,13 @@ class CollectionItemDetail(CollectionItemRead):
     image_small: str | None
     rarity: str | None
     market_price_usd: float | None
+    # "graded" when market_price_usd came from a card_price_snapshots
+    # graded-tier median (item is_graded + tier match); "raw" for
+    # everything else including graded items where the tier hasn't
+    # been scraped yet. The Vault uses this to show a tiny "PSA 10
+    # median" badge on graded rows and a "no graded data — Refresh"
+    # nudge when a graded item lands on raw fallback.
+    price_source: str = "raw"
     set_id: str
     set_name: str
 

@@ -5,11 +5,13 @@ import { Check, Loader2, Minus, Plus, X } from "lucide-react";
 import Image from "next/image";
 
 import { VariantChip } from "@/components/VariantChip";
+import { GradedTierPreview } from "@/components/portfolio/GradedTierPreview";
 import {
   createCollectionItem,
   type AcquisitionType,
   type CardVariant,
 } from "@/lib/auth";
+import { GRADE_SERVICES } from "@/lib/gradedTier";
 import { availableVariants, VARIANT_LABELS } from "@/lib/variant";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +39,6 @@ const CONDITIONS: { value: "NM" | "LP" | "MP" | "HP" | "DMG"; label: string }[] 
   { value: "DMG", label: "DMG" },
 ];
 
-const GRADE_SERVICES = ["PSA", "BGS", "CGC", "SGC", "Ace"];
 const GRADES = [
   "10",
   "9.5",
@@ -296,6 +297,12 @@ export function CardAddModal({
                 </div>
               </div>
             )}
+            <GradedTierPreview
+              cardId={card.id}
+              isGraded={isGraded}
+              service={gradeService}
+              value={gradeValue}
+            />
           </div>
 
           {/* Quantity */}

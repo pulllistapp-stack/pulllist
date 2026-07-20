@@ -12,6 +12,7 @@ import {
 import Image from "next/image";
 
 import { VariantChip } from "@/components/VariantChip";
+import { GradedTierPreview } from "@/components/portfolio/GradedTierPreview";
 import {
   deleteCollectionItem,
   updateCollectionItem,
@@ -19,6 +20,7 @@ import {
   type CardVariant,
   type CollectionItemDetail,
 } from "@/lib/auth";
+import { GRADE_SERVICES } from "@/lib/gradedTier";
 import { availableVariants, VARIANT_LABELS } from "@/lib/variant";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +44,6 @@ const CONDITIONS: { value: "NM" | "LP" | "MP" | "HP" | "DMG"; label: string }[] 
   { value: "DMG", label: "DMG" },
 ];
 
-const GRADE_SERVICES = ["PSA", "BGS", "CGC", "SGC", "Ace"];
 const GRADES = [
   "10",
   "9.5",
@@ -115,6 +116,8 @@ export function CollectionItemEditModal({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [tierPrice, setTierPrice] = useState<number | null>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -170,9 +173,15 @@ export function CollectionItemEditModal({
   };
 
   // ROI hint — only when we have both a purchase price and a market price.
+  // Prefer the live graded tier price the user just selected so the
+  // math reflects the current form state without waiting for save +
+  // reload (the item's server-side market_price_usd still points at
+  // whatever grade the row had at open time).
+  const marketForRoi =
+    isGraded && tierPrice != null ? tierPrice : item.market_price_usd;
   const roiDelta =
-    priceValid && priceNum != null && item.market_price_usd != null
-      ? item.market_price_usd - priceNum
+    priceValid && priceNum != null && marketForRoi != null
+      ? marketForRoi - priceNum
       : null;
   const roiPct =
     roiDelta != null && priceNum != null && priceNum > 0
@@ -327,6 +336,13 @@ export function CollectionItemEditModal({
                 </div>
               </div>
             )}
+            <GradedTierPreview
+              cardId={item.card_id}
+              isGraded={isGraded}
+              service={gradeService}
+              value={gradeValue}
+              onTierPrice={setTierPrice}
+            />
           </div>
 
           <div>
@@ -400,7 +416,7 @@ export function CollectionItemEditModal({
           {roiDelta != null && roiPct != null && (
             <div className="rounded-card bg-bg-elevated border border-border px-3 py-2 text-xs font-mono flex items-center justify-between">
               <span className="text-text-tertiary">
-                Market ${item.market_price_usd?.toFixed(2)} · You paid $
+                Market ${marketForRoi?.toFixed(2)} · You paid $
                 {priceNum?.toFixed(2)}
               </span>
               <span

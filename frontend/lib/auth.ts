@@ -284,6 +284,10 @@ export type CollectionItemDetail = {
   image_small: string | null;
   rarity: string | null;
   market_price_usd: number | null;
+  /** "graded" when market_price_usd came from a card_price_snapshots
+   *  tier median (item is_graded + tracked PSA/BGS/CGC/TAG tier); "raw"
+   *  otherwise, including graded items whose tier isn't scraped yet. */
+  price_source?: "graded" | "raw";
   set_id: string;
   set_name: string;
 };

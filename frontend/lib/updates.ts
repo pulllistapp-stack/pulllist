@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-20 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-20",
+    emoji: "🏆",
+    kr: "**슬랩 카드가 이제 진짜 슬랩 가격으로 평가됨** — 지금까지는 유저가 콜렉션에 카드 추가할 때 'PSA 10' / 'BGS 9.5' 로 마킹해도 백엔드는 그냥 raw 시장가로 값을 셌음 (Charizard raw $8 인데 PSA 10 은 실제로 $4,800 이라도 $8 로 카운트). 이제 콜렉션 아이템이 graded=true 면 backend 가 `card_price_snapshots` 의 해당 tier median (psa10 / bgs10bl / cgc10 / tag10 등) 을 먼저 조회 → 있으면 그 가격으로, 없으면 raw 로 폴백. Vault 헤더 총액, 각 로우 마켓, per-set completion 값, 데일리 growth 스냅샷, CSV export, 전부 동일한 helper (`app/services/graded_pricing.py`) 통과. Add/Edit 모달에도 라이브 tier 프리뷰 패널 추가 — Graded 체크박스 켜고 (PSA, BGS, CGC, TAG) + 등급 선택하면 즉시 해당 tier 최신 판매가 미리보기가 뜸. 데이터 없으면 amber 배지 + '카드 페이지 열고 Refresh' 링크로 유도. ROI hint 도 tier 가격 기준으로 계산 (Bought $500 → Market PSA 10 $4,800 → +$4,300 표시).",
+    en: "**Graded slabs now value at graded market, not raw** — until now the vault always used the raw market price even when an item was marked PSA 10 / BGS 9.5 / CGC 10 (Charizard raw $8 stayed $8 in totals even if the PSA 10 clears at $4,800). Every valuation surface now runs items through `app/services/graded_pricing.py`: if the row is graded and the tier is tracked (psa10 / psa9 / cgc10 / cgc9 / bgs10 / bgs10bl / bgs9.5 / bgs9 / tag10 / tag9.5 / tag9), we look up the latest snapshot median in that tier and use it — otherwise raw fallback, so nothing loses value when a tier isn't scraped yet. Wired into Vault header, per-row market, /sets/[id] completion value, daily growth snapshot cron, and CSV export. Add/Edit modals get a live tier preview panel — flip Graded on and pick a (service, grade), the panel shows the current tier median from `/cards/{id}/graded-prices` right there. If no data yet, amber nudge + link to the card page's Refresh button. ROI hint also math'd against the tier price so a $500 buy on a PSA 10 that clears $4,800 reads +$4,300 instead of raw's misleading -$492.",
+  },
   // ── 2026-07-19 ─────────────────────────────────────────────────
   {
     date: "2026-07-19",

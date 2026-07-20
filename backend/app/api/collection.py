@@ -23,6 +23,12 @@ from app.schemas.collection import (
     CollectionItemUpdate,
     SetCompletion,
 )
+from app.services.graded_pricing import (
+    collect_graded_keys,
+    effective_price,
+    resolve_graded_prices,
+    user_grade_to_key,
+)
 from app.services.variant_pricing import price_for_variant
 
 router = APIRouter(prefix="/collection", tags=["collection"])
@@ -49,6 +55,11 @@ async def export_collection_csv(
     )
     rows = (await db.execute(stmt)).all()
 
+    items_only = [item for item, _c, _s in rows]
+    graded_lookup = await resolve_graded_prices(
+        db, collect_graded_keys(items_only)
+    )
+
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
@@ -60,8 +71,10 @@ async def export_collection_csv(
             "rarity",
             "variant",
             "condition",
+            "grade",
             "qty",
             "market_price_usd",
+            "price_source",
             "total_value_usd",
             "purchase_price_usd",
             "notes",
@@ -69,10 +82,14 @@ async def export_collection_csv(
         ]
     )
     for item, card, set_name in rows:
-        # Variant-specific market price — reverseHolofoil entry priced
-        # at reverse-holo's $34.67, normal at $0.50.
-        price = price_for_variant(
-            card.tcgplayer_prices, item.variant, card.market_price_usd
+        price, source = effective_price(
+            is_graded=item.is_graded,
+            grade=item.grade,
+            card_id=card.id,
+            variant=item.variant,
+            tcgplayer_prices=card.tcgplayer_prices,
+            fallback=card.market_price_usd,
+            graded_lookup=graded_lookup,
         )
         qty = item.qty or 0
         total = f"{price * qty:.2f}" if price is not None else ""
@@ -85,8 +102,10 @@ async def export_collection_csv(
                 card.rarity or "",
                 item.variant or "normal",
                 item.condition or "",
+                item.grade or "",
                 qty,
                 f"{price:.2f}" if price is not None else "",
+                source,
                 total,
                 f"{float(item.purchase_price_usd):.2f}" if getattr(item, "purchase_price_usd", None) is not None else "",
                 (item.notes or "").replace("\n", " ").strip(),
@@ -123,25 +142,41 @@ async def list_my_items(
         stmt = stmt.where(Card.set_id == set_id)
 
     rows = (await db.execute(stmt)).all()
-    return [
-        CollectionItemDetail(
-            **CollectionItemRead.model_validate(item).model_dump(),
-            card_name=card.name,
-            card_number=card.number,
-            image_small=card.image_small,
-            rarity=card.rarity,
-            # Variant-aware: use the price for THIS user's specific
-            # variant of THIS card (reverseHolofoil Larvitar $34.67 vs
-            # normal $0.50). Falls back to card.market_price_usd if the
-            # tcgplayer_prices JSON doesn't have that variant.
-            market_price_usd=price_for_variant(
-                card.tcgplayer_prices, item.variant, card.market_price_usd
-            ),
-            set_id=card.set_id,
-            set_name=set_name,
+
+    # Bulk-load graded snapshot prices for every graded item in one
+    # shot so per-row price shows PSA 10 / BGS 9.5 / etc. market
+    # instead of raw. Missing tiers just fall back to raw pricing;
+    # the source flag lets the UI nudge users to Refresh for coverage.
+    items_only = [item for item, _card, _set in rows]
+    graded_lookup = await resolve_graded_prices(
+        db, collect_graded_keys(items_only)
+    )
+
+    out: list[CollectionItemDetail] = []
+    for item, card, set_name in rows:
+        price, source = effective_price(
+            is_graded=item.is_graded,
+            grade=item.grade,
+            card_id=card.id,
+            variant=item.variant,
+            tcgplayer_prices=card.tcgplayer_prices,
+            fallback=card.market_price_usd,
+            graded_lookup=graded_lookup,
         )
-        for item, card, set_name in rows
-    ]
+        out.append(
+            CollectionItemDetail(
+                **CollectionItemRead.model_validate(item).model_dump(),
+                card_name=card.name,
+                card_number=card.number,
+                image_small=card.image_small,
+                rarity=card.rarity,
+                market_price_usd=price,
+                price_source=source,
+                set_id=card.set_id,
+                set_name=set_name,
+            )
+        )
+    return out
 
 
 @router.post("/items", response_model=CollectionItemRead, status_code=status.HTTP_201_CREATED)
@@ -404,7 +439,8 @@ async def set_completion(
 
     # Variant-aware value: walk items in Python and look up each one's
     # per-variant price from card.tcgplayer_prices. SQL can't easily
-    # index into the JSON for the right variant.
+    # index into the JSON for the right variant. Graded rows swap in
+    # the PSA/BGS/CGC/TAG tier price when a snapshot exists.
     rows = (
         await db.execute(
             select(
@@ -413,24 +449,42 @@ async def set_completion(
                 Card.tcgplayer_prices,
                 Card.market_price_usd,
                 CollectionItem.card_id,
+                CollectionItem.is_graded,
+                CollectionItem.grade,
             )
             .join(Card, CollectionItem.card_id == Card.id)
             .where(CollectionItem.user_id == user.id, Card.set_id == set_id)
         )
     ).all()
 
+    graded_keys: set[tuple[str, str]] = set()
+    for _q, _v, _p, _f, cid, is_g, g in rows:
+        if is_g:
+            key = user_grade_to_key(g)
+            if key:
+                graded_keys.add((cid, key))
+    graded_lookup = await resolve_graded_prices(db, graded_keys)
+
     unique_ids: set[str] = set()
     full_set_unique_ids: set[str] = set()
     total_qty = 0
     value = 0.0
-    for qty, variant, prices, fallback, card_id in rows:
+    for qty, variant, prices, fallback, card_id, is_graded, grade in rows:
         unique_ids.add(card_id)
         # None sentinel = "all cards are base"; membership check
         # otherwise.
         if base_card_ids is None or card_id in base_card_ids:
             full_set_unique_ids.add(card_id)
         total_qty += qty or 0
-        p = price_for_variant(prices, variant, fallback)
+        p, _src = effective_price(
+            is_graded=is_graded,
+            grade=grade,
+            card_id=card_id,
+            variant=variant,
+            tcgplayer_prices=prices,
+            fallback=fallback,
+            graded_lookup=graded_lookup,
+        )
         if p is not None:
             value += (qty or 0) * p
 
@@ -530,23 +584,41 @@ async def my_summary(
                 Card.set_id,
                 Card.tcgplayer_prices,
                 Card.market_price_usd,
+                CollectionItem.is_graded,
+                CollectionItem.grade,
             )
             .join(Card, CollectionItem.card_id == Card.id)
             .where(CollectionItem.user_id == user.id)
         )
     ).all()
 
+    graded_keys: set[tuple[str, str]] = set()
+    for _q, _v, cid, _s, _p, _f, is_g, g in rows:
+        if is_g:
+            key = user_grade_to_key(g)
+            if key:
+                graded_keys.add((cid, key))
+    graded_lookup = await resolve_graded_prices(db, graded_keys)
+
     unique_ids: set[str] = set()
     sets_touched: set[str] = set()
     total_entries = 0
     total_qty = 0
     cards_value = 0.0
-    for qty, variant, card_id, set_id, prices, fallback in rows:
+    for qty, variant, card_id, set_id, prices, fallback, is_graded, grade in rows:
         total_entries += 1
         unique_ids.add(card_id)
         sets_touched.add(set_id)
         total_qty += qty or 0
-        p = price_for_variant(prices, variant, fallback)
+        p, _src = effective_price(
+            is_graded=is_graded,
+            grade=grade,
+            card_id=card_id,
+            variant=variant,
+            tcgplayer_prices=prices,
+            fallback=fallback,
+            graded_lookup=graded_lookup,
+        )
         if p is not None:
             cards_value += (qty or 0) * p
 
