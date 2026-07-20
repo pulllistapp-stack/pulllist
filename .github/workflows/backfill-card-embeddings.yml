@@ -27,9 +27,11 @@ jobs:
     # 43 k cards. HTTP fetch ~15 min at concurrency 16. Embedding
     # is the bottleneck: batched forward passes (BATCH_SIZE = 32)
     # land ~30-50 cards/s on the ubuntu-latest CPU runner, so
-    # embed phase is ~15-25 min. Padding to 3 h in case runner is
-    # underprovisioned or the fetch phase hits many CDN retries.
-    timeout-minutes: 180
+    # embed phase is ~15-25 min. Bumped to 360 min (GitHub Actions
+    # free-tier hard cap — the runner itself terminates at 6 h) so
+    # even a worst-case slow-embed run finishes instead of hitting
+    # timeout with hours of work lost.
+    timeout-minutes: 360
     defaults:
       run:
         working-directory: backend
