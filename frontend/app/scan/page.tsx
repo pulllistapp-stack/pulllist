@@ -23,10 +23,16 @@ import {
 } from "@/lib/auth";
 import {
   scanCard,
+  scanEmbeddingMatch,
   type ScanCandidate,
   type ScanResponse,
   type VisionProvider,
 } from "@/lib/auth";
+import {
+  computeEmbeddingFromCanvas,
+  ensureEmbedModel,
+  type EmbedProgress,
+} from "@/lib/embedding";
 import { computePhash, extractFrameForHash, hammingDistance } from "@/lib/phash";
 
 type Mode = "camera" | "confirm";
@@ -63,10 +69,16 @@ const BULK_MAX_WAIT_MS = 6000;
 // forever.
 const BULK_SCAN_TIMEOUT_MS = 20000;
 
-// Provider used for bulk detection. Gemini is ~30x cheaper than
-// Claude at similar accuracy — ~$0.0001 per scan, so a 100-card
-// bulk session is roughly a cent.
+// Provider used ONLY for Gemini fallback when the CLIP embedding
+// path's top match is below the confidence threshold or the model
+// fails to load.
 const BULK_VISION_PROVIDER: VisionProvider = "gemini";
+
+// Cosine similarity above which we trust the CLIP embedding match
+// without falling back to Gemini. CLIP-B/32 on real card photos
+// typically lands 0.75+ for correct matches, 0.5-0.7 for
+// plausibly-close, <0.5 for unrelated. Bias toward accepting.
+const BULK_EMBEDDING_MIN_SIMILARITY = 0.72;
 
 const LAST_SCAN_KEY = "pulllist:last_scanned";
 
@@ -150,6 +162,13 @@ export default function ScanPage() {
   >(null);
   const [bulkScanCount, setBulkScanCount] = useState(0);
   const [bulkLastError, setBulkLastError] = useState<string | null>(null);
+  // CLIP model download progress. Null before we start loading;
+  // { progress: 0..1 } while downloading; ready object once loaded.
+  const [embedModelProgress, setEmbedModelProgress] = useState<
+    EmbedProgress | null
+  >(null);
+  const [embedModelReady, setEmbedModelReady] = useState(false);
+  const [embedModelError, setEmbedModelError] = useState<string | null>(null);
   // Diagnostic — most recent frame-to-frame drift + running stable
   // count. Surfaced in the panel so LO can see whether stability
   // actually triggers on his phone or whether the threshold needs
@@ -312,12 +331,45 @@ export default function ScanPage() {
     // as a no-op so BulkScanPanel's error UI still compiles.
   }, []);
 
+  // ── Bulk mode: lazy-load the CLIP embedding model ─────────────────
+  // Only kicks in when the user actually opens Bulk. First-time
+  // download is ~150 MB from the HuggingFace CDN; subsequent
+  // sessions hit the browser cache. Model failures fall back to the
+  // Gemini path further down the tick.
+  useEffect(() => {
+    if (scanMode !== "bulk") return;
+    if (embedModelReady || embedModelError) return;
+    let cancelled = false;
+    setEmbedModelError(null);
+    ensureEmbedModel((p) => {
+      if (cancelled) return;
+      setEmbedModelProgress(p);
+    })
+      .then(() => {
+        if (!cancelled) setEmbedModelReady(true);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("[bulk] embed model load failed", e);
+        setEmbedModelError(
+          e instanceof Error ? e.message : String(e),
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scanMode, embedModelReady, embedModelError]);
+
   // ── Bulk mode: auto-capture loop ───────────────────────────────────
-  // Every tick: hash the current frame, compare to previous. Two
-  // consecutive stable ticks (≈1 s of the user holding still) fire a
-  // Gemini call — much cheaper than shipping every frame to the vision
-  // API. pHash is only used here as a "did the camera settle?" signal
-  // now, not as the match itself.
+  // Every tick: pHash the current frame, compare to previous. Two
+  // consecutive stable ticks (~1 s of the user holding still)
+  // capture a card-aspect crop, run it through the on-device CLIP
+  // model (Xenova/clip-vit-base-patch32), and POST the 512-D
+  // embedding to /scan/embedding-match. Backend serves the top-k
+  // cosine-similarity nearest neighbours from the catalog matrix in
+  // R2. If the top match's similarity clears the confidence bar we
+  // trust it; otherwise we fall back to a Gemini call as a safety
+  // net.
   useEffect(() => {
     if (scanMode !== "bulk") return;
     if (!camera.ready) return;
@@ -374,12 +426,10 @@ export default function ScanPage() {
         return;
       }
 
-      // Enough stability — capture a bigger frame for Gemini so the
-      // vision model has legible text to read.
+      // Enough stability — build the card-aspect crop that both the
+      // CLIP model and (as fallback) Gemini will see.
       const vw = video.videoWidth || 1280;
       const vh = video.videoHeight || 720;
-      // Card-aspect crop centered on the video source (matches the
-      // yellow bracket area the user aligns the card into).
       const CARD = 245 / 342;
       let cw = vw;
       let ch = vh;
@@ -390,15 +440,15 @@ export default function ScanPage() {
         cw = vw;
         ch = cw / CARD;
       }
-      // ~5% inset — same as the pHash extractor uses.
       cw *= 0.9;
       ch *= 0.9;
       const cx = (vw - cw) / 2;
       const cy = (vh - ch) / 2;
-      // Downscale to a manageable capture size (Gemini reads even
-      // 400-wide fine, and smaller payloads = faster upload).
-      const outW = 480;
-      const outH = Math.round(outW / CARD);
+      // CLIP-B/32 expects 224 × 224 input. We draw the crop at that
+      // exact size so the processor doesn't have to resize again and
+      // JPEG-encoding cost drops for the fallback path.
+      const outW = 224;
+      const outH = 224;
       captureCanvas.width = outW;
       captureCanvas.height = outH;
       const ctx = captureCanvas.getContext("2d");
@@ -406,58 +456,82 @@ export default function ScanPage() {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(video, cx, cy, cw, ch, 0, 0, outW, outH);
-      const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.85);
-      const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
 
       inFlight = true;
       setBulkIdentifying(true);
       setBulkIdentifyStartedAt(Date.now());
       setBulkLastError(null);
-      // Fetch-level timeout so a hung Gemini call doesn't wedge the
-      // whole capture loop. Render cold start can take ~50 s, but by
-      // the time bulk runs the backend is already warm from the
-      // catalog fetch, so 20 s is a comfortable upper bound.
       const abortCtl = new AbortController();
       const timeoutId = window.setTimeout(
         () => abortCtl.abort(new Error("scan timeout")),
         BULK_SCAN_TIMEOUT_MS,
       );
       try {
-        const resp = await scanCard(
-          b64,
-          "image/jpeg",
-          BULK_VISION_PROVIDER,
-          abortCtl.signal,
-        );
+        let matched: {
+          id: string;
+          name: string;
+          number: string | null;
+          set_name: string | null;
+          image_small: string | null;
+          market_price_usd: number | null;
+        } | null = null;
+
+        // Primary path — on-device CLIP embedding into R2 catalog
+        // nearest-neighbour lookup. Sub-second when the model is
+        // warm and the R2 index is loaded on the backend.
+        if (embedModelReady) {
+          const emb = await computeEmbeddingFromCanvas(captureCanvas);
+          const embResp = await scanEmbeddingMatch(
+            emb,
+            3,
+            abortCtl.signal,
+          );
+          setBulkScanCount((n) => n + 1);
+          const top = embResp.matches[0] ?? null;
+          if (top && top.similarity >= BULK_EMBEDDING_MIN_SIMILARITY) {
+            matched = top;
+          }
+        }
+
+        // Fallback — the CLIP model isn't loaded yet OR the top
+        // similarity fell below the confidence bar. Gemini reads
+        // the card text and is much more forgiving of foil / angle
+        // edge cases at the cost of a $0.0001 API call.
+        if (!matched) {
+          const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.85);
+          const b64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+          const resp = await scanCard(
+            b64,
+            "image/jpeg",
+            BULK_VISION_PROVIDER,
+            abortCtl.signal,
+          );
+          setBulkScanCount((n) => n + 1);
+          const pick = resp.candidates[0] ?? null;
+          if (pick) matched = pick;
+        }
+
         if (cancelled) return;
-        setBulkScanCount((n) => n + 1);
-        const pick = resp.candidates[0] ?? null;
-        if (!pick) {
-          // Vision came back with no match — reset stability so the
-          // next attempt requires the frame to settle again instead
-          // of firing immediately.
+        if (!matched) {
           stableTicksRef.current = 0;
           return;
         }
-        const skipUntil = skipUntilRef.current.get(pick.id);
+        const skipUntil = skipUntilRef.current.get(matched.id);
         if (skipUntil && skipUntil > Date.now()) return;
         setBulkDetected({
-          cardId: pick.id,
-          name: pick.name,
-          number: pick.number,
-          setName: pick.set_name,
-          imageUrl: pick.image_small,
-          priceUsd: pick.market_price_usd,
+          cardId: matched.id,
+          name: matched.name,
+          number: matched.number,
+          setName: matched.set_name,
+          imageUrl: matched.image_small,
+          priceUsd: matched.market_price_usd,
           distance: 0,
         });
       } catch (e) {
-        console.error("[bulk] vision call failed", e);
+        console.error("[bulk] scan attempt failed", e);
         const msg = e instanceof Error ? e.message : String(e);
         setBulkLastError(msg);
         stableTicksRef.current = 0;
-        // On a timeout, hold the loop start point as "now" so the
-        // 6 s safety-net fallback doesn't immediately re-fire against
-        // whatever caused the hang.
         loopStartRef.current = performance.now();
       } finally {
         window.clearTimeout(timeoutId);
@@ -478,6 +552,7 @@ export default function ScanPage() {
     camera.videoRef,
     bulkDetected,
     bulkIdentifying,
+    embedModelReady,
   ]);
 
   // ── Bulk mode: handlers ────────────────────────────────────────────
@@ -601,6 +676,9 @@ export default function ScanPage() {
       bulkTickCount={bulkDiag.tickCount}
       bulkIdentifyStartedAt={bulkIdentifyStartedAt}
       bulkLastError={bulkLastError}
+      bulkModelReady={embedModelReady}
+      bulkModelProgress={embedModelProgress}
+      bulkModelError={embedModelError}
       bulkList={bulkList}
       bulkAdding={bulkAdding}
       onBulkAdd={onBulkAdd}

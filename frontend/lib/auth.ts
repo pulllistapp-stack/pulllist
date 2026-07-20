@@ -765,6 +765,51 @@ export async function scanCard(
   });
 }
 
+export type EmbeddingMatch = {
+  id: string;
+  name: string;
+  number: string | null;
+  set_id: string;
+  set_name: string;
+  rarity: string | null;
+  image_small: string | null;
+  market_price_usd: number | null;
+  similarity: number;
+};
+
+export type EmbeddingMatchResponse = {
+  matches: EmbeddingMatch[];
+  catalog_count: number;
+};
+
+export async function scanEmbeddingMatch(
+  embedding: number[],
+  topK = 3,
+  signal?: AbortSignal,
+): Promise<EmbeddingMatchResponse> {
+  return authFetch<EmbeddingMatchResponse>("/scan/embedding-match", {
+    method: "POST",
+    body: JSON.stringify({ embedding, top_k: topK }),
+    signal,
+  });
+}
+
+export type EmbeddingCatalogStats = {
+  loaded: boolean;
+  count?: number;
+  dim?: number;
+  metadata?: Record<string, unknown>;
+  load_error?: string | null;
+};
+
+export async function fetchEmbeddingCatalogStats(): Promise<EmbeddingCatalogStats> {
+  const res = await fetch(`${API_BASE}/scan/embedding-catalog/stats`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json() as Promise<EmbeddingCatalogStats>;
+}
+
 // ────────── Portfolio sharing ──────────
 
 export type SharingSettings = {

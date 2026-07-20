@@ -44,6 +44,9 @@ type Props = {
   tickCount: number;
   identifyStartedAt: number | null;
   lastError: string | null;
+  modelReady: boolean;
+  modelProgress: { progress: number; totalMB: number } | null;
+  modelError: string | null;
   list: BulkListItem[];
   adding: boolean;
   onAdd: () => void;
@@ -67,6 +70,9 @@ export function BulkScanPanel({
   tickCount,
   identifyStartedAt,
   lastError,
+  modelReady,
+  modelProgress,
+  modelError,
   list,
   adding,
   onAdd,
@@ -91,6 +97,44 @@ export function BulkScanPanel({
 
   return (
     <div className="w-full flex flex-col gap-3">
+      {/* Model download progress — only during the first-time
+          ~150 MB CLIP weight fetch. Shows a friendly percentage so a
+          slow mobile connection doesn't look like a hang. */}
+      {!modelReady && !modelError && modelProgress && (
+        <div className="rounded-2xl border border-[#FDE2C7] bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Loader2 className="h-4 w-4 animate-spin text-[#FACC15] shrink-0" />
+            <p className="text-sm font-bold text-[#2D2A26]">
+              Loading recognition model…
+            </p>
+          </div>
+          <div className="h-1.5 rounded-full bg-[#FFF3DE] overflow-hidden">
+            <div
+              className="h-full bg-[#FACC15] transition-[width] duration-200"
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.round(modelProgress.progress * 100),
+                )}%`,
+              }}
+            />
+          </div>
+          <p className="mt-1.5 text-[10px] font-mono text-[#8A7E72]">
+            {(modelProgress.progress * 100).toFixed(0)}% · one-time
+            download, cached after this
+          </p>
+        </div>
+      )}
+      {modelError && !modelReady && (
+        <div className="rounded-2xl border border-orange-300 bg-orange-50 px-4 py-3">
+          <p className="text-sm font-bold text-orange-700">
+            On-device model failed to load
+          </p>
+          <p className="text-[11px] text-orange-600 mt-0.5 break-words">
+            {modelError}. Falling back to Gemini vision for detection.
+          </p>
+        </div>
+      )}
 
       {/* Detection banner — the star of the show. */}
       {detected && (
