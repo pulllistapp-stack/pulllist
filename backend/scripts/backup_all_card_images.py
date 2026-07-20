@@ -74,9 +74,11 @@ def _extract_ext(url: str) -> str:
 
 
 def _sanitize_set_id(s: str) -> str:
-    """Some set IDs have chars invalid on Windows filesystems (mostly
-    fine for our zh-tw/zh-cn/ko/ja IDs, but defensive)."""
-    return re.sub(r'[<>:"|?*\x00-\x1f]', "_", s)
+    """Some set/card IDs have chars that either aren't valid on
+    Windows filesystems or would introduce spurious sub-directories
+    (`/`, `\\`). Collectory-imported KR/CN card IDs in particular
+    look like `ko-c-<hash>-001/324` — the slash needs to flatten."""
+    return re.sub(r'[<>:"|?*/\\\x00-\x1f]', "_", s)
 
 
 async def _download(url: str, out_path: Path) -> tuple[bool, str]:
