@@ -46,6 +46,29 @@ class Settings(BaseSettings):
     # is on, override via GEMINI_MODEL env var to a bigger model.
     gemini_model: str = "gemini-2.5-flash-lite"
 
+    # Cloudflare R2 (S3-compatible object storage). Used for large
+    # binary artifacts that would bloat the Neon Postgres free tier —
+    # currently: catalog card image mirror + the CNN embedding index
+    # for on-device bulk scan (Phase 3). The bucket name defaults to
+    # the existing one from the KR set-logos backup so we share
+    # infrastructure instead of provisioning a second bucket.
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_embeddings: str = "pulllist-setslogosbackup"
+
+    @property
+    def r2_endpoint(self) -> str:
+        return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
+
+    @property
+    def r2_configured(self) -> bool:
+        return bool(
+            self.r2_account_id
+            and self.r2_access_key_id
+            and self.r2_secret_access_key
+        )
+
     env: str = "development"
     debug: bool = True
 

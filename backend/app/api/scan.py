@@ -589,6 +589,132 @@ async def get_phash_catalog(
     return resp
 
 
+# ────────── CNN embedding matcher (Phase 3 — the real bulk path) ──
+
+
+class EmbeddingMatchRequest(BaseModel):
+    """Client-computed MobileCLIP embedding for the current camera
+    frame. Length must equal the catalog dimension (currently 512 for
+    MobileCLIP-S1). Frontend uses transformers.js to compute this on
+    device so no image bytes leave the browser."""
+
+    embedding: list[float] = Field(
+        ..., description="Row vector of the query image embedding"
+    )
+    top_k: int = Field(5, ge=1, le=20)
+
+
+class EmbeddingMatch(BaseModel):
+    id: str
+    name: str
+    number: str | None
+    set_id: str
+    set_name: str
+    rarity: str | None
+    image_small: str | None
+    market_price_usd: float | None
+    similarity: float = Field(
+        ..., description="Cosine similarity in [-1, 1]; 1.0 == identical"
+    )
+
+
+class EmbeddingMatchResponse(BaseModel):
+    matches: list[EmbeddingMatch]
+    catalog_count: int
+
+
+@bulk_router.post("/embedding-match", response_model=EmbeddingMatchResponse)
+async def scan_embedding_match(
+    payload: EmbeddingMatchRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> EmbeddingMatchResponse:
+    """Look up the nearest catalog cards to a client-computed embedding.
+
+    Auth is required — same posture as /cards/scan. The embedding
+    itself isn't the card image so PII risk is nil, but this is a
+    per-user product feature and we don't want anonymous scrapers
+    hammering the endpoint."""
+    import numpy as np
+
+    from app.services import embedding_matcher
+
+    try:
+        catalog = embedding_matcher.ensure_loaded()
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Embedding catalog not available: {e}. "
+                "Trigger backfill-card-embeddings workflow to populate R2."
+            ),
+        )
+
+    query = np.array(payload.embedding, dtype=np.float32)
+    try:
+        pairs = embedding_matcher.search(query, top_k=payload.top_k)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not pairs:
+        return EmbeddingMatchResponse(matches=[], catalog_count=catalog.count)
+
+    ids = [cid for cid, _ in pairs]
+    rows = (
+        await db.execute(
+            select(Card, Set.name.label("set_name"))
+            .join(Set, Card.set_id == Set.id)
+            .where(Card.id.in_(ids))
+        )
+    ).all()
+    card_by_id = {c.id: (c, sn) for c, sn in rows}
+
+    matches: list[EmbeddingMatch] = []
+    for cid, sim in pairs:
+        if cid not in card_by_id:
+            continue
+        c, sn = card_by_id[cid]
+        matches.append(
+            EmbeddingMatch(
+                id=c.id,
+                name=c.name,
+                number=c.number,
+                set_id=c.set_id,
+                set_name=sn or c.set_id,
+                rarity=c.rarity,
+                image_small=c.image_small,
+                market_price_usd=(
+                    float(c.market_price_usd)
+                    if c.market_price_usd is not None
+                    else None
+                ),
+                similarity=sim,
+            )
+        )
+    return EmbeddingMatchResponse(matches=matches, catalog_count=catalog.count)
+
+
+@bulk_router.get("/embedding-catalog/stats")
+async def get_embedding_catalog_stats() -> dict:
+    """Read-only health check — is the catalog loaded, how big, what
+    model. Used by the frontend to decide whether to enable the
+    embedding-based flow vs fall back to Gemini."""
+    from app.services import embedding_matcher
+
+    cat = embedding_matcher.get_catalog()
+    if cat is None:
+        return {
+            "loaded": False,
+            "load_error": embedding_matcher.get_load_error(),
+        }
+    return {
+        "loaded": True,
+        "count": cat.count,
+        "dim": cat.dim,
+        "metadata": cat.metadata,
+    }
+
+
 @bulk_router.get("/phash-catalog/stats")
 async def get_phash_catalog_stats(
     db: AsyncSession = Depends(get_db),
