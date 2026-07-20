@@ -94,18 +94,24 @@ def load_model():
 
 def embed_image(img: Image.Image) -> np.ndarray:
     """Return a 512-D embedding for one PIL image."""
+    return embed_batch([img])[0]
+
+
+def embed_batch(images: list[Image.Image]) -> np.ndarray:
+    """Batched forward pass — the whole point of the perf rewrite.
+    CLIP-B/32 on CPU is ~4x faster in batches of 32 vs 1-at-a-time
+    because the matmul kernels hit their sweet spot. Returns a
+    numpy array shape [len(images), 512]."""
     model, processor = load_model()
     torch = _model_cache["torch"]
-    if img.mode not in ("RGB", "L"):
-        img = img.convert("RGB")
-    inputs = processor(images=img, return_tensors="pt")
+    rgb = [
+        (img if img.mode == "RGB" else img.convert("RGB"))
+        for img in images
+    ]
+    inputs = processor(images=rgb, return_tensors="pt")
     with torch.no_grad():
-        # get_image_features runs the vision tower + the projection
-        # head, so what comes out is directly comparable to text
-        # embeddings via cosine similarity — same 512-D space
-        # transformers.js uses on the frontend.
         features = model.get_image_features(pixel_values=inputs["pixel_values"])
-    return features[0].numpy().astype(np.float32).flatten()
+    return features.numpy().astype(np.float32)
 
 
 # ────────── image fetch (mirrors backfill_card_phashes) ──────────
@@ -229,30 +235,61 @@ async def run(
         time.monotonic() - t0,
     )
 
-    # ── phase 2: embed sequentially (CPU-bound, no benefit to threads) ──
+    # ── phase 2: embed in batches (CPU matmul sweet spot ~32) ──
+    BATCH_SIZE = 32
     ids: list[str] = []
     vectors: list[np.ndarray] = []
     embed_fail = 0
     t1 = time.monotonic()
-    for i, (card_id, url) in enumerate(rows):
+
+    # Pre-decode successful images. Bad decodes get counted as
+    # embed_fail up front so the batch step sees only valid PILs.
+    decoded: list[tuple[str, Image.Image]] = []
+    for card_id, _url in rows:
         if card_id not in fetched:
             continue
         try:
             img = Image.open(io.BytesIO(fetched[card_id]))
             img.load()
-            vec = embed_image(img)
-            ids.append(card_id)
-            vectors.append(vec)
+            decoded.append((card_id, img))
         except Exception as e:
             embed_fail += 1
-            log.warning("embed failed for %s: %s", card_id, e)
-        if (i + 1) % 500 == 0:
+            log.warning("decode failed for %s: %s", card_id, e)
+
+    processed = 0
+    for start in range(0, len(decoded), BATCH_SIZE):
+        chunk = decoded[start : start + BATCH_SIZE]
+        chunk_ids = [c[0] for c in chunk]
+        chunk_imgs = [c[1] for c in chunk]
+        try:
+            batch_vecs = embed_batch(chunk_imgs)
+            for cid, vec in zip(chunk_ids, batch_vecs):
+                ids.append(cid)
+                vectors.append(vec)
+        except Exception as e:
+            # Whole-batch failure is rare (usually processor OOM).
+            # Retry the batch one image at a time so a single bad
+            # frame doesn't nuke the other 31.
+            embed_fail += len(chunk_ids)
+            log.warning(
+                "batch failed (%s) — retrying individually", e
+            )
+            for cid, img in chunk:
+                try:
+                    vec = embed_batch([img])[0]
+                    ids.append(cid)
+                    vectors.append(vec)
+                    embed_fail -= 1
+                except Exception as e2:
+                    log.warning("embed failed for %s: %s", cid, e2)
+        processed += len(chunk)
+        if (start // BATCH_SIZE) % 10 == 0 or processed >= len(decoded):
             elapsed = time.monotonic() - t1
             log.info(
                 "  embed %d / %d (%.1f cards/s, %d failed)",
-                i + 1,
-                total,
-                (i + 1) / max(elapsed, 1e-3),
+                processed,
+                len(decoded),
+                processed / max(elapsed, 1e-3),
                 embed_fail,
             )
     log.info(

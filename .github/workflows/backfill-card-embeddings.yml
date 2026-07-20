@@ -24,11 +24,12 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    # ~43 k cards. HTTP fetch is fast (~15 min at concurrency 16).
-    # Embedding on CPU is the bottleneck (~40-80 cards/s), so budget
-    # ~15-20 min for that phase. Padding for cold pip install + R2
-    # upload.
-    timeout-minutes: 90
+    # 43 k cards. HTTP fetch ~15 min at concurrency 16. Embedding
+    # is the bottleneck: batched forward passes (BATCH_SIZE = 32)
+    # land ~30-50 cards/s on the ubuntu-latest CPU runner, so
+    # embed phase is ~15-25 min. Padding to 3 h in case runner is
+    # underprovisioned or the fetch phase hits many CDN retries.
+    timeout-minutes: 180
     defaults:
       run:
         working-directory: backend
