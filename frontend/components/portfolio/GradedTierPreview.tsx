@@ -43,8 +43,16 @@ export function GradedTierPreview({
   const [data, setData] = useState<GradedPricesResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Deps intentionally scoped to (isGraded, cardId) — including
+  // `data` or `loading` in the dep array is a self-inflicted wound:
+  // setLoading(true) inside the effect triggers a re-render, the
+  // cleanup fires with cancelled=true, and the in-flight fetch's
+  // resolvers all short-circuit → the panel stays stuck on "Loading"
+  // forever. React's eslint-plugin-react-hooks does warn about this
+  // pattern but only when it can prove the missing dep is read
+  // unconditionally; here the guards hide it.
   useEffect(() => {
-    if (!isGraded || data !== null || loading) return;
+    if (!isGraded) return;
     let cancelled = false;
     setLoading(true);
     fetch(`${API_BASE}/cards/${cardId}/graded-prices`, { cache: "no-store" })
@@ -61,7 +69,7 @@ export function GradedTierPreview({
     return () => {
       cancelled = true;
     };
-  }, [isGraded, cardId, data, loading]);
+  }, [isGraded, cardId]);
 
   const tierKey = isGraded ? serviceGradeToKey(service, value) : null;
   const tier = tierKey && data ? data[tierKey] ?? null : null;
