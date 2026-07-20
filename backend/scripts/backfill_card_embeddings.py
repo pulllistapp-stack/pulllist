@@ -52,7 +52,12 @@ logging.basicConfig(
 log = logging.getLogger("backfill_embeddings")
 
 
-MODEL_ID = "Xenova/mobileclip-s1"
+# OpenAI CLIP ViT-B/32 — 512-D image embeddings, ~150 MB weights,
+# proven to run cross-platform. Backend: HF `transformers` +
+# torch. Frontend (Day 2): `@xenova/transformers` loads the ONNX
+# port at `Xenova/clip-vit-base-patch32` for byte-identical
+# embeddings.
+MODEL_ID = "openai/clip-vit-base-patch32"
 EMBEDDING_DIM = 512
 
 # Same retry / concurrency knobs as the pHash backfill — different
@@ -63,49 +68,44 @@ RETRIES = 2
 
 # ────────── model loader ──────────
 
-_model_cache = {"session": None, "processor": None}
+_model_cache: dict = {}
 
 
 def load_model():
-    """Lazy import + one-time load. transformers + torch are heavy
-    (~1 GB), only pulled in for the backfill job (not the runtime
-    backend), so importing lazily keeps the backend clean."""
-    if _model_cache["session"] is not None:
-        return _model_cache["session"], _model_cache["processor"]
+    """One-time load at start of the embed phase (not per image!).
+    transformers + torch are ~1 GB, only pulled in by the backfill
+    job — production backend never imports these."""
+    if "model" in _model_cache:
+        return _model_cache["model"], _model_cache["processor"]
 
     log.info("loading %s ...", MODEL_ID)
-    from transformers import AutoImageProcessor
-    from optimum.onnxruntime import ORTModel
+    import torch
+    from transformers import CLIPImageProcessor, CLIPModel
 
-    # ORTModel is a lightweight ONNX runtime wrapper. Uses whatever
-    # ONNX file the HF repo exposes (Xenova always ships one).
-    processor = AutoImageProcessor.from_pretrained(MODEL_ID)
-    session = ORTModel.from_pretrained(MODEL_ID, file_name="onnx/model.onnx")
-    log.info("model ready")
-    _model_cache["session"] = session
+    model = CLIPModel.from_pretrained(MODEL_ID)
+    model.eval()
+    processor = CLIPImageProcessor.from_pretrained(MODEL_ID)
+    _model_cache["model"] = model
     _model_cache["processor"] = processor
-    return session, processor
+    _model_cache["torch"] = torch
+    log.info("model ready")
+    return model, processor
 
 
 def embed_image(img: Image.Image) -> np.ndarray:
     """Return a 512-D embedding for one PIL image."""
-    session, processor = load_model()
+    model, processor = load_model()
+    torch = _model_cache["torch"]
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
-    inputs = processor(images=img, return_tensors="np")
-    # ORTModel accepts numpy inputs and returns numpy outputs — no
-    # torch tensor round-trip needed.
-    out = session(pixel_values=inputs["pixel_values"])
-    # For CLIP-style models the vision tower output is either
-    # `image_embeds` (already pooled + projected) or `pooler_output`.
-    if "image_embeds" in out:
-        vec = out["image_embeds"][0]
-    elif "pooler_output" in out:
-        vec = out["pooler_output"][0]
-    else:
-        # Fallback — first tensor in the output dict.
-        vec = list(out.values())[0][0]
-    return np.asarray(vec, dtype=np.float32).flatten()
+    inputs = processor(images=img, return_tensors="pt")
+    with torch.no_grad():
+        # get_image_features runs the vision tower + the projection
+        # head, so what comes out is directly comparable to text
+        # embeddings via cosine similarity — same 512-D space
+        # transformers.js uses on the frontend.
+        features = model.get_image_features(pixel_values=inputs["pixel_values"])
+    return features[0].numpy().astype(np.float32).flatten()
 
 
 # ────────── image fetch (mirrors backfill_card_phashes) ──────────
