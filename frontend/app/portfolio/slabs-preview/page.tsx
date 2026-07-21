@@ -1,18 +1,23 @@
 "use client";
 
 /**
- * Slabs preview — live-tuning sandbox for the SlabFrame component.
+ * Slabs preview — two modes:
  *
- * Access: /portfolio/slabs-preview (public URL, no auth). Share the
- * link with anyone; nothing on this page reads user data.
+ *   1. Samples — hardcoded 4 slabs across PSA / BGS / CGC / TAG, used
+ *      to tune FRAME_META coordinates via the slider panel below.
+ *   2. Try your card — search any card by name, pick a grader + tier,
+ *      see it live-slabbed in both frame styles. Anyone (no login)
+ *      can play with this to get a feel for what a graded slab of
+ *      their card would look like.
  *
- * The tuning panel writes into localStorage per frame style so a
- * refresh keeps your latest coord values. Hit "Reset" to restore the
- * FRAME_META defaults, "Copy code" to grab the current values as a
- * TypeScript snippet you can paste into SlabFrame.tsx.
+ * Access: /portfolio/slabs-preview (public URL, no auth).
+ *
+ * Coordinate tuning state persists to localStorage per style so a
+ * refresh keeps your latest tuning across both modes.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import {
   FRAME_META,
@@ -20,14 +25,17 @@ import {
   type CardRect,
   type FlipRect,
 } from "@/components/portfolio/SlabFrame";
+import { searchCards, type Card } from "@/lib/api";
 
 type Style = "bgs" | "psa";
+type Mode = "samples" | "try";
+type Service = "PSA" | "BGS" | "CGC" | "TAG";
 
 const SAMPLES: Array<{
   yearSet: string;
   cardName: string;
   cardImage: string;
-  service: "PSA" | "BGS" | "CGC" | "TAG";
+  service: Service;
   grade: string;
   suffix?: string;
   subgrades?: [number, number, number, number];
@@ -67,6 +75,15 @@ const SAMPLES: Array<{
   },
 ];
 
+const GRADE_OPTIONS: Array<{ value: string; suffix?: string }> = [
+  { value: "10", suffix: "Gem Mint" },
+  { value: "9.5", suffix: "Mint+" },
+  { value: "9", suffix: "Mint" },
+  { value: "8.5", suffix: "NM-Mint" },
+  { value: "8", suffix: "NM" },
+  { value: "7", suffix: "NM" },
+];
+
 const LS_KEY = "slab-tune-v1";
 
 function loadOverrides(): {
@@ -91,11 +108,11 @@ function loadOverrides(): {
   }
 }
 
-// Convert "12.5%" → 12.5 for sliders and back.
 const parsePct = (v: string): number => parseFloat(v.replace("%", "")) || 0;
 const asPct = (n: number): string => `${n}%`;
 
 export default function SlabsPreviewPage() {
+  const [mode, setMode] = useState<Mode>("samples");
   const [style, setStyle] = useState<Style>("psa");
   const [debug, setDebug] = useState(true);
   const [tune, setTune] = useState(() => loadOverrides());
@@ -161,20 +178,37 @@ export default function SlabsPreviewPage() {
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-text-tertiary mb-2">
-            Internal · Live tuning
+            Internal · Slab prototype
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
             Slabs Preview
           </h1>
           <p className="text-sm text-text-secondary max-w-2xl">
-            Adjust flip well + card well coordinates live below. Values
-            persist in your browser. Hit <strong>Copy code</strong> and
-            paste into <code className="font-mono text-xs text-accent-yellow">FRAME_META</code>{" "}
-            when you like them.
+            Two modes below. Sample the four grader tones to tune
+            coordinates, or search any card and see what it looks like
+            slabbed. Coordinate tuning persists per browser.
           </p>
         </div>
 
-        {/* Style + debug controls */}
+        {/* Mode tabs */}
+        <div className="flex items-center gap-1 mb-4 p-1 rounded-full bg-bg-surface border border-border w-fit">
+          {(["samples", "try"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={
+                "px-4 py-1.5 text-xs font-mono uppercase tracking-wider rounded-full transition-colors " +
+                (mode === m
+                  ? "bg-accent-yellow text-gray-900 font-bold"
+                  : "text-text-secondary hover:text-text-primary")
+              }
+            >
+              {m === "samples" ? "Samples" : "Try your card"}
+            </button>
+          ))}
+        </div>
+
+        {/* Style + debug controls (shared) */}
         <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-card bg-bg-surface border border-border">
           <div className="flex items-center gap-1 p-1 rounded-full bg-bg border border-border">
             {(["bgs", "psa"] as const).map((s) => (
@@ -217,27 +251,14 @@ export default function SlabsPreviewPage() {
           </div>
         </div>
 
-        {/* Slab grid — 1 mobile / 2 tablet / 4 desktop */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-10">
-          {SAMPLES.map((s) => (
-            <div key={s.cardName + s.service}>
-              <SlabFrame
-                style={style}
-                {...s}
-                debug={debug}
-                flipOverride={current.flip}
-                cardOverride={current.card}
-              />
-              <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
-                {s.service} {s.grade}
-                {s.suffix ? ` · ${s.suffix}` : ""}
-              </p>
-            </div>
-          ))}
-        </div>
+        {mode === "samples" ? (
+          <SamplesGrid style={style} debug={debug} tune={current} />
+        ) : (
+          <TryYourCard style={style} debug={debug} tune={current} />
+        )}
 
-        {/* Live tuning panel */}
-        <div className="rounded-card bg-bg-surface border border-border p-5 sm:p-6">
+        {/* Live tuning panel — visible under both modes */}
+        <div className="rounded-card bg-bg-surface border border-border p-5 sm:p-6 mt-10">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-tertiary mb-1">
@@ -253,88 +274,261 @@ export default function SlabsPreviewPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Flip well tuner */}
             <fieldset className="border border-pink-500/30 rounded-btn p-4">
               <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-pink-400">
                 Flip well (pink outline)
               </legend>
-              <SliderRow
-                label="top"
-                value={parsePct(current.flip.top)}
-                max={40}
-                onChange={(v) => updateFlip("top", v)}
-              />
-              <SliderRow
-                label="left"
-                value={parsePct(current.flip.left)}
-                max={60}
-                onChange={(v) => updateFlip("left", v)}
-              />
-              <SliderRow
-                label="right"
-                value={parsePct(current.flip.right)}
-                max={60}
-                onChange={(v) => updateFlip("right", v)}
-              />
-              <SliderRow
-                label="height"
-                value={parsePct(current.flip.height)}
-                max={30}
-                onChange={(v) => updateFlip("height", v)}
-              />
+              <SliderRow label="top" value={parsePct(current.flip.top)} max={40} onChange={(v) => updateFlip("top", v)} />
+              <SliderRow label="left" value={parsePct(current.flip.left)} max={60} onChange={(v) => updateFlip("left", v)} />
+              <SliderRow label="right" value={parsePct(current.flip.right)} max={60} onChange={(v) => updateFlip("right", v)} />
+              <SliderRow label="height" value={parsePct(current.flip.height)} max={30} onChange={(v) => updateFlip("height", v)} />
             </fieldset>
 
-            {/* Card well tuner */}
             <fieldset className="border border-cyan-500/30 rounded-btn p-4">
               <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-400">
                 Card well (cyan outline)
               </legend>
-              <SliderRow
-                label="top"
-                value={parsePct(current.card.top)}
-                max={40}
-                onChange={(v) => updateCard("top", v)}
-              />
-              <SliderRow
-                label="left"
-                value={parsePct(current.card.left)}
-                max={40}
-                onChange={(v) => updateCard("left", v)}
-              />
-              <SliderRow
-                label="right"
-                value={parsePct(current.card.right)}
-                max={40}
-                onChange={(v) => updateCard("right", v)}
-              />
-              <SliderRow
-                label="bottom"
-                value={parsePct(current.card.bottom)}
-                max={30}
-                onChange={(v) => updateCard("bottom", v)}
-              />
+              <SliderRow label="top" value={parsePct(current.card.top)} max={40} onChange={(v) => updateCard("top", v)} />
+              <SliderRow label="left" value={parsePct(current.card.left)} max={40} onChange={(v) => updateCard("left", v)} />
+              <SliderRow label="right" value={parsePct(current.card.right)} max={40} onChange={(v) => updateCard("right", v)} />
+              <SliderRow label="bottom" value={parsePct(current.card.bottom)} max={30} onChange={(v) => updateCard("bottom", v)} />
             </fieldset>
           </div>
-
-          <details className="mt-5 text-xs">
-            <summary className="cursor-pointer text-text-tertiary font-mono uppercase tracking-wider hover:text-text-secondary">
-              Current values (for pasting)
-            </summary>
-            <pre className="mt-2 p-3 rounded-btn bg-bg border border-border overflow-x-auto text-[11px] leading-relaxed">
-{`${style}: {
-  src: "/slab-frame-${style}.png",
-  aspectRatio: "${style === "bgs" ? "797 / 1344" : "816 / 1285"}",
-  flip: { top: "${current.flip.top}", left: "${current.flip.left}", right: "${current.flip.right}", height: "${current.flip.height}" },
-  card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
-  flipTone: "${style === "bgs" ? "on-gold" : "on-white"}",
-},`}
-            </pre>
-          </details>
         </div>
       </div>
     </main>
   );
 }
+
+// ────────────────────────── Samples grid ──────────────────────────
+
+function SamplesGrid({
+  style,
+  debug,
+  tune,
+}: {
+  style: Style;
+  debug: boolean;
+  tune: { flip: FlipRect; card: CardRect };
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+      {SAMPLES.map((s) => (
+        <div key={s.cardName + s.service}>
+          <SlabFrame
+            style={style}
+            {...s}
+            debug={debug}
+            flipOverride={tune.flip}
+            cardOverride={tune.card}
+          />
+          <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
+            {s.service} {s.grade}
+            {s.suffix ? ` · ${s.suffix}` : ""}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ────────────────────────── Try-your-card ──────────────────────────
+
+function TryYourCard({
+  style,
+  debug,
+  tune,
+}: {
+  style: Style;
+  debug: boolean;
+  tune: { flip: FlipRect; card: CardRect };
+}) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [results, setResults] = useState<Card[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [picked, setPicked] = useState<Card | null>(null);
+  const [service, setService] = useState<Service>("PSA");
+  const [gradeIdx, setGradeIdx] = useState(0); // index into GRADE_OPTIONS
+
+  // Debounce the search input.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    if (debouncedQuery.length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    searchCards(debouncedQuery, 1, 12, "relevance")
+      .then((r) => {
+        if (!cancelled) setResults(r.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery]);
+
+  const yearSet = useMemo(() => {
+    if (!picked) return "";
+    const setName = (picked.set_name || picked.set_id).toUpperCase();
+    return picked.number ? `${setName} · #${picked.number}` : setName;
+  }, [picked]);
+
+  const grade = GRADE_OPTIONS[gradeIdx];
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      {/* Left: search + picker */}
+      <div>
+        <label className="block text-[11px] font-mono uppercase tracking-[0.14em] text-text-tertiary mb-2">
+          Search any card by name
+        </label>
+        <div className="relative">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g. charizard, umbreon vmax, lugia neo"
+            className="w-full rounded-btn bg-bg-surface border border-border px-3 py-2.5 text-sm focus:outline-none focus:border-accent-yellow/60 transition-colors"
+          />
+          {loading && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-text-tertiary" />
+          )}
+        </div>
+
+        {debouncedQuery.length >= 2 && (
+          <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[420px] overflow-y-auto rounded-btn bg-bg-surface border border-border p-2">
+            {results.length === 0 && !loading ? (
+              <p className="col-span-full text-xs text-text-tertiary py-4 text-center font-mono">
+                No matches
+              </p>
+            ) : (
+              results.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setPicked(c)}
+                  className={
+                    "relative aspect-[63/88] rounded-btn overflow-hidden border transition-all " +
+                    (picked?.id === c.id
+                      ? "border-accent-yellow ring-2 ring-accent-yellow/40"
+                      : "border-border hover:border-accent-yellow/40")
+                  }
+                  title={`${c.name} · ${c.set_name ?? c.set_id}`}
+                >
+                  {c.image_small ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.image_small}
+                      alt={c.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-bg-elevated" />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {picked && (
+          <>
+            <div className="mt-5">
+              <label className="block text-[11px] font-mono uppercase tracking-[0.14em] text-text-tertiary mb-2">
+                Grading service
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(["PSA", "BGS", "CGC", "TAG"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setService(s)}
+                    className={
+                      "rounded-btn py-2 text-xs font-mono uppercase tracking-wider border transition-colors " +
+                      (service === s
+                        ? "bg-accent-yellow/15 border-accent-yellow/60 text-accent-yellow font-bold"
+                        : "bg-bg border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40")
+                    }
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-[11px] font-mono uppercase tracking-[0.14em] text-text-tertiary mb-2">
+                Grade tier
+              </label>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                {GRADE_OPTIONS.map((g, i) => (
+                  <button
+                    key={g.value}
+                    onClick={() => setGradeIdx(i)}
+                    className={
+                      "rounded-btn py-2 text-xs font-mono border transition-colors " +
+                      (gradeIdx === i
+                        ? "bg-accent-yellow/15 border-accent-yellow/60 text-accent-yellow font-bold"
+                        : "bg-bg border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40")
+                    }
+                  >
+                    {g.value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Right: live slab preview */}
+      <div className="flex flex-col items-center">
+        {picked ? (
+          <>
+            <div className="w-full max-w-[320px]">
+              <SlabFrame
+                style={style}
+                cardName={picked.name}
+                cardImage={picked.image_large ?? picked.image_small ?? undefined}
+                yearSet={yearSet}
+                service={service}
+                grade={grade.value}
+                suffix={grade.suffix}
+                debug={debug}
+                flipOverride={tune.flip}
+                cardOverride={tune.card}
+              />
+            </div>
+            <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
+              {service} {grade.value}
+              {grade.suffix ? ` · ${grade.suffix}` : ""}
+            </p>
+          </>
+        ) : (
+          <div className="w-full max-w-[320px] aspect-[5/8] rounded-card border-2 border-dashed border-border flex items-center justify-center p-6">
+            <p className="text-xs text-text-tertiary text-center font-mono uppercase tracking-wider leading-relaxed">
+              Search + pick a card
+              <br />
+              on the left to preview
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────── Slider helper ──────────────────────────
 
 function SliderRow({
   label,
