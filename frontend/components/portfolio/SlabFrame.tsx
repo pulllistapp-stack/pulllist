@@ -22,6 +22,9 @@ type SlabStyle = "bgs" | "psa";
 
 type GradeService = "PSA" | "BGS" | "CGC" | "TAG";
 
+export type FlipRect = { top: string; left: string; right: string; height: string };
+export type CardRect = { top: string; left: string; right: string; bottom: string };
+
 export type SlabProps = {
   style?: SlabStyle;
   cardName: string;
@@ -36,12 +39,17 @@ export type SlabProps = {
   /** Toggle to render dashed outlines over flip well + card well —
    *  useful when tuning the coordinate percentages. */
   debug?: boolean;
+  /** Live-tuning overrides — when passed, these WIN over FRAME_META
+   *  defaults. The slabs-preview page wires sliders to these so the
+   *  layout can be tuned without an edit-commit-deploy loop. */
+  flipOverride?: FlipRect;
+  cardOverride?: CardRect;
 };
 
 // Frame-specific overlay coordinates. All values are % of the frame
 // image dimensions so they scale with any container width. Tune here
 // (or via debug outlines) to match the physical wells in each PNG.
-const FRAME_META: Record<
+export const FRAME_META: Record<
   SlabStyle,
   {
     src: string;
@@ -91,8 +99,12 @@ export function SlabFrame({
   suffix,
   subgrades,
   debug = false,
+  flipOverride,
+  cardOverride,
 }: SlabProps) {
   const meta = FRAME_META[style];
+  const flipRect = flipOverride ?? meta.flip;
+  const cardRect = cardOverride ?? meta.card;
   const accent = SERVICE_ACCENT[service];
   const isPerfect10 = grade.trim().startsWith("10");
   const flipTextColor = meta.flipTone === "on-gold" ? "#1a1a1a" : "#1a1a1a";
@@ -134,10 +146,10 @@ export function SlabFrame({
         <div
           className="absolute overflow-hidden"
           style={{
-            top: meta.card.top,
-            left: meta.card.left,
-            right: meta.card.right,
-            bottom: meta.card.bottom,
+            top: cardRect.top,
+            left: cardRect.left,
+            right: cardRect.right,
+            bottom: cardRect.bottom,
             zIndex: 2,
             borderRadius: "4px",
           }}
@@ -158,10 +170,10 @@ export function SlabFrame({
       <div
         className="absolute flex items-center gap-2 px-2"
         style={{
-          top: meta.flip.top,
-          left: meta.flip.left,
-          right: meta.flip.right,
-          height: meta.flip.height,
+          top: flipRect.top,
+          left: flipRect.left,
+          right: flipRect.right,
+          height: flipRect.height,
           zIndex: 3,
         }}
       >
@@ -236,10 +248,10 @@ export function SlabFrame({
             aria-hidden
             className="absolute pointer-events-none"
             style={{
-              top: meta.flip.top,
-              left: meta.flip.left,
-              right: meta.flip.right,
-              height: meta.flip.height,
+              top: flipRect.top,
+              left: flipRect.left,
+              right: flipRect.right,
+              height: flipRect.height,
               border: "1px dashed rgba(255, 0, 128, 0.9)",
               zIndex: 10,
             }}
@@ -248,10 +260,10 @@ export function SlabFrame({
             aria-hidden
             className="absolute pointer-events-none"
             style={{
-              top: meta.card.top,
-              left: meta.card.left,
-              right: meta.card.right,
-              bottom: meta.card.bottom,
+              top: cardRect.top,
+              left: cardRect.left,
+              right: cardRect.right,
+              bottom: cardRect.bottom,
               border: "1px dashed rgba(0, 200, 255, 0.9)",
               zIndex: 10,
             }}

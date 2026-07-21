@@ -1,81 +1,181 @@
 "use client";
 
 /**
- * Slabs preview — internal-only sandbox for tuning the SlabFrame
- * component. Renders both frame styles side by side across all four
- * graders plus a BGS-with-subgrades case, over hardcoded sample cards.
+ * Slabs preview — live-tuning sandbox for the SlabFrame component.
  *
- * Not linked from the app nav. Access directly at /portfolio/slabs-preview.
- * Once the coordinates + typography feel right, we lift this into the
- * real /portfolio/slabs page and hook it up to CollectionItem data.
+ * Access: /portfolio/slabs-preview (public URL, no auth). Share the
+ * link with anyone; nothing on this page reads user data.
+ *
+ * The tuning panel writes into localStorage per frame style so a
+ * refresh keeps your latest coord values. Hit "Reset" to restore the
+ * FRAME_META defaults, "Copy code" to grab the current values as a
+ * TypeScript snippet you can paste into SlabFrame.tsx.
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { SlabFrame } from "@/components/portfolio/SlabFrame";
+import {
+  FRAME_META,
+  SlabFrame,
+  type CardRect,
+  type FlipRect,
+} from "@/components/portfolio/SlabFrame";
 
-// A handful of visually-distinct cards so we can see how the frame
-// treats holo vs full-art vs vintage etc. Images pulled from the
-// public pokemontcg API mirror — same source the rest of the app uses.
+type Style = "bgs" | "psa";
+
 const SAMPLES: Array<{
   yearSet: string;
   cardName: string;
   cardImage: string;
+  service: "PSA" | "BGS" | "CGC" | "TAG";
+  grade: string;
+  suffix?: string;
+  subgrades?: [number, number, number, number];
 }> = [
   {
     yearSet: "2024 Mega Evolution · #125",
     cardName: "Mega Charizard ex",
-    cardImage:
-      "https://images.pokemontcg.io/sv3/151_hires.png",
+    cardImage: "https://images.pokemontcg.io/sv3/151_hires.png",
+    service: "PSA",
+    grade: "10",
+    suffix: "Gem Mint",
   },
   {
     yearSet: "2021 Evolving Skies · #215",
     cardName: "Umbreon VMAX Alt",
-    cardImage:
-      "https://images.pokemontcg.io/swsh7/215_hires.png",
+    cardImage: "https://images.pokemontcg.io/swsh7/215_hires.png",
+    service: "BGS",
+    grade: "9.5",
+    suffix: "Gem Mint",
+    subgrades: [10, 9.5, 9.5, 10],
   },
   {
     yearSet: "2000 Neo Genesis · #9",
     cardName: "Lugia Holo 1st Ed",
-    cardImage:
-      "https://images.pokemontcg.io/neo1/9_hires.png",
+    cardImage: "https://images.pokemontcg.io/neo1/9_hires.png",
+    service: "CGC",
+    grade: "10",
+    suffix: "Pristine",
   },
   {
     yearSet: "2022 Lost Origin · TG30",
     cardName: "Giratina VSTAR",
-    cardImage:
-      "https://images.pokemontcg.io/swsh11/186_hires.png",
+    cardImage: "https://images.pokemontcg.io/swsh11/186_hires.png",
+    service: "TAG",
+    grade: "10",
+    suffix: "Pristine",
   },
 ];
 
+const LS_KEY = "slab-tune-v1";
+
+function loadOverrides(): {
+  bgs: { flip: FlipRect; card: CardRect };
+  psa: { flip: FlipRect; card: CardRect };
+} {
+  if (typeof window === "undefined") {
+    return {
+      bgs: { flip: FRAME_META.bgs.flip, card: FRAME_META.bgs.card },
+      psa: { flip: FRAME_META.psa.flip, card: FRAME_META.psa.card },
+    };
+  }
+  try {
+    const raw = window.localStorage.getItem(LS_KEY);
+    if (!raw) throw new Error("empty");
+    return JSON.parse(raw);
+  } catch {
+    return {
+      bgs: { flip: FRAME_META.bgs.flip, card: FRAME_META.bgs.card },
+      psa: { flip: FRAME_META.psa.flip, card: FRAME_META.psa.card },
+    };
+  }
+}
+
+// Convert "12.5%" → 12.5 for sliders and back.
+const parsePct = (v: string): number => parseFloat(v.replace("%", "")) || 0;
+const asPct = (n: number): string => `${n}%`;
+
 export default function SlabsPreviewPage() {
-  const [style, setStyle] = useState<"bgs" | "psa">("bgs");
-  const [debug, setDebug] = useState(false);
+  const [style, setStyle] = useState<Style>("psa");
+  const [debug, setDebug] = useState(true);
+  const [tune, setTune] = useState(() => loadOverrides());
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    window.localStorage.setItem(LS_KEY, JSON.stringify(tune));
+  }, [tune]);
+
+  const current = tune[style];
+
+  const updateFlip = useCallback(
+    (key: keyof FlipRect, value: number) => {
+      setTune((prev) => ({
+        ...prev,
+        [style]: {
+          ...prev[style],
+          flip: { ...prev[style].flip, [key]: asPct(value) },
+        },
+      }));
+    },
+    [style],
+  );
+  const updateCard = useCallback(
+    (key: keyof CardRect, value: number) => {
+      setTune((prev) => ({
+        ...prev,
+        [style]: {
+          ...prev[style],
+          card: { ...prev[style].card, [key]: asPct(value) },
+        },
+      }));
+    },
+    [style],
+  );
+
+  const resetCurrent = () => {
+    setTune((prev) => ({
+      ...prev,
+      [style]: { flip: FRAME_META[style].flip, card: FRAME_META[style].card },
+    }));
+  };
+
+  const copyCode = async () => {
+    const snippet = `${style}: {
+  src: "/slab-frame-${style}.png",
+  aspectRatio: "${style === "bgs" ? "797 / 1344" : "816 / 1285"}",
+  flip: { top: "${current.flip.top}", left: "${current.flip.left}", right: "${current.flip.right}", height: "${current.flip.height}" },
+  card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
+  flipTone: "${style === "bgs" ? "on-gold" : "on-white"}",
+},`;
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      alert(snippet);
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-bg py-10 px-4 sm:px-6">
+    <main className="min-h-screen bg-bg py-8 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-6">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-text-tertiary mb-2">
-            Internal · Prototype
+            Internal · Live tuning
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
             Slabs Preview
           </h1>
           <p className="text-sm text-text-secondary max-w-2xl">
-            Sandbox for tuning the SlabFrame component before it lands
-            on the real /portfolio/slabs page. Toggle between frame
-            styles + debug outlines below. If a well doesn&apos;t line
-            up, edit the FRAME_META coords in{" "}
-            <code className="font-mono text-xs text-accent-yellow">
-              components/portfolio/SlabFrame.tsx
-            </code>
-            .
+            Adjust flip well + card well coordinates live below. Values
+            persist in your browser. Hit <strong>Copy code</strong> and
+            paste into <code className="font-mono text-xs text-accent-yellow">FRAME_META</code>{" "}
+            when you like them.
           </p>
         </div>
 
-        {/* Controls */}
-        <div className="flex flex-wrap items-center gap-3 mb-8 p-3 rounded-card bg-bg-surface border border-border">
+        {/* Style + debug controls */}
+        <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-card bg-bg-surface border border-border">
           <div className="flex items-center gap-1 p-1 rounded-full bg-bg border border-border">
             {(["bgs", "psa"] as const).map((s) => (
               <button
@@ -101,108 +201,176 @@ export default function SlabsPreviewPage() {
             />
             Debug outlines
           </label>
-          <span className="text-[11px] text-text-tertiary ml-auto">
-            Pink = flip well · Cyan = card well
-          </span>
-        </div>
-
-        {/* Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
-          <div>
-            <SlabFrame
-              style={style}
-              yearSet={SAMPLES[0].yearSet}
-              cardName={SAMPLES[0].cardName}
-              cardImage={SAMPLES[0].cardImage}
-              service="PSA"
-              grade="10"
-              suffix="Gem Mint"
-              debug={debug}
-            />
-            <Caption text="PSA 10 · Gem Mint" />
-          </div>
-
-          <div>
-            <SlabFrame
-              style={style}
-              yearSet={SAMPLES[1].yearSet}
-              cardName={SAMPLES[1].cardName}
-              cardImage={SAMPLES[1].cardImage}
-              service="BGS"
-              grade="9.5"
-              suffix="Gem Mint"
-              subgrades={[10, 9.5, 9.5, 10]}
-              debug={debug}
-            />
-            <Caption text="BGS 9.5 · with subgrades" />
-          </div>
-
-          <div>
-            <SlabFrame
-              style={style}
-              yearSet={SAMPLES[2].yearSet}
-              cardName={SAMPLES[2].cardName}
-              cardImage={SAMPLES[2].cardImage}
-              service="CGC"
-              grade="10"
-              suffix="Pristine"
-              debug={debug}
-            />
-            <Caption text="CGC 10 · Pristine" />
-          </div>
-
-          <div>
-            <SlabFrame
-              style={style}
-              yearSet={SAMPLES[3].yearSet}
-              cardName={SAMPLES[3].cardName}
-              cardImage={SAMPLES[3].cardImage}
-              service="TAG"
-              grade="10"
-              suffix="Pristine"
-              debug={debug}
-            />
-            <Caption text="TAG 10 · Pristine" />
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={resetCurrent}
+              className="rounded-btn border border-border px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-text-secondary hover:text-text-primary hover:border-accent-yellow/40 transition-colors"
+            >
+              Reset
+            </button>
+            <button
+              onClick={copyCode}
+              className="rounded-btn border border-accent-yellow/40 bg-accent-yellow/10 px-3 py-1.5 text-xs font-mono uppercase tracking-wider font-bold text-accent-yellow hover:bg-accent-yellow/20 transition-colors"
+            >
+              {copied ? "Copied!" : "Copy code"}
+            </button>
           </div>
         </div>
 
-        {/* Tuning cheatsheet */}
-        <div className="mt-16 p-5 rounded-card bg-bg-surface border border-border max-w-3xl">
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-tertiary mb-3">
-            Tuning cheatsheet
-          </p>
-          <ul className="text-xs text-text-secondary space-y-2 leading-relaxed">
-            <li>
-              <strong className="text-text-primary">Flip well off?</strong>{" "}
-              Edit <code className="font-mono text-accent-yellow">FRAME_META[style].flip</code>{" "}
-              — top / left / right / height as % of frame image.
-            </li>
-            <li>
-              <strong className="text-text-primary">Card window off?</strong>{" "}
-              Edit <code className="font-mono text-accent-yellow">FRAME_META[style].card</code>{" "}
-              — top / left / right / bottom as %.
-            </li>
-            <li>
-              <strong className="text-text-primary">Grader accent color?</strong>{" "}
-              Edit <code className="font-mono text-accent-yellow">SERVICE_ACCENT</code>{" "}
-              at the top of SlabFrame.tsx.
-            </li>
-            <li>
-              <strong className="text-text-primary">10-halo intensity?</strong>{" "}
-              <code className="font-mono text-accent-yellow">opacity: 0.18</code> on the
-              perfect-10 halo div — bump for more glow, drop for less.
-            </li>
-          </ul>
+        {/* Slab grid — 1 mobile / 2 tablet / 4 desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 mb-10">
+          {SAMPLES.map((s) => (
+            <div key={s.cardName + s.service}>
+              <SlabFrame
+                style={style}
+                {...s}
+                debug={debug}
+                flipOverride={current.flip}
+                cardOverride={current.card}
+              />
+              <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
+                {s.service} {s.grade}
+                {s.suffix ? ` · ${s.suffix}` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Live tuning panel */}
+        <div className="rounded-card bg-bg-surface border border-border p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-tertiary mb-1">
+                Tuning · {style === "bgs" ? "Frame 1 · BGS" : "Frame 2 · PSA"}
+              </p>
+              <h2 className="text-lg font-bold text-text-primary">
+                Move the flip well & card well
+              </h2>
+            </div>
+            <span className="text-[11px] text-text-tertiary font-mono">
+              Values in %, all sliders 0–100
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Flip well tuner */}
+            <fieldset className="border border-pink-500/30 rounded-btn p-4">
+              <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-pink-400">
+                Flip well (pink outline)
+              </legend>
+              <SliderRow
+                label="top"
+                value={parsePct(current.flip.top)}
+                max={40}
+                onChange={(v) => updateFlip("top", v)}
+              />
+              <SliderRow
+                label="left"
+                value={parsePct(current.flip.left)}
+                max={60}
+                onChange={(v) => updateFlip("left", v)}
+              />
+              <SliderRow
+                label="right"
+                value={parsePct(current.flip.right)}
+                max={60}
+                onChange={(v) => updateFlip("right", v)}
+              />
+              <SliderRow
+                label="height"
+                value={parsePct(current.flip.height)}
+                max={30}
+                onChange={(v) => updateFlip("height", v)}
+              />
+            </fieldset>
+
+            {/* Card well tuner */}
+            <fieldset className="border border-cyan-500/30 rounded-btn p-4">
+              <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-cyan-400">
+                Card well (cyan outline)
+              </legend>
+              <SliderRow
+                label="top"
+                value={parsePct(current.card.top)}
+                max={40}
+                onChange={(v) => updateCard("top", v)}
+              />
+              <SliderRow
+                label="left"
+                value={parsePct(current.card.left)}
+                max={40}
+                onChange={(v) => updateCard("left", v)}
+              />
+              <SliderRow
+                label="right"
+                value={parsePct(current.card.right)}
+                max={40}
+                onChange={(v) => updateCard("right", v)}
+              />
+              <SliderRow
+                label="bottom"
+                value={parsePct(current.card.bottom)}
+                max={30}
+                onChange={(v) => updateCard("bottom", v)}
+              />
+            </fieldset>
+          </div>
+
+          <details className="mt-5 text-xs">
+            <summary className="cursor-pointer text-text-tertiary font-mono uppercase tracking-wider hover:text-text-secondary">
+              Current values (for pasting)
+            </summary>
+            <pre className="mt-2 p-3 rounded-btn bg-bg border border-border overflow-x-auto text-[11px] leading-relaxed">
+{`${style}: {
+  src: "/slab-frame-${style}.png",
+  aspectRatio: "${style === "bgs" ? "797 / 1344" : "816 / 1285"}",
+  flip: { top: "${current.flip.top}", left: "${current.flip.left}", right: "${current.flip.right}", height: "${current.flip.height}" },
+  card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
+  flipTone: "${style === "bgs" ? "on-gold" : "on-white"}",
+},`}
+            </pre>
+          </details>
         </div>
       </div>
     </main>
   );
 }
 
-function Caption({ text }: { text: string }) {
+function SliderRow({
+  label,
+  value,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
   return (
-    <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
-      {text}
-    </p>
+    <div className="flex items-center gap-3 py-1.5">
+      <label className="w-14 text-[11px] font-mono uppercase tracking-wider text-text-tertiary">
+        {label}
+      </label>
+      <input
+        type="range"
+        min={0}
+        max={max}
+        step={0.5}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="flex-1 accent-accent-yellow"
+      />
+      <input
+        type="number"
+        min={0}
+        max={max}
+        step={0.5}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+        className="w-14 rounded-btn bg-bg border border-border px-2 py-1 text-[11px] font-mono text-right"
+      />
+      <span className="text-[10px] font-mono text-text-tertiary w-3">%</span>
+    </div>
   );
 }
