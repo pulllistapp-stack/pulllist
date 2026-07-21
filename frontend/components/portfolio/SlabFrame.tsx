@@ -56,14 +56,18 @@ const FRAME_META: Record<
   bgs: {
     src: "/slab-frame-bgs.png",
     aspectRatio: "797 / 1344",
-    flip: { top: "3.5%", left: "20%", right: "17%", height: "12%" },
+    flip: { top: "3.5%", left: "20%", right: "17%", height: "13%" },
     card: { top: "24%", left: "13.5%", right: "13.5%", bottom: "10%" },
     flipTone: "on-gold",
   },
   psa: {
     src: "/slab-frame-psa.png",
     aspectRatio: "816 / 1285",
-    flip: { top: "4.5%", left: "6%", right: "38%", height: "13%" },
+    // Frame-2 flip well physically sits toward the upper-LEFT of the
+    // PNG, but the label rect ends around 58% of the frame width. Push
+    // the overlay right + tighten it so the grade badge stops spilling
+    // past the physical red-border rectangle.
+    flip: { top: "4.5%", left: "10%", right: "40%", height: "14%" },
     card: { top: "24%", left: "11%", right: "11%", bottom: "5%" },
     flipTone: "on-white",
   },
@@ -161,15 +165,15 @@ export function SlabFrame({
           zIndex: 3,
         }}
       >
-        <div className="flex flex-col justify-center min-w-0 flex-1">
+        <div className="flex flex-col justify-center min-w-0 flex-1 gap-0.5">
           <span
-            className="font-mono text-[7px] uppercase tracking-[0.12em] truncate leading-tight"
+            className="font-mono text-[6px] uppercase tracking-[0.1em] truncate leading-none"
             style={{ color: flipMutedColor }}
           >
             {yearSet}
           </span>
           <span
-            className="font-bold text-[10px] uppercase truncate leading-tight"
+            className="font-bold text-[8.5px] uppercase truncate leading-tight"
             style={{
               color: flipTextColor,
               fontFamily: "'Bodoni Moda', Georgia, serif",
@@ -180,36 +184,36 @@ export function SlabFrame({
           </span>
         </div>
         <div
-          className="flex flex-col items-center justify-center px-1.5 rounded-sm shrink-0"
+          className="flex flex-col items-center justify-center rounded-sm shrink-0"
           style={{
             background: "#101013",
             color: accent,
-            boxShadow: `inset 0 0 0 1px ${accent}, 0 0 6px -3px ${accent}`,
-            minWidth: "32px",
-            padding: "1px 6px 2px",
+            boxShadow: `inset 0 0 0 1px ${accent}, 0 0 5px -3px ${accent}`,
+            minWidth: "28px",
+            padding: "2px 5px 3px",
           }}
         >
           <span
-            className="font-bold text-[6px] tracking-[0.18em] leading-none"
+            className="font-bold text-[5.5px] tracking-[0.18em] leading-none"
             style={{ color: accent }}
           >
             {service}
           </span>
           <span
-            className="font-bold text-[15px] leading-none tabular-nums"
+            className="font-bold text-[13px] leading-none tabular-nums"
             style={{
               color: accent,
               fontFamily: "'Bodoni Moda', Georgia, serif",
               letterSpacing: "-0.02em",
-              marginTop: "1px",
+              marginTop: "1.5px",
             }}
           >
             {grade}
           </span>
           {suffix && (
             <span
-              className="text-[5px] tracking-[0.14em] uppercase leading-none opacity-80"
-              style={{ color: accent, marginTop: "1px" }}
+              className="text-[4.5px] tracking-[0.14em] uppercase leading-none opacity-80"
+              style={{ color: accent, marginTop: "1.5px" }}
             >
               {suffix}
             </span>
@@ -217,42 +221,13 @@ export function SlabFrame({
         </div>
       </div>
 
-      {/* BGS subgrades — small strip below flip label */}
-      {subgrades && (
-        <div
-          className="absolute grid grid-cols-4"
-          style={{
-            top: `calc(${meta.flip.top} + ${meta.flip.height} + 1%)`,
-            left: meta.flip.left,
-            right: meta.flip.right,
-            height: "5%",
-            zIndex: 3,
-          }}
-        >
-          {(["Cen", "Cor", "Edg", "Sur"] as const).map((label, i) => (
-            <div
-              key={label}
-              className="flex flex-col items-center justify-center leading-none"
-            >
-              <span
-                className="font-mono text-[5px] uppercase tracking-[0.1em]"
-                style={{ color: flipMutedColor }}
-              >
-                {label}
-              </span>
-              <span
-                className="font-bold text-[8px] tabular-nums"
-                style={{
-                  color: flipTextColor,
-                  fontFamily: "'Bodoni Moda', Georgia, serif",
-                }}
-              >
-                {subgrades[i]}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* BGS subgrades intentionally NOT rendered inside the slab
+          visual — neither frame PNG has a natural slot for them, so
+          overlaying spills messily over the card art. The 9.5 badge
+          already communicates the tier; full subgrade breakdown lives
+          in the item detail modal / row hover. The `subgrades` prop
+          stays part of the API so we can wire it up if a future
+          BGS-specific frame gains a dedicated subgrade strip. */}
 
       {/* Debug overlays — dashed outlines around wells for coordinate tuning */}
       {debug && (
