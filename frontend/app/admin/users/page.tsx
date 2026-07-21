@@ -188,7 +188,95 @@ function AdminUsersContent() {
           No users match.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-card border border-border bg-bg-surface">
+        <>
+        {/* Mobile: stacked card per user. Everything visible without
+            needing a horizontal scroll. */}
+        <ul className="sm:hidden space-y-2">
+          {items.map((u) => (
+            <li
+              key={u.id}
+              className={`rounded-card border border-border bg-bg-surface p-3 ${
+                u.deleted_at ? "opacity-60" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-text-primary truncate">
+                    {u.name ?? "—"}
+                  </p>
+                  <p className="font-mono text-xs text-text-tertiary truncate">
+                    {u.email}
+                  </p>
+                </div>
+                {u.is_admin ? (
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-accent-yellow/15 px-2 py-0.5 text-[10px] font-bold text-accent-yellow">
+                    <Shield className="h-3 w-3" />
+                    ADMIN
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-[10px] text-text-tertiary">
+                    member
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-secondary">
+                <span>
+                  Joined{" "}
+                  <span className="font-mono text-text-primary">
+                    {formatDate(u.created_at)}
+                  </span>
+                </span>
+                <span>
+                  Cards{" "}
+                  <span className="font-mono font-bold text-text-primary">
+                    {u.card_count}
+                  </span>
+                </span>
+                <span>
+                  Wishlist{" "}
+                  <span className="font-mono font-bold text-text-primary">
+                    {u.wishlist_count}
+                  </span>
+                </span>
+              </div>
+              {u.deleted_at && (
+                <p className="mt-1 text-[11px] text-accent-red">
+                  deleted {formatDate(u.deleted_at)}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => toggleAdmin(u)}
+                  disabled={u.id === me?.id && u.is_admin}
+                  className="rounded-btn border border-border bg-bg px-3 py-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary disabled:opacity-40"
+                >
+                  {u.is_admin ? "Demote" : "Promote"}
+                </button>
+                {u.deleted_at ? (
+                  <button
+                    onClick={() => restore(u)}
+                    className="inline-flex items-center gap-1 rounded-btn border border-accent-green/40 bg-accent-green/10 px-3 py-1.5 text-xs font-semibold text-accent-green hover:bg-accent-green/20"
+                  >
+                    <Undo2 className="h-3 w-3" />
+                    Restore
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => softDelete(u)}
+                    disabled={u.id === me?.id}
+                    className="inline-flex items-center gap-1 rounded-btn border border-accent-red/40 bg-accent-red/10 px-3 py-1.5 text-xs font-semibold text-accent-red hover:bg-accent-red/20 disabled:opacity-40"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {/* Desktop: original table with horizontal-scroll fallback. */}
+        <div className="hidden sm:block overflow-x-auto rounded-card border border-border bg-bg-surface">
           <table className="w-full text-sm">
             <thead className="text-xs font-mono uppercase tracking-wider text-text-tertiary">
               <tr>
@@ -288,6 +376,7 @@ function AdminUsersContent() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Pagination */}

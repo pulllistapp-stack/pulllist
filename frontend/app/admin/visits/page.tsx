@@ -186,7 +186,69 @@ function AdminVisitsContent() {
                 No signed-in visits in this window.
               </p>
             ) : (
-              <div className="rounded-card border border-border bg-bg-surface overflow-hidden">
+              <>
+              {/* Mobile: per-user card list — all fields visible without
+                  a swipe-to-scroll gesture. */}
+              <ul className="sm:hidden space-y-2">
+                {byUser.map((u) => (
+                  <li
+                    key={u.user_id}
+                    className="rounded-card border border-border bg-bg-surface p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-text-primary truncate">
+                            {u.name ?? u.email ?? u.user_id.slice(0, 8)}
+                          </span>
+                          {u.is_admin && (
+                            <span className="shrink-0 rounded-full bg-accent-yellow/15 text-accent-yellow text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+                              Admin
+                            </span>
+                          )}
+                        </div>
+                        {u.email && u.name && (
+                          <p className="mt-0.5 text-[11px] font-mono text-text-tertiary truncate">
+                            {u.email}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-mono font-bold text-text-primary text-lg leading-none">
+                          {u.views}
+                        </p>
+                        <p className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider">
+                          views
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-mono text-text-tertiary">
+                      <span
+                        className={cn(
+                          isSuspicious(u.last_country)
+                            ? "text-accent-red font-bold"
+                            : "text-text-secondary",
+                        )}
+                      >
+                        {isSuspicious(u.last_country) && (
+                          <ShieldAlert className="inline h-3 w-3 mr-1" />
+                        )}
+                        {countryFlag(u.last_country)}{" "}
+                        {u.last_country ?? "??"}
+                      </span>
+                      <span>
+                        last{" "}
+                        {u.last_seen
+                          ? formatRelative(new Date(u.last_seen))
+                          : "—"}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Desktop: original table with horizontal scroll fallback. */}
+              <div className="hidden sm:block rounded-card border border-border bg-bg-surface overflow-hidden">
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -252,6 +314,7 @@ function AdminVisitsContent() {
                 </table>
                 </div>
               </div>
+              </>
             )}
           </section>
 
@@ -330,7 +393,54 @@ function AdminVisitsContent() {
                 No anonymous sessions in this window.
               </div>
             ) : (
-              <div className="rounded-card border border-border bg-bg-surface overflow-hidden">
+              <>
+              {/* Mobile: card per session — all 7 fields visible via
+                  compact vertical stacking + inline chips. */}
+              <ul className="sm:hidden space-y-2">
+                {anonSessions.map((s) => (
+                  <li
+                    key={s.session_id}
+                    className="rounded-card border border-border bg-bg-surface p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-mono text-[11px] text-text-tertiary">
+                          {s.session_id.slice(0, 12)}…
+                        </p>
+                        <p className="mt-0.5 font-mono text-xs text-text-primary break-all">
+                          {s.entry_path ?? "—"}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-mono font-bold text-text-primary text-base leading-none">
+                          {s.views}
+                        </p>
+                        <p className="text-[9px] font-mono text-text-tertiary uppercase">
+                          views
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-text-secondary">
+                      <span className="font-mono">
+                        {countryFlag(s.country ?? null)}{" "}
+                        {s.country ?? "??"}
+                        {s.city ? ` · ${s.city}` : ""}
+                      </span>
+                      <span>· {s.device ?? "—"}</span>
+                      <span className="font-mono text-text-tertiary">
+                        ·{" "}
+                        {s.last_seen ? relativeTime(s.last_seen) : "—"}
+                      </span>
+                    </div>
+                    <p className="mt-1 font-mono text-[10px] text-text-tertiary break-all">
+                      ref: {s.entry_referrer ?? "direct"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Desktop: full table. */}
+              <div className="hidden sm:block rounded-card border border-border bg-bg-surface overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-bg-elevated text-text-tertiary uppercase tracking-wider">
@@ -381,6 +491,7 @@ function AdminVisitsContent() {
                   </table>
                 </div>
               </div>
+              </>
             )}
           </section>
 
@@ -408,7 +519,56 @@ function AdminVisitsContent() {
                 ))}
               </div>
             </div>
-            <div className="rounded-card border border-border bg-bg-surface overflow-hidden">
+            {/* Mobile: card per activity — all 6 fields visible. */}
+            <ul className="sm:hidden space-y-2">
+              {recent.length === 0 ? (
+                <li className="rounded-card border border-border bg-bg-surface p-6 text-center text-sm text-text-tertiary">
+                  No visits match this filter.
+                </li>
+              ) : (
+                recent.map((v) => (
+                  <li
+                    key={v.id}
+                    className="rounded-card border border-border bg-bg-surface p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px]">
+                          {v.is_anonymous ? (
+                            <span className="text-text-tertiary italic">
+                              anon
+                            </span>
+                          ) : (
+                            <span className="text-text-primary font-bold">
+                              {v.user?.name ?? v.user?.email ?? "user"}
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-0.5 font-mono text-xs text-text-primary break-all">
+                          {v.path}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-[10px] text-text-tertiary">
+                        {relativeTime(v.created_at)}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-mono text-text-secondary">
+                      <span>
+                        {countryFlag(v.country ?? null)}{" "}
+                        {v.country ?? "??"}
+                      </span>
+                      <span>· {v.device ?? "—"}</span>
+                      <span className="text-text-tertiary break-all">
+                        · ref: {v.referrer ? shortHost(v.referrer) : "direct"}
+                      </span>
+                    </div>
+                  </li>
+                ))
+              )}
+            </ul>
+
+            {/* Desktop: full table. */}
+            <div className="hidden sm:block rounded-card border border-border bg-bg-surface overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-bg-elevated text-text-tertiary uppercase tracking-wider">
