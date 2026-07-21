@@ -236,62 +236,75 @@ async def run(
     )
 
     # ── phase 2: embed in batches (CPU matmul sweet spot ~32) ──
+    # Streams decode + inference: each batch pops raw bytes out of
+    # `fetched`, decodes just those 32 images, embeds, drops the PIL
+    # objects before the next batch. The previous "decode everything
+    # up front" version held ~10 GB of PIL RGB in memory and OOM-
+    # killed the runner (limit is 7 GB).
     BATCH_SIZE = 32
     ids: list[str] = []
     vectors: list[np.ndarray] = []
     embed_fail = 0
     t1 = time.monotonic()
 
-    # Pre-decode successful images. Bad decodes get counted as
-    # embed_fail up front so the batch step sees only valid PILs.
-    decoded: list[tuple[str, Image.Image]] = []
-    for card_id, _url in rows:
-        if card_id not in fetched:
-            continue
-        try:
-            img = Image.open(io.BytesIO(fetched[card_id]))
-            img.load()
-            decoded.append((card_id, img))
-        except Exception as e:
-            embed_fail += 1
-            log.warning("decode failed for %s: %s", card_id, e)
+    # Fixed key ordering so pop() is deterministic.
+    all_fetched_ids = list(fetched.keys())
+    n_fetched = len(all_fetched_ids)
 
-    processed = 0
-    for start in range(0, len(decoded), BATCH_SIZE):
-        chunk = decoded[start : start + BATCH_SIZE]
-        chunk_ids = [c[0] for c in chunk]
-        chunk_imgs = [c[1] for c in chunk]
+    for start in range(0, n_fetched, BATCH_SIZE):
+        batch_ids = all_fetched_ids[start : start + BATCH_SIZE]
+        chunk_ids: list[str] = []
+        chunk_imgs: list[Image.Image] = []
+        for cid in batch_ids:
+            data = fetched.pop(cid, None)
+            if data is None:
+                continue
+            try:
+                img = Image.open(io.BytesIO(data))
+                img.load()
+                chunk_ids.append(cid)
+                chunk_imgs.append(img)
+            except Exception as e:
+                embed_fail += 1
+                log.warning("decode failed for %s: %s", cid, e)
+
+        if not chunk_ids:
+            continue
+
         try:
             batch_vecs = embed_batch(chunk_imgs)
             for cid, vec in zip(chunk_ids, batch_vecs):
                 ids.append(cid)
                 vectors.append(vec)
         except Exception as e:
-            # Whole-batch failure is rare (usually processor OOM).
-            # Retry the batch one image at a time so a single bad
-            # frame doesn't nuke the other 31.
-            embed_fail += len(chunk_ids)
-            log.warning(
-                "batch failed (%s) — retrying individually", e
-            )
-            for cid, img in chunk:
+            # Whole-batch failure is rare (usually processor OOM on
+            # a giant image). Retry the batch one at a time so a
+            # single bad frame doesn't nuke the other 31.
+            log.warning("batch failed (%s) — retrying individually", e)
+            for cid, img in zip(chunk_ids, chunk_imgs):
                 try:
                     vec = embed_batch([img])[0]
                     ids.append(cid)
                     vectors.append(vec)
-                    embed_fail -= 1
                 except Exception as e2:
+                    embed_fail += 1
                     log.warning("embed failed for %s: %s", cid, e2)
-        processed += len(chunk)
-        if (start // BATCH_SIZE) % 10 == 0 or processed >= len(decoded):
+
+        # Drop the batch's PIL objects so the next iteration doesn't
+        # accumulate memory. `del` is enough — the garbage collector
+        # picks them up before the next batch starts.
+        del chunk_imgs
+
+        if (start // BATCH_SIZE) % 10 == 0 or start + BATCH_SIZE >= n_fetched:
             elapsed = time.monotonic() - t1
             log.info(
                 "  embed %d / %d (%.1f cards/s, %d failed)",
-                processed,
-                len(decoded),
-                processed / max(elapsed, 1e-3),
+                start + len(batch_ids),
+                n_fetched,
+                (start + len(batch_ids)) / max(elapsed, 1e-3),
                 embed_fail,
             )
+
     log.info(
         "embed complete: %d ok / %d failed in %.1fs",
         len(vectors),
