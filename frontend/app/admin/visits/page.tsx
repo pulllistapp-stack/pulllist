@@ -678,9 +678,10 @@ function relativeTime(iso: string): string {
   const t = new Date(iso).getTime();
   // Clamp to 0 so a slight server/client clock skew (visit rows can
   // land a few seconds in the client's "future") doesn't render as
-  // '-1437s' — a genuinely-in-the-future value just reads as "now".
+  // '-1437s'. LO explicitly wanted the seconds visible even for
+  // very-recent rows, so no "just now" swallow — always show a
+  // concrete number in the smallest unit that fits.
   const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
-  if (s < 5) return "just now";
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m ago`;
