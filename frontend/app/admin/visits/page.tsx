@@ -771,9 +771,13 @@ function countryFlag(code: string | null | undefined): string {
 }
 
 function formatRelative(d: Date): string {
-  const diffMs = Date.now() - d.getTime();
-  const min = Math.floor(diffMs / 60000);
-  if (min < 1) return "just now";
+  // Clamp to 0 — server-serialized timestamps sometimes land a few
+  // seconds in the client's "future" thanks to clock skew, and we'd
+  // rather render "0s ago" than "-14297s ago".
+  const diffMs = Math.max(0, Date.now() - d.getTime());
+  const s = Math.floor(diffMs / 1000);
+  if (s < 60) return `${s}s ago`;
+  const min = Math.floor(s / 60);
   if (min < 60) return `${min}m ago`;
   const hr = Math.floor(min / 60);
   if (hr < 24) return `${hr}h ago`;
