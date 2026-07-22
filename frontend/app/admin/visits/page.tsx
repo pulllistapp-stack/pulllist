@@ -326,19 +326,21 @@ function AdminVisitsContent() {
               ) : (
                 <ul className="text-xs divide-y divide-border">
                   {topPaths.map((p) => (
-                    <li
-                      key={p.path}
-                      className="py-1.5 flex items-baseline gap-3"
-                    >
-                      <span className="font-mono text-text-primary truncate flex-1 min-w-0">
+                    <li key={p.path} className="py-2 min-w-0">
+                      {/* Long URLs (/news/ascended-heroes-focused-…)
+                          were sliding past the viewport because the
+                          previous flex row let the metrics keep their
+                          intrinsic width and the path never had a
+                          real ceiling to shrink into. Full-width path
+                          on its own line + metrics under = truncate
+                          works, no swipe needed on mobile. */}
+                      <p className="font-mono text-text-primary truncate">
                         {p.path}
-                      </span>
-                      <span className="font-mono tabular-nums text-text-secondary shrink-0">
-                        {p.views.toLocaleString()} v
-                      </span>
-                      <span className="font-mono tabular-nums text-text-tertiary shrink-0">
-                        {p.uniques.toLocaleString()} u
-                      </span>
+                      </p>
+                      <p className="mt-0.5 font-mono text-[10px] text-text-tertiary tabular-nums">
+                        {p.views.toLocaleString()} views ·{" "}
+                        {p.uniques.toLocaleString()} unique
+                      </p>
                     </li>
                   ))}
                 </ul>
@@ -351,31 +353,27 @@ function AdminVisitsContent() {
               ) : (
                 <ul className="text-xs divide-y divide-border">
                   {topReferrers.map((r) => (
-                    <li
-                      key={r.domain}
-                      className="py-1.5 flex items-baseline gap-3"
-                    >
-                      <span
+                    <li key={r.domain} className="py-2 min-w-0">
+                      <p
                         className={cn(
-                          "font-mono truncate flex-1 min-w-0",
+                          "font-mono truncate",
                           r.domain === "direct"
                             ? "text-text-tertiary italic"
                             : "text-text-primary",
                         )}
                       >
                         {r.domain}
-                      </span>
-                      <span className="font-mono tabular-nums text-text-secondary shrink-0">
-                        {r.views.toLocaleString()} v
-                      </span>
-                      <span className="font-mono tabular-nums text-text-tertiary shrink-0">
-                        {r.uniques.toLocaleString()} u
-                      </span>
+                      </p>
+                      <p className="mt-0.5 font-mono text-[10px] text-text-tertiary tabular-nums">
+                        {r.views.toLocaleString()} views ·{" "}
+                        {r.uniques.toLocaleString()} unique
+                      </p>
                     </li>
                   ))}
                 </ul>
               )}
             </TrafficCard>
+
           </section>
 
           {/* Anonymous sessions — who's been on the site not signed in */}
@@ -675,15 +673,18 @@ function shortHost(referrer: string): string {
 
 function relativeTime(iso: string): string {
   const t = new Date(iso).getTime();
-  const diff = Date.now() - t;
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return `${s}s`;
+  // Clamp to 0 so a slight server/client clock skew (visit rows can
+  // land a few seconds in the client's "future") doesn't render as
+  // '-1437s' — a genuinely-in-the-future value just reads as "now".
+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
+  if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
-  return `${d}d`;
+  return `${d}d ago`;
 }
 
 function StatCard({
