@@ -92,7 +92,7 @@ jobs:
           # silently overriding the settings value on every schedule
           # run. Manual backfill runs can still push past this via
           # the post_limit input.
-          DAILY_POST_LIMIT: ${{ inputs.post_limit || secrets.DAILY_POST_LIMIT || '5' }}
+          DAILY_POST_LIMIT: ${{ inputs.post_limit || secrets.DAILY_POST_LIMIT || '8' }}
           # Schedule fires don't carry inputs — fall back to '0' (live)
           # so the daily cron posts drafts. Manual UI triggers keep
           # their explicit '1' / '0' choice; the input default is '1'
