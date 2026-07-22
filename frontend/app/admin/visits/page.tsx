@@ -326,7 +326,7 @@ function AdminVisitsContent() {
               ) : (
                 <ul className="text-xs divide-y divide-border">
                   {topPaths.map((p) => (
-                    <li key={p.path} className="py-2 min-w-0">
+                    <li key={p.path} className="py-2 min-w-0 overflow-hidden">
                       {/* Long URLs (/news/ascended-heroes-focused-…)
                           were sliding past the viewport because the
                           previous flex row let the metrics keep their
@@ -334,7 +334,7 @@ function AdminVisitsContent() {
                           real ceiling to shrink into. Full-width path
                           on its own line + metrics under = truncate
                           works, no swipe needed on mobile. */}
-                      <p className="font-mono text-text-primary truncate">
+                      <p className="block w-full font-mono text-text-primary truncate">
                         {p.path}
                       </p>
                       <p className="mt-0.5 font-mono text-[10px] text-text-tertiary tabular-nums">
@@ -353,10 +353,13 @@ function AdminVisitsContent() {
               ) : (
                 <ul className="text-xs divide-y divide-border">
                   {topReferrers.map((r) => (
-                    <li key={r.domain} className="py-2 min-w-0">
+                    <li
+                      key={r.domain}
+                      className="py-2 min-w-0 overflow-hidden"
+                    >
                       <p
                         className={cn(
-                          "font-mono truncate",
+                          "block w-full font-mono truncate",
                           r.domain === "direct"
                             ? "text-text-tertiary italic"
                             : "text-text-primary",
@@ -642,7 +645,7 @@ function TrafficCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-card border border-border bg-bg-surface p-4">
+    <div className="rounded-card border border-border bg-bg-surface p-4 overflow-hidden min-w-0">
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-sm font-bold text-text-primary">{title}</h2>
         {hint && (
