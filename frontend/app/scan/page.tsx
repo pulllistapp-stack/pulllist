@@ -62,12 +62,12 @@ const BULK_STABILITY_TICKS = 1;
 // stays above the stability threshold.
 const BULK_MAX_WAIT_MS = 6000;
 
-// Abort a bulk vision call after this many ms. Gemini normally
-// answers in 2-3 s; anything past 20 s is a Render cold start, a
-// network stall, or a truly stuck request. We reset and let the
-// next tick try again rather than sitting on "Reading card…"
-// forever.
-const BULK_SCAN_TIMEOUT_MS = 20000;
+// Abort a bulk vision call after this many ms. Steady-state calls
+// return in <1 s (CLIP) or 2-3 s (Gemini). The first call after
+// backend start / R2 catalog refresh has to download the ~90 MB
+// embedding matrix over the wire before serving — allow up to 60 s
+// for that cold path.
+const BULK_SCAN_TIMEOUT_MS = 60000;
 
 // Provider used ONLY for Gemini fallback when the CLIP embedding
 // path's top match is below the confidence threshold or the model
@@ -76,9 +76,12 @@ const BULK_VISION_PROVIDER: VisionProvider = "gemini";
 
 // Cosine similarity above which we trust the CLIP embedding match
 // without falling back to Gemini. CLIP-B/32 on real card photos
-// typically lands 0.75+ for correct matches, 0.5-0.7 for
-// plausibly-close, <0.5 for unrelated. Bias toward accepting.
-const BULK_EMBEDDING_MIN_SIMILARITY = 0.72;
+// often lands 0.55-0.75 for correct matches (varies with lighting
+// / angle / foil). Loose bar biases toward "always trust CLIP"
+// so cheap Gemini fallback is rarely needed. False-positive risk
+// low because the catalog only holds card art — random frames
+// score very poorly across the board.
+const BULK_EMBEDDING_MIN_SIMILARITY = 0.5;
 
 const LAST_SCAN_KEY = "pulllist:last_scanned";
 
@@ -183,6 +186,12 @@ export default function ScanPage() {
   const lastHashRef = useRef<string | null>(null);
   const forceScanRef = useRef(false);
   const loopStartRef = useRef<number>(0);
+  // Persistent across effect remounts so a scan that's in flight
+  // when the effect cleanup fires still blocks a second concurrent
+  // scan. Fixes the "steady counter marches to 12 but no banner"
+  // race — the previous `let inFlight = false` reset every remount
+  // and the actual in-flight promise leaked past its cancellation.
+  const inFlightRef = useRef(false);
   // card_id → epoch ms until which we should ignore this card. Kept in
   // a ref so tick closure sees the latest without re-arming the
   // interval effect on every add / skip.
@@ -373,7 +382,11 @@ export default function ScanPage() {
   useEffect(() => {
     if (scanMode !== "bulk") return;
     if (!camera.ready) return;
-    if (bulkDetected || bulkIdentifying) return;
+    if (bulkDetected) return;
+    // NOTE: intentionally NOT listening to bulkIdentifying —
+    // otherwise the effect remounts every time we flip that state
+    // and cancels our own in-flight vision call. inFlightRef gates
+    // concurrent scans without triggering a React re-render.
 
     if (!hashCanvasRef.current) {
       hashCanvasRef.current = document.createElement("canvas");
@@ -384,12 +397,11 @@ export default function ScanPage() {
     const stabCanvas = hashCanvasRef.current;
     const captureCanvas = captureCanvasRef.current;
     let cancelled = false;
-    let inFlight = false;
     let tickN = 0;
     loopStartRef.current = performance.now();
 
     const tick = async () => {
-      if (cancelled || inFlight) return;
+      if (cancelled || inFlightRef.current) return;
       const video = camera.videoRef.current;
       if (!video) return;
       tickN += 1;
@@ -461,7 +473,7 @@ export default function ScanPage() {
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(video, cx, cy, cw, ch, 0, 0, outW, outH);
 
-      inFlight = true;
+      inFlightRef.current = true;
       setBulkIdentifying(true);
       setBulkIdentifyStartedAt(Date.now());
       setBulkLastError(null);
@@ -539,7 +551,7 @@ export default function ScanPage() {
         loopStartRef.current = performance.now();
       } finally {
         window.clearTimeout(timeoutId);
-        inFlight = false;
+        inFlightRef.current = false;
         setBulkIdentifying(false);
         setBulkIdentifyStartedAt(null);
       }
@@ -555,7 +567,6 @@ export default function ScanPage() {
     camera.ready,
     camera.videoRef,
     bulkDetected,
-    bulkIdentifying,
     embedModelReady,
   ]);
 
