@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-22 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-22",
+    emoji: "🏆",
+    kr: "**Portfolio 에 Slabs 탭 추가** — Collection / Master Sets / Sealed 옆에 4번째 탭으로 Slabs 붙임. `is_graded=true` 로 마킹된 콜렉션 아이템만 필터해서 SlabFrame 컴포넌트 (`/slabs-preview` 에서 튜닝했던 AI 생성 프레임 PNG) 로 렌더링. 상단에 BGS / PSA 프레임 토글 있어서 취향대로 볼 수 있음 — 프레임 스타일만 바뀌는 거고 각 슬랩의 실제 grader (PSA / BGS / CGC / TAG) 는 아이템 데이터 그대로 유지. 슬랩 아래에 서비스+등급 (예: `PSA 10`) + 마켓 가격 표시 — 가격은 이미 기존 graded_pricing 파이프라인 통과한 tier median 이라 실제 슬랩 시세 반영. 빈 상태는 'No graded cards yet' + Add/Edit 모달에서 graded 켜라는 힌트. 헤더에는 총 슬랩 개수 + 총 평가액.",
+    en: "**Slabs tab added to Portfolio** — new 4th tab alongside Collection / Master Sets / Sealed. Filters listMyItems() to `is_graded=true` rows and renders each one inside the SlabFrame component (the AI-generated frame PNGs we tuned on `/slabs-preview`). Top-of-page toggle flips between BGS and PSA frame styles for visual preference — only the frame PNG swaps; each slab's actual grader (PSA / BGS / CGC / TAG) still comes from the item data. Caption under each slab shows service + grade (e.g. `PSA 10`) and market price — price is already the tier median from the existing graded_pricing pipeline, so it reflects real slabbed comps, not raw. Empty state reads 'No graded cards yet' with a nudge to flip the Graded switch in Add/Edit. Header shows total slab count + est. value.",
+  },
   // ── 2026-07-20 ─────────────────────────────────────────────────
   {
     date: "2026-07-20",

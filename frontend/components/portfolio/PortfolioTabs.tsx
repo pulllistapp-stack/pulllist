@@ -12,12 +12,13 @@ const TABS: Tab[] = [
   { href: "/portfolio", label: "Collection", hint: "Every card you own" },
   { href: "/portfolio/masters", label: "Master Sets", hint: "Set-completion binders" },
   { href: "/portfolio/sealed", label: "Sealed", hint: "Boxes, ETBs, bundles you own" },
+  { href: "/portfolio/slabs", label: "Slabs", hint: "Your graded cards in a slab display" },
 ];
 
 export function PortfolioTabs({
   active,
 }: {
-  active: "collection" | "masters" | "sealed";
+  active: "collection" | "masters" | "sealed" | "slabs";
 }) {
   return (
     <div
@@ -29,7 +30,8 @@ export function PortfolioTabs({
         const isActive =
           (active === "collection" && t.href === "/portfolio") ||
           (active === "masters" && t.href === "/portfolio/masters") ||
-          (active === "sealed" && t.href === "/portfolio/sealed");
+          (active === "sealed" && t.href === "/portfolio/sealed") ||
+          (active === "slabs" && t.href === "/portfolio/slabs");
         return (
           <Link
             key={t.href}
