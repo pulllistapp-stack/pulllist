@@ -24,20 +24,30 @@ type GradeService = "PSA" | "BGS" | "CGC" | "TAG";
 
 const SERVICE_SET = new Set<GradeService>(["PSA", "BGS", "CGC", "TAG"]);
 
+const GRADE_SUFFIX: Record<string, string> = {
+  "10": "Gem Mint",
+  "9.5": "Mint+",
+  "9": "Mint",
+};
+
 function splitGrade(grade: string | null): {
   service: GradeService;
   value: string;
+  suffix?: string;
 } {
-  if (!grade) return { service: "PSA", value: "10" };
-  const m = grade.trim().match(/^(\S+)\s+(\S+)$/);
-  if (m) {
-    const svc = m[1].toUpperCase();
-    if (SERVICE_SET.has(svc as GradeService)) {
-      return { service: svc as GradeService, value: m[2] };
-    }
-    return { service: "PSA", value: m[2] };
-  }
-  return { service: "PSA", value: grade };
+  const fallback = { service: "PSA" as const, value: "10", suffix: GRADE_SUFFIX["10"] };
+  if (!grade?.trim()) return fallback;
+  // Match "PSA 10", "BGS 9.5 Gem Mint", "Ace 9", etc. The optional
+  // trailing group captures a written-out suffix if one was stored.
+  const m = grade.trim().match(/^(\S+)\s+(\S+)(?:\s+(.+))?$/);
+  if (!m) return { service: "PSA", value: grade.trim() };
+  const svcRaw = m[1].toUpperCase();
+  const svc: GradeService = SERVICE_SET.has(svcRaw as GradeService)
+    ? (svcRaw as GradeService)
+    : "PSA";
+  const value = m[2];
+  const suffix = m[3]?.trim() || GRADE_SUFFIX[value];
+  return { service: svc, value, suffix };
 }
 
 function fmtPrice(v: number | null | undefined): string {
@@ -155,7 +165,7 @@ export default function SlabsPortfolioPage() {
       ) : (
         <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {items.map((it) => {
-            const { service, value } = splitGrade(it.grade);
+            const { service, value, suffix } = splitGrade(it.grade);
             const setName = (it.set_name || it.set_id).toUpperCase();
             const yearSet = it.card_number
               ? `${setName} · #${it.card_number}`
@@ -173,14 +183,18 @@ export default function SlabsPortfolioPage() {
                   yearSet={yearSet}
                   service={service}
                   grade={value}
+                  suffix={suffix}
                 />
-                <div className="mt-3 text-center">
-                  <div className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
+                <div className="mt-3 flex items-baseline justify-between gap-2 px-1">
+                  <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary truncate">
                     {service} {value}
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-accent-green tabular-nums">
+                    {it.qty > 1 && (
+                      <span className="ml-1.5 text-accent-yellow">×{it.qty}</span>
+                    )}
+                  </span>
+                  <span className="text-[13px] font-mono font-bold text-accent-green tabular-nums shrink-0">
                     {fmtPrice(it.market_price_usd)}
-                  </div>
+                  </span>
                 </div>
               </Link>
             );
