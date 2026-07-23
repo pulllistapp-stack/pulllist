@@ -4,7 +4,7 @@ import time
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import delete, distinct, func, or_, select, text
+from sqlalchemy import case, delete, distinct, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,6 +112,33 @@ async def list_sets(
     ),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> list[SetWithCardCount]:
+    # Subset roll-up: Pokemon TCG carves themed subsets (Shiny Vault,
+    # Trainer Gallery, Galarian Gallery, Classic Collection) into their
+    # own Set rows that share a parent (Hidden Fates, Silver Tempest,
+    # ...). Users saw duplicate tiles. We surface only the PARENT here
+    # and treat any Card whose set has `parent_set_id` set as belonging
+    # to the parent's totals — one tile, combined card_count, combined
+    # value. `link_subset_parents.py` wires the 8 known EN pairs.
+    #
+    # `effective_set_id` collapses child_set_id → parent_set_id when a
+    # parent link exists; the GROUP BY runs on it so subset cards fold
+    # in. Sets whose OWN `parent_set_id` is non-null are subsets and
+    # get filtered out below (they no longer render as a tile — their
+    # cards live on the parent tile instead).
+    parent_link_stmt = select(Set.id, Set.parent_set_id).where(
+        Set.parent_set_id.is_not(None)
+    )
+    parent_of: dict[str, str] = {
+        cid: pid for cid, pid in (await db.execute(parent_link_stmt)).all()
+    }
+    effective_set_id = case(
+        *[
+            (Card.set_id == child, literal(parent))
+            for child, parent in parent_of.items()
+        ],
+        else_=Card.set_id,
+    ) if parent_of else Card.set_id
+
     stmt = (
         select(
             Set,
@@ -121,8 +148,9 @@ async def list_sets(
             func.sum(Card.low_price_usd).label("total_low"),
             func.sum(Card.high_price_usd).label("total_high"),
         )
-        .outerjoin(Card, Card.set_id == Set.id)
+        .outerjoin(Card, effective_set_id == Set.id)
         .where(Set.language == language)
+        .where(Set.parent_set_id.is_(None))  # hide subsets from the list
         .group_by(Set.id)
         .order_by(Set.release_date.desc().nullslast())
     )
@@ -185,17 +213,20 @@ async def list_sets(
         )
     ]
 
-    # Per-user owned counts in one query if logged in
+    # Per-user owned counts in one query if logged in. Subset cards fold
+    # into the parent's owned tally via the same effective_set_id shim
+    # so the parent tile shows a single "X / Y" that includes any Shiny
+    # Vault / Trainer Gallery cards the user has claimed.
     owned_map: dict[str, int] = {}
     if current_user is not None:
         owned_stmt = (
             select(
-                Card.set_id,
+                effective_set_id.label("eff_set_id"),
                 func.count(distinct(CollectionItem.card_id)).label("owned"),
             )
             .join(CollectionItem, CollectionItem.card_id == Card.id)
             .where(CollectionItem.user_id == current_user.id)
-            .group_by(Card.set_id)
+            .group_by("eff_set_id")
         )
         for set_id, owned in (await db.execute(owned_stmt)).all():
             owned_map[set_id] = int(owned)
@@ -237,27 +268,35 @@ async def list_sets(
 async def get_set(
     set_id: str, db: AsyncSession = Depends(get_db)
 ) -> SetWithCardCount:
-    stmt = (
-        select(
-            Set,
-            func.count(Card.id).label("card_count"),
-            func.sum(Card.market_price_usd).label("total_value"),
-            func.sum(Card.mid_price_usd).label("total_mid"),
-            func.sum(Card.low_price_usd).label("total_low"),
-            func.sum(Card.high_price_usd).label("total_high"),
-        )
-        .outerjoin(Card, Card.set_id == Set.id)
-        .where(Set.id == set_id)
-        .group_by(Set.id)
-    )
-    result = await db.execute(stmt)
-    row = result.first()
-    if not row:
+    set_row = await db.get(Set, set_id)
+    if not set_row:
         raise HTTPException(status_code=404, detail="Set not found")
-    set_row, count, total_value, total_mid, total_low, total_high = row
+
+    # Fold subset cards into the parent's totals so the set detail
+    # header shows counts consistent with the /sets tile (which already
+    # rolls Trainer Gallery / Shiny Vault / etc. into the parent).
+    child_set_ids = [
+        cid for (cid,) in (
+            await db.execute(
+                select(Set.id).where(Set.parent_set_id == set_id)
+            )
+        ).all()
+    ]
+    all_set_ids = [set_id, *child_set_ids]
+
+    agg_stmt = select(
+        func.count(Card.id).label("card_count"),
+        func.sum(Card.market_price_usd).label("total_value"),
+        func.sum(Card.mid_price_usd).label("total_mid"),
+        func.sum(Card.low_price_usd).label("total_low"),
+        func.sum(Card.high_price_usd).label("total_high"),
+    ).where(Card.set_id.in_(all_set_ids))
+    agg = (await db.execute(agg_stmt)).one()
+    count, total_value, total_mid, total_low, total_high = agg
+
     sealed_total = (await db.execute(
         select(func.sum(Product.market_price_usd)).where(
-            Product.set_id == set_id
+            Product.set_id.in_(all_set_ids)
         )
     )).scalar_one_or_none()
     return SetWithCardCount(
@@ -308,10 +347,24 @@ async def list_cards_in_set(
     if not set_row:
         raise HTTPException(status_code=404, detail="Set not found")
 
-    total_stmt = select(func.count(Card.id)).where(Card.set_id == set_id)
+    # Fold subset cards into their parent set's detail page — a user
+    # opening Silver Tempest expects to see Trainer Gallery cards inline,
+    # not on a separate hidden route. `child_set_ids` collects every set
+    # whose parent points at this one, then we widen the Card query to
+    # include cards belonging to any of them.
+    child_set_ids = [
+        cid for (cid,) in (
+            await db.execute(
+                select(Set.id).where(Set.parent_set_id == set_id)
+            )
+        ).all()
+    ]
+    all_set_ids = [set_id, *child_set_ids]
+
+    total_stmt = select(func.count(Card.id)).where(Card.set_id.in_(all_set_ids))
     total = (await db.execute(total_stmt)).scalar_one()
 
-    stmt = select(Card).where(Card.set_id == set_id)
+    stmt = select(Card).where(Card.set_id.in_(all_set_ids))
     if sort == "price_desc":
         stmt = stmt.order_by(Card.market_price_usd.desc().nullslast(), Card.name)
     elif sort == "price_asc":
