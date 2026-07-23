@@ -16,6 +16,7 @@ from sqlalchemy import case, func, literal, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from datetime import datetime as _datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from app.auth import get_current_admin
 from app.database import get_db
@@ -31,6 +32,25 @@ from app.models import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# Admin dashboard "today" anchors to the operator's local calendar (ET),
+# not the server's UTC clock — VisitLog.created_at is naive UTC, so we
+# compute the ET midnight boundary and convert it back to naive UTC for
+# the WHERE clause. Rolling windows (`utcnow() - timedelta`) stay
+# UTC-based because they're duration-anchored, not calendar-anchored.
+_ADMIN_TZ = ZoneInfo("America/New_York")
+
+
+def _admin_today_start() -> _datetime:
+    """Naive-UTC datetime for the current ET calendar-day boundary.
+
+    VisitLog.created_at is stored as naive UTC (default=datetime.utcnow),
+    so comparing rows to this value returns everything in the current ET
+    calendar day.
+    """
+    et_now = _datetime.now(_ADMIN_TZ)
+    et_midnight = et_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return et_midnight.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
 class UserAdminToggle(BaseModel):
@@ -470,10 +490,9 @@ async def visits_summary(
       - today's country breakdown (top 10)
       - last-7d daily series (for a tiny sparkline)
     """
-    now = _datetime.utcnow()
-    # Day windows are UTC — the admin reads "today" relative to server time;
-    # close enough at friends-beta scale, and avoids per-user-tz queries.
-    today_start = _datetime(now.year, now.month, now.day)
+    # Day windows anchor to ET (LO's timezone) so "today" on the dashboard
+    # matches the calendar day LO is actually reading it on.
+    today_start = _admin_today_start()
     yest_start = today_start - timedelta(days=1)
     week_start = today_start - timedelta(days=6)  # inclusive 7-day window
 
@@ -549,8 +568,7 @@ async def visits_by_user(
     """Per-logged-in-user visit counts within the window, plus their last
     seen timestamp + last seen country. Lets the admin spot unusual
     activity (e.g. a brand new account hitting 50 pages from CN today)."""
-    now = _datetime.utcnow()
-    today_start = _datetime(now.year, now.month, now.day)
+    today_start = _admin_today_start()
     window_start = today_start - timedelta(days=days - 1)
 
     stmt = (
