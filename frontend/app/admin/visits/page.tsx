@@ -764,22 +764,28 @@ function DailyBars({
   data: { date: string; views: number; uniques: number }[];
 }) {
   const maxViews = Math.max(...data.map((d) => d.views), 1);
+  // 96px container height − ~14px reserved for the date label = ~82px of
+  // vertical room for the tallest bar. Compute pixel heights directly
+  // because a percentage inside a `flex-1` parent doesn't resolve — the
+  // parent's height stays `auto` and every bar rendered at 0px, leaving
+  // the whole 7-day strip visually empty.
+  const MAX_BAR_PX = 82;
+  const MIN_BAR_PX = 2;
   return (
     <div className="flex items-end gap-1.5 h-24">
       {data.map((d) => {
         const ratio = d.views / maxViews;
+        const barPx = Math.max(Math.round(ratio * MAX_BAR_PX), MIN_BAR_PX);
         return (
           <div
             key={d.date}
-            className="flex-1 flex flex-col items-center gap-1"
+            className="flex-1 flex flex-col items-center gap-1 h-full justify-end"
             title={`${d.date}: ${d.views} views, ${d.uniques} unique`}
           >
-            <div className="flex-1 flex items-end w-full">
-              <div
-                className="w-full rounded-t-md bg-accent-yellow/60 hover:bg-accent-yellow transition-colors"
-                style={{ height: `${ratio * 100}%` }}
-              />
-            </div>
+            <div
+              className="w-full rounded-t-md bg-accent-yellow/60 hover:bg-accent-yellow transition-colors"
+              style={{ height: `${barPx}px` }}
+            />
             <span className="text-[9px] font-mono text-text-tertiary">
               {d.date.slice(5)}
             </span>
