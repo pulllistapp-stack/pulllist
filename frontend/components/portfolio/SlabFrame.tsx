@@ -324,36 +324,38 @@ export function SlabFrame({
         </span>
       </div>
 
-      {/* Grade badge — own rect (orange debug outline). Displays JUST
-          the grade number now, centered. Service identity + suffix
-          moved to the slab's external caption so the badge stays
-          crisp and readable at any size. Grade digit fills the rect
-          via a fluid font-size so a bigger badge = bigger number. */}
-      <div
-        className="absolute flex items-center justify-center rounded-sm overflow-hidden"
-        style={{
-          top: badgeRect.top,
-          left: badgeRect.left,
-          right: badgeRect.right,
-          height: badgeRect.height,
-          zIndex: 3,
-          background: "#101013",
-          color: accent,
-          boxShadow: `inset 0 0 0 1.5px ${accent}, 0 0 6px -3px ${accent}`,
-        }}
-      >
-        <span
-          className="font-bold leading-none tabular-nums"
+      {/* Grade badge — TEMPORARILY hidden while LO decides where to
+          re-place it. It was covering the flip label text. The
+          badgeRect coord still exists in FRAME_META + StyleTune, and
+          the debug outline still fires below so the eventual anchor
+          is easy to pick. Re-enable by flipping SHOW_BADGE to true. */}
+      {false && (
+        <div
+          className="absolute flex items-center justify-center rounded-sm overflow-hidden"
           style={{
+            top: badgeRect.top,
+            left: badgeRect.left,
+            right: badgeRect.right,
+            height: badgeRect.height,
+            zIndex: 3,
+            background: "#101013",
             color: accent,
-            fontFamily: "var(--font-noto-sans), system-ui, sans-serif",
-            letterSpacing: "-0.02em",
-            fontSize: "clamp(18px, 5vw, 42px)",
+            boxShadow: `inset 0 0 0 1.5px ${accent}, 0 0 6px -3px ${accent}`,
           }}
         >
-          {grade}
-        </span>
-      </div>
+          <span
+            className="font-bold leading-none tabular-nums"
+            style={{
+              color: accent,
+              fontFamily: "var(--font-noto-sans), system-ui, sans-serif",
+              letterSpacing: "-0.02em",
+              fontSize: "clamp(18px, 5vw, 42px)",
+            }}
+          >
+            {grade}
+          </span>
+        </div>
+      )}
 
       {/* BGS subgrades intentionally NOT rendered inside the slab
           visual — neither frame PNG has a natural slot for them, so
