@@ -9,6 +9,7 @@
  * grader shown on each slab still reflects what the item actually is.
  */
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -16,7 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
-import { SlabFrame } from "@/components/portfolio/SlabFrame";
+import { SERVICE_LOGO, SlabFrame } from "@/components/portfolio/SlabFrame";
 import { CollectionItemDetail, listMyItems } from "@/lib/auth";
 
 type FrameStyle = "bgs" | "psa" | "clean";
@@ -185,13 +186,28 @@ export default function SlabsPortfolioPage() {
                   grade={value}
                   suffix={suffix}
                 />
-                <div className="mt-3 flex items-baseline justify-between gap-2 px-1">
-                  <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary truncate">
-                    {service} {value}
-                    {it.qty > 1 && (
-                      <span className="ml-1.5 text-accent-yellow">×{it.qty}</span>
+                <div className="mt-3 flex items-center justify-between gap-2 px-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="relative h-6 w-14 shrink-0">
+                      <Image
+                        src={SERVICE_LOGO[service]}
+                        alt={service}
+                        fill
+                        sizes="56px"
+                        style={{ objectFit: "contain", objectPosition: "left center" }}
+                      />
+                    </div>
+                    {suffix && (
+                      <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary truncate">
+                        · {suffix}
+                      </span>
                     )}
-                  </span>
+                    {it.qty > 1 && (
+                      <span className="text-[11px] font-mono text-accent-yellow shrink-0">
+                        ×{it.qty}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[13px] font-mono font-bold text-accent-green tabular-nums shrink-0">
                     {fmtPrice(it.market_price_usd)}
                   </span>

@@ -17,10 +17,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { Loader2 } from "lucide-react";
 
 import {
   FRAME_META,
+  SERVICE_LOGO,
   SlabFrame,
   type BadgeRect,
   type CardRect,
@@ -444,10 +446,22 @@ function SamplesGrid({
             badgeOverride={tune.badge}
             cardInsetPct={cardInsetPct}
           />
-          <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
-            {s.service} {s.grade}
-            {s.suffix ? ` · ${s.suffix}` : ""}
-          </p>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <div className="relative h-6 w-16">
+              <Image
+                src={SERVICE_LOGO[s.service]}
+                alt={s.service}
+                fill
+                sizes="64px"
+                style={{ objectFit: "contain" }}
+              />
+            </div>
+            {s.suffix && (
+              <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
+                · {s.suffix}
+              </span>
+            )}
+          </div>
         </div>
       ))}
     </div>
@@ -636,10 +650,22 @@ function TryYourCard({
                 cardInsetPct={cardInsetPct}
               />
             </div>
-            <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
-              {service} {grade.value}
-              {grade.suffix ? ` · ${grade.suffix}` : ""}
-            </p>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <div className="relative h-6 w-16">
+                <Image
+                  src={SERVICE_LOGO[service]}
+                  alt={service}
+                  fill
+                  sizes="64px"
+                  style={{ objectFit: "contain" }}
+                />
+              </div>
+              {grade.suffix && (
+                <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
+                  · {grade.suffix}
+                </span>
+              )}
+            </div>
           </>
         ) : (
           <div className="w-full max-w-[320px] aspect-[5/8] rounded-card border-2 border-dashed border-border flex items-center justify-center p-6">
