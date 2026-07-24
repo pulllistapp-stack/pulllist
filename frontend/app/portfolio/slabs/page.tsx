@@ -17,7 +17,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
 import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
-import { SERVICE_LOGO, SlabFrame } from "@/components/portfolio/SlabFrame";
+import {
+  SERVICE_LOGO,
+  SERVICE_LOGO_PILL_CLASS,
+  SlabFrame,
+} from "@/components/portfolio/SlabFrame";
 import { CollectionItemDetail, listMyItems } from "@/lib/auth";
 
 type FrameStyle = "bgs" | "psa" | "clean";
@@ -188,12 +192,18 @@ export default function SlabsPortfolioPage() {
                 />
                 <div className="mt-3 flex items-center justify-between gap-2 px-1">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="relative h-6 w-14 shrink-0">
+                    <div
+                      className={
+                        "relative h-6 w-14 shrink-0 flex items-center " +
+                        SERVICE_LOGO_PILL_CLASS[service]
+                      }
+                    >
                       <Image
                         src={SERVICE_LOGO[service]}
                         alt={service}
                         fill
                         sizes="56px"
+                        quality={100}
                         style={{ objectFit: "contain", objectPosition: "left center" }}
                       />
                     </div>

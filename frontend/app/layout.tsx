@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import { BottomTabNav } from "@/components/BottomTabNav";
@@ -21,6 +22,20 @@ const dmSans = DM_Sans({
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+});
+
+// Noto Sans — self-hosted via next/font/local so we don't depend on
+// Google Fonts at build time. 4 weights cover the slab UI hierarchy
+// (400 body / 500 label / 600 emphasis / 700 headers).
+const notoSans = localFont({
+  variable: "--font-noto-sans",
+  display: "swap",
+  src: [
+    { path: "./fonts/NotoSans-Regular.ttf", weight: "400", style: "normal" },
+    { path: "./fonts/NotoSans-Medium.ttf", weight: "500", style: "normal" },
+    { path: "./fonts/NotoSans-SemiBold.ttf", weight: "600", style: "normal" },
+    { path: "./fonts/NotoSans-Bold.ttf", weight: "700", style: "normal" },
+  ],
 });
 
 export const viewport: Viewport = {
@@ -110,7 +125,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${dmSans.variable} ${jetbrainsMono.variable}`}
+      className={`${dmSans.variable} ${jetbrainsMono.variable} ${notoSans.variable}`}
     >
       <head>
         {/* Google AdSense — raw <script> rather than next/script so the

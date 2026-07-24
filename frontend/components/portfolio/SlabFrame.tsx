@@ -138,6 +138,17 @@ export const SERVICE_LOGO: Record<GradeService, string> = {
   TAG: "/graders/tag.png",
 };
 
+// Per-grader caption pill background. BGS's silver-on-transparent
+// lockup disappears entirely on light-mode UI, so it needs an
+// explicit dark backing. PSA/CGC/TAG carry their own opaque brands
+// (red-on-white / colored / black-rectangle) and read fine bare.
+export const SERVICE_LOGO_PILL_CLASS: Record<GradeService, string> = {
+  PSA: "",
+  BGS: "bg-neutral-900 rounded px-1.5",
+  CGC: "",
+  TAG: "",
+};
+
 // Grader accent — badge outline + perfect-10 halo tint.
 const SERVICE_ACCENT: Record<GradeService, string> = {
   PSA: "#c8102e",
@@ -283,7 +294,7 @@ export function SlabFrame({
           className="font-bold text-[11px] uppercase leading-tight overflow-hidden"
           style={{
             color: flipTextColor,
-            fontFamily: "'Bodoni Moda', Georgia, serif",
+            fontFamily: "var(--font-noto-sans), system-ui, sans-serif",
             letterSpacing: "-0.005em",
             display: "-webkit-box",
             WebkitLineClamp: 2,
@@ -317,7 +328,7 @@ export function SlabFrame({
           className="font-bold leading-none tabular-nums"
           style={{
             color: accent,
-            fontFamily: "'Bodoni Moda', Georgia, serif",
+            fontFamily: "var(--font-noto-sans), system-ui, sans-serif",
             letterSpacing: "-0.02em",
             fontSize: "clamp(18px, 5vw, 42px)",
           }}

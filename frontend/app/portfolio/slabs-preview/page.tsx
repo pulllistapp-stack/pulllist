@@ -23,6 +23,7 @@ import { Loader2 } from "lucide-react";
 import {
   FRAME_META,
   SERVICE_LOGO,
+  SERVICE_LOGO_PILL_CLASS,
   SlabFrame,
   type BadgeRect,
   type CardRect,
@@ -447,12 +448,18 @@ function SamplesGrid({
             cardInsetPct={cardInsetPct}
           />
           <div className="mt-3 flex items-center justify-center gap-2">
-            <div className="relative h-6 w-16">
+            <div
+              className={
+                "relative h-6 w-16 flex items-center " +
+                SERVICE_LOGO_PILL_CLASS[s.service]
+              }
+            >
               <Image
                 src={SERVICE_LOGO[s.service]}
                 alt={s.service}
                 fill
                 sizes="64px"
+                quality={100}
                 style={{ objectFit: "contain" }}
               />
             </div>
@@ -651,12 +658,18 @@ function TryYourCard({
               />
             </div>
             <div className="mt-3 flex items-center justify-center gap-2">
-              <div className="relative h-6 w-16">
+              <div
+                className={
+                  "relative h-6 w-16 flex items-center " +
+                  SERVICE_LOGO_PILL_CLASS[service]
+                }
+              >
                 <Image
                   src={SERVICE_LOGO[service]}
                   alt={service}
                   fill
                   sizes="64px"
+                  quality={100}
                   style={{ objectFit: "contain" }}
                 />
               </div>

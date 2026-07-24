@@ -46,6 +46,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-dm-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-jetbrains-mono)", "ui-monospace", "monospace"],
+        noto: ["var(--font-noto-sans)", "system-ui", "sans-serif"],
       },
       borderRadius: {
         card: "12px",
