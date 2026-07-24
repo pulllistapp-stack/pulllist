@@ -16,8 +16,8 @@ type Props = {
   region?: CatalogRegion;
 };
 
-// 5-year super-buckets for JPP-U* year-bucket sets. Keyed by bucket
-// label the user sees; each bucket collects any JPP-U year that falls
+// 5-year super-buckets for PROMO_NEW sets. Keyed by the bucket label
+// the user sees; each bucket collects any promo set whose year falls
 // inside its window. Ordered oldest→newest so buckets stack in time.
 const PROMO_NEW_BUCKETS: { label: string; years: [number, number] }[] = [
   { label: "1996–2005", years: [1996, 2005] },
@@ -25,15 +25,25 @@ const PROMO_NEW_BUCKETS: { label: string; years: [number, number] }[] = [
   { label: "2011–2015", years: [2011, 2015] },
   { label: "2016–2020", years: [2016, 2020] },
   { label: "2021–2025", years: [2021, 2025] },
+  { label: "2026–2030", years: [2026, 2030] },
 ];
 
-function jppYear(setId: string): number | null {
-  const m = setId.match(/^JPP-U(\d{4})/);
-  return m ? Number(m[1]) : null;
+function promoSetYear(set: SetWithCardCount): number | null {
+  // JP promos encode the year in the set id (`JPP-U2016`, `JPP-U1996`,
+  // ...). Everything else — KR `ko-p-{era}`, future CN/TW promo buckets
+  // — falls back to release_date. Release_date is a plain ISO date
+  // string in the API payload, so slicing the first 4 chars is enough.
+  const m = set.id.match(/^JPP-U(\d{4})/);
+  if (m) return Number(m[1]);
+  if (set.release_date) {
+    const y = Number(set.release_date.slice(0, 4));
+    if (!Number.isNaN(y)) return y;
+  }
+  return null;
 }
 
-function bucketFor(setId: string) {
-  const y = jppYear(setId);
+function bucketFor(set: SetWithCardCount) {
+  const y = promoSetYear(set);
   if (y == null) return null;
   return PROMO_NEW_BUCKETS.find(
     (b) => y >= b.years[0] && y <= b.years[1],
@@ -103,12 +113,13 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
     const bucketMap = new Map<string, SetWithCardCount[]>();
     for (const b of PROMO_NEW_BUCKETS) bucketMap.set(b.label, []);
     for (const s of promoNewSets) {
-      const b = bucketFor(s.id);
+      const b = bucketFor(s);
       if (b) bucketMap.get(b.label)!.push(s);
     }
-    // Sort inside each bucket by JPP-U year ascending
+    // Sort inside each bucket by year ascending. Uses the same
+    // JPP-U-first-then-release_date derivation as the bucket picker.
     for (const [, arr] of bucketMap) {
-      arr.sort((a, b) => (jppYear(a.id) ?? 0) - (jppYear(b.id) ?? 0));
+      arr.sort((a, b) => (promoSetYear(a) ?? 0) - (promoSetYear(b) ?? 0));
     }
 
     // Sort DECK alphabetically by name for stable grid order
@@ -248,9 +259,10 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
         </section>
       ))}
 
-      {/* PROMO_NEW — 5-year bucket sections (JP catalog only). Renders
-          one sub-section per bucket window that has any sets after the
-          series filter. */}
+      {/* PROMO_NEW — 5-year bucket sections. JP promos slot in by their
+          JPP-U{year} id; KR (`ko-p-*`) and any future promo-catalog sets
+          slot in by release_date year. Renders one sub-section per
+          bucket window that has any sets after the series filter. */}
       {filteredPromoNew.length > 0 && (
         <section className="mb-12">
           <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary mb-4">
@@ -259,7 +271,7 @@ export function SetsBrowser({ initialSets, region = "en" }: Props) {
           <div className="space-y-8">
             {PROMO_NEW_BUCKETS.map((b) => {
               const inBucket = filteredPromoNew.filter((s) => {
-                const y = jppYear(s.id);
+                const y = promoSetYear(s);
                 return y != null && y >= b.years[0] && y <= b.years[1];
               });
               if (inBucket.length === 0) return null;
