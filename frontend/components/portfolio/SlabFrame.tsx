@@ -134,7 +134,7 @@ const EMBLEM_INVERT: Record<SlabStyle, boolean> = {
 export const SERVICE_LOGO: Record<GradeService, string> = {
   PSA: "/graders/psa.png",
   BGS: "/graders/bgs.svg",
-  CGC: "/graders/cgc.png",
+  CGC: "/graders/cgc.svg",
   TAG: "/graders/tag.png",
 };
 
