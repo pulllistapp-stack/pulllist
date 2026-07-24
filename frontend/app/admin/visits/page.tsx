@@ -46,7 +46,12 @@ function AdminVisitsContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, v, tp, tr, rec, anon, bt] = await Promise.all([
+      // Every panel is independent — one failing endpoint (e.g. a new
+      // backend route that isn't deployed yet after a frontend rollout)
+      // used to blank the whole page via Promise.all rejection. With
+      // allSettled the surviving panels still render and only the broken
+      // section stays empty.
+      const [s, v, tp, tr, rec, anon, bt] = await Promise.allSettled([
         getVisitsSummary(),
         getVisitsVisitors(windowDays, 60),
         getVisitsTopPaths(windowDays, 15),
@@ -55,13 +60,24 @@ function AdminVisitsContent() {
         getVisitsAnonSessions(windowDays, 30),
         getVisitsBots(windowDays),
       ]);
-      setSummary(s);
-      setVisitors(v.items);
-      setTopPaths(tp.items);
-      setTopReferrers(tr.items);
-      setRecent(rec.items);
-      setAnonSessions(anon.items);
-      setBots(bt.items);
+      if (s.status === "fulfilled") setSummary(s.value);
+      if (v.status === "fulfilled") setVisitors(v.value.items);
+      if (tp.status === "fulfilled") setTopPaths(tp.value.items);
+      if (tr.status === "fulfilled") setTopReferrers(tr.value.items);
+      if (rec.status === "fulfilled") setRecent(rec.value.items);
+      if (anon.status === "fulfilled") setAnonSessions(anon.value.items);
+      if (bt.status === "fulfilled") setBots(bt.value.items);
+      // Surface individual failures in the console so a broken endpoint
+      // is still visible to the admin even though the page renders.
+      for (const [label, r] of [
+        ["summary", s], ["visitors", v], ["top-paths", tp],
+        ["top-referrers", tr], ["recent", rec], ["anon-sessions", anon],
+        ["bots", bt],
+      ] as const) {
+        if (r.status === "rejected") {
+          console.warn(`admin/visits: ${label} panel failed`, r.reason);
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
