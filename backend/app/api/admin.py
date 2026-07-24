@@ -628,6 +628,136 @@ async def visits_by_user(
     }
 
 
+@router.get("/visits/visitors")
+async def visits_visitors(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    days: int = Query(1, ge=1, le=30, description="Window in days back from today."),
+    limit: int = Query(60, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Unified per-visitor breakdown — signed-in accounts and anonymous
+    sessions in one list, sorted by view count. Powers the merged
+    PER-USER VISITS panel so the admin sees the whole traffic picture
+    without pivoting between two tables.
+
+    Each item has `type='user'` (with email/name/is_admin) or
+    `type='anon'` (with session_id and no PII). Sort order is
+    views-DESC; a signed-in user with 5 views ranks below an anonymous
+    session with 50 views — the merged view is about traffic weight,
+    not account status."""
+    today_start = _admin_today_start()
+    window_start = today_start - timedelta(days=days - 1)
+
+    # Signed-in bucket
+    user_stmt = (
+        select(
+            VisitLog.user_id,
+            func.count(VisitLog.id).label("views"),
+            func.max(VisitLog.created_at).label("last_seen"),
+        )
+        .where(
+            VisitLog.created_at >= window_start,
+            VisitLog.user_id.is_not(None),
+        )
+        .group_by(VisitLog.user_id)
+    )
+    user_rows = (await db.execute(user_stmt)).all()
+
+    # Anonymous bucket (WHERE user_id IS NULL, group by session_id)
+    anon_stmt = (
+        select(
+            VisitLog.session_id,
+            func.count(VisitLog.id).label("views"),
+            func.max(VisitLog.created_at).label("last_seen"),
+        )
+        .where(
+            VisitLog.created_at >= window_start,
+            VisitLog.user_id.is_(None),
+        )
+        .group_by(VisitLog.session_id)
+    )
+    anon_rows = (await db.execute(anon_stmt)).all()
+
+    # Hydrate user profiles for the signed-in rows
+    user_ids = [uid for uid, _, _ in user_rows]
+    users: dict[str, User] = {}
+    if user_ids:
+        for u in (
+            await db.execute(select(User).where(User.id.in_(user_ids)))
+        ).scalars():
+            users[u.id] = u
+
+    # Last-seen country per user (mirrors /visits/by-user)
+    user_last_country: dict[str, str | None] = {}
+    if user_ids:
+        stmt = (
+            select(VisitLog.user_id, VisitLog.country)
+            .where(
+                VisitLog.user_id.in_(user_ids),
+                VisitLog.created_at >= window_start,
+            )
+            .order_by(VisitLog.user_id, VisitLog.created_at.desc())
+        )
+        for uid, country in (await db.execute(stmt)).all():
+            if uid not in user_last_country:
+                user_last_country[uid] = country
+
+    # Last-seen country per anon session
+    session_ids = [sid for sid, _, _ in anon_rows]
+    anon_last_country: dict[str, str | None] = {}
+    if session_ids:
+        stmt = (
+            select(VisitLog.session_id, VisitLog.country)
+            .where(
+                VisitLog.session_id.in_(session_ids),
+                VisitLog.user_id.is_(None),
+                VisitLog.created_at >= window_start,
+            )
+            .order_by(VisitLog.session_id, VisitLog.created_at.desc())
+        )
+        for sid, country in (await db.execute(stmt)).all():
+            if sid not in anon_last_country:
+                anon_last_country[sid] = country
+
+    items: list[dict] = []
+    for uid, views, last_seen in user_rows:
+        if uid not in users:
+            continue
+        u = users[uid]
+        items.append(
+            {
+                "type": "user",
+                "id": uid,
+                "user_id": uid,
+                "session_id": None,
+                "email": u.email,
+                "name": u.name,
+                "is_admin": u.is_admin,
+                "views": int(views),
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                "last_country": user_last_country.get(uid),
+            }
+        )
+    for sid, views, last_seen in anon_rows:
+        items.append(
+            {
+                "type": "anon",
+                "id": sid,
+                "user_id": None,
+                "session_id": sid,
+                "email": None,
+                "name": None,
+                "is_admin": False,
+                "views": int(views),
+                "last_seen": last_seen.isoformat() if last_seen else None,
+                "last_country": anon_last_country.get(sid),
+            }
+        )
+
+    items.sort(key=lambda x: x["views"], reverse=True)
+    return {"days": days, "items": items[:limit]}
+
+
 # ────────── Visit tracking: extended views (2026-07) ──────────
 # Recent stream, top pages, top referrers, anon session breakdown —
 # the pieces the top-level summary doesn't cover. All accept a `days`

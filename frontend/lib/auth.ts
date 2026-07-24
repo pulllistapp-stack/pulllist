@@ -563,6 +563,28 @@ export async function getVisitsAnonSessions(
   return authFetch(`/admin/visits/anon-sessions?days=${days}&limit=${limit}`);
 }
 
+export type VisitorItem = {
+  type: "user" | "anon";
+  id: string;
+  user_id: string | null;
+  session_id: string | null;
+  email: string | null;
+  name: string | null;
+  is_admin: boolean;
+  views: number;
+  last_seen: string | null;
+  last_country: string | null;
+};
+
+export async function getVisitsVisitors(
+  days = 1,
+  limit = 60,
+): Promise<{ days: number; items: VisitorItem[] }> {
+  return authFetch(
+    `/admin/visits/visitors?days=${days}&limit=${limit}`,
+  );
+}
+
 export type BotCategory =
   | "search"
   | "llm"

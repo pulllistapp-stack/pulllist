@@ -7,18 +7,18 @@ import { AdminGuard } from "@/components/admin/AdminGuard";
 import {
   getVisitsAnonSessions,
   getVisitsBots,
-  getVisitsByUser,
   getVisitsRecent,
   getVisitsSummary,
   getVisitsTopPaths,
   getVisitsTopReferrers,
+  getVisitsVisitors,
   type AnonSessionItem,
   type BotItem,
   type TopPathItem,
   type TopReferrerItem,
   type VisitRecentItem,
+  type VisitorItem,
   type VisitScope,
-  type VisitsByUserItem,
   type VisitsSummary,
 } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ export default function AdminVisitsPage() {
 
 function AdminVisitsContent() {
   const [summary, setSummary] = useState<VisitsSummary | null>(null);
-  const [byUser, setByUser] = useState<VisitsByUserItem[]>([]);
+  const [visitors, setVisitors] = useState<VisitorItem[]>([]);
   const [topPaths, setTopPaths] = useState<TopPathItem[]>([]);
   const [topReferrers, setTopReferrers] = useState<TopReferrerItem[]>([]);
   const [recent, setRecent] = useState<VisitRecentItem[]>([]);
@@ -46,9 +46,9 @@ function AdminVisitsContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, b, tp, tr, rec, anon, bt] = await Promise.all([
+      const [s, v, tp, tr, rec, anon, bt] = await Promise.all([
         getVisitsSummary(),
-        getVisitsByUser(windowDays),
+        getVisitsVisitors(windowDays, 60),
         getVisitsTopPaths(windowDays, 15),
         getVisitsTopReferrers(windowDays, 15),
         getVisitsRecent({ limit: 60, scope }),
@@ -56,7 +56,7 @@ function AdminVisitsContent() {
         getVisitsBots(windowDays),
       ]);
       setSummary(s);
-      setByUser(b.items);
+      setVisitors(v.items);
       setTopPaths(tp.items);
       setTopReferrers(tr.items);
       setRecent(rec.items);
@@ -167,7 +167,7 @@ function AdminVisitsContent() {
             <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
               <h2 className="text-sm font-mono uppercase tracking-wider text-text-tertiary inline-flex items-center gap-1.5">
                 <Activity className="h-3.5 w-3.5" />
-                Per-user visits
+                Visitors
               </h2>
               <div className="inline-flex gap-1 rounded-full border border-border bg-bg-surface p-1">
                 {[1, 7, 30].map((d) => (
@@ -186,41 +186,65 @@ function AdminVisitsContent() {
                 ))}
               </div>
             </div>
-            {byUser.length === 0 ? (
+            {visitors.length === 0 ? (
               <p className="text-sm text-text-tertiary italic">
-                No signed-in visits in this window.
+                No visits in this window.
               </p>
             ) : (
               <>
-              {/* Mobile: per-user card list — all fields visible without
-                  a swipe-to-scroll gesture. */}
+              {/* Mobile: per-visitor card list — signed-in + anon merged,
+                  all fields visible without a swipe-to-scroll gesture. */}
               <ul className="sm:hidden space-y-2">
-                {byUser.map((u) => (
+                {visitors.map((v) => {
+                  const isAnon = v.type === "anon";
+                  return (
                   <li
-                    key={u.user_id}
-                    className="rounded-card border border-border bg-bg-surface p-3"
+                    key={v.id}
+                    className={cn(
+                      "rounded-card border border-border p-3",
+                      isAnon ? "bg-bg-surface/60 opacity-80" : "bg-bg-surface",
+                    )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-text-primary truncate">
-                            {u.name ?? u.email ?? u.user_id.slice(0, 8)}
+                          <span
+                            className={cn(
+                              "truncate",
+                              isAnon
+                                ? "font-mono text-text-tertiary"
+                                : "font-bold text-text-primary",
+                            )}
+                          >
+                            {isAnon
+                              ? `anon-${(v.session_id ?? "").slice(0, 8)}`
+                              : (v.name ?? v.email ?? (v.user_id ?? "").slice(0, 8))}
                           </span>
-                          {u.is_admin && (
+                          {v.is_admin && (
                             <span className="shrink-0 rounded-full bg-accent-yellow/15 text-accent-yellow text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
                               Admin
                             </span>
                           )}
+                          {isAnon && (
+                            <span className="shrink-0 rounded-full bg-neutral-500/10 text-text-tertiary text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+                              Anon
+                            </span>
+                          )}
                         </div>
-                        {u.email && u.name && (
+                        {!isAnon && v.email && v.name && (
                           <p className="mt-0.5 text-[11px] font-mono text-text-tertiary truncate">
-                            {u.email}
+                            {v.email}
                           </p>
                         )}
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-mono font-bold text-text-primary text-lg leading-none">
-                          {u.views}
+                        <p
+                          className={cn(
+                            "font-mono font-bold text-lg leading-none",
+                            isAnon ? "text-text-secondary" : "text-text-primary",
+                          )}
+                        >
+                          {v.views}
                         </p>
                         <p className="text-[10px] font-mono text-text-tertiary uppercase tracking-wider">
                           views
@@ -230,35 +254,38 @@ function AdminVisitsContent() {
                     <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-mono text-text-tertiary">
                       <span
                         className={cn(
-                          isSuspicious(u.last_country)
+                          isSuspicious(v.last_country)
                             ? "text-accent-red font-bold"
                             : "text-text-secondary",
                         )}
                       >
-                        {isSuspicious(u.last_country) && (
+                        {isSuspicious(v.last_country) && (
                           <ShieldAlert className="inline h-3 w-3 mr-1" />
                         )}
-                        {countryFlag(u.last_country)}{" "}
-                        {u.last_country ?? "??"}
+                        {countryFlag(v.last_country)}{" "}
+                        {v.last_country ?? "??"}
                       </span>
                       <span>
                         last{" "}
-                        {u.last_seen
-                          ? formatRelative(new Date(u.last_seen))
+                        {v.last_seen
+                          ? formatRelative(new Date(v.last_seen))
                           : "—"}
                       </span>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
 
-              {/* Desktop: original table with horizontal scroll fallback. */}
+              {/* Desktop: original table with horizontal scroll fallback.
+                  Anonymous rows sit in the same table body but rendered
+                  in a muted tone so signed-in accounts still stand out. */}
               <div className="hidden sm:block rounded-card border border-border bg-bg-surface overflow-hidden">
                 <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-bg/40 text-[11px] font-mono uppercase tracking-wider text-text-tertiary">
-                      <th className="text-left px-3 py-2">User</th>
+                      <th className="text-left px-3 py-2">Visitor</th>
                       <th className="text-right px-3 py-2">Views</th>
                       <th className="text-right px-3 py-2 hidden sm:table-cell">
                         Last seen
@@ -267,54 +294,79 @@ function AdminVisitsContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {byUser.map((u) => (
+                    {visitors.map((v) => {
+                      const isAnon = v.type === "anon";
+                      return (
                       <tr
-                        key={u.user_id}
-                        className="border-b border-border last:border-0"
+                        key={v.id}
+                        className={cn(
+                          "border-b border-border last:border-0",
+                          isAnon && "bg-bg/20",
+                        )}
                       >
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-text-primary truncate max-w-[200px]">
-                              {u.name ?? u.email ?? u.user_id.slice(0, 8)}
+                            <span
+                              className={cn(
+                                "truncate max-w-[200px]",
+                                isAnon
+                                  ? "font-mono text-text-tertiary"
+                                  : "font-bold text-text-primary",
+                              )}
+                            >
+                              {isAnon
+                                ? `anon-${(v.session_id ?? "").slice(0, 8)}`
+                                : (v.name ?? v.email ?? (v.user_id ?? "").slice(0, 8))}
                             </span>
-                            {u.is_admin && (
+                            {v.is_admin && (
                               <span className="rounded-full bg-accent-yellow/15 text-accent-yellow text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
                                 Admin
                               </span>
                             )}
+                            {isAnon && (
+                              <span className="rounded-full bg-neutral-500/10 text-text-tertiary text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+                                Anon
+                              </span>
+                            )}
                           </div>
-                          {u.email && u.name && (
+                          {!isAnon && v.email && v.name && (
                             <span className="block text-[11px] font-mono text-text-tertiary truncate max-w-[260px]">
-                              {u.email}
+                              {v.email}
                             </span>
                           )}
                         </td>
-                        <td className="text-right px-3 py-2 font-mono font-bold text-text-primary">
-                          {u.views}
+                        <td
+                          className={cn(
+                            "text-right px-3 py-2 font-mono font-bold",
+                            isAnon ? "text-text-secondary" : "text-text-primary",
+                          )}
+                        >
+                          {v.views}
                         </td>
                         <td className="text-right px-3 py-2 font-mono text-[11px] text-text-tertiary hidden sm:table-cell">
-                          {u.last_seen ? formatRelative(new Date(u.last_seen)) : "—"}
+                          {v.last_seen ? formatRelative(new Date(v.last_seen)) : "—"}
                         </td>
                         <td
                           className={cn(
                             "text-right px-3 py-2 font-mono text-xs",
-                            isSuspicious(u.last_country)
+                            isSuspicious(v.last_country)
                               ? "text-accent-red font-bold"
                               : "text-text-secondary",
                           )}
                           title={
-                            isSuspicious(u.last_country)
+                            isSuspicious(v.last_country)
                               ? "Flagged country — review activity"
                               : undefined
                           }
                         >
-                          {isSuspicious(u.last_country) && (
+                          {isSuspicious(v.last_country) && (
                             <ShieldAlert className="inline h-3 w-3 mr-1" />
                           )}
-                          {countryFlag(u.last_country)} {u.last_country ?? "??"}
+                          {countryFlag(v.last_country)} {v.last_country ?? "??"}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
                 </div>
