@@ -27,7 +27,7 @@ import {
 } from "@/components/portfolio/SlabFrame";
 import { searchCards, type Card } from "@/lib/api";
 
-type Style = "bgs" | "psa";
+type Style = "bgs" | "psa" | "clean";
 type Mode = "samples" | "try";
 type Service = "PSA" | "BGS" | "CGC" | "TAG";
 
@@ -86,25 +86,27 @@ const GRADE_OPTIONS: Array<{ value: string; suffix?: string }> = [
 
 const LS_KEY = "slab-tune-v1";
 
-function loadOverrides(): {
-  bgs: { flip: FlipRect; card: CardRect };
-  psa: { flip: FlipRect; card: CardRect };
-} {
-  if (typeof window === "undefined") {
-    return {
-      bgs: { flip: FRAME_META.bgs.flip, card: FRAME_META.bgs.card },
-      psa: { flip: FRAME_META.psa.flip, card: FRAME_META.psa.card },
-    };
-  }
+function loadOverrides(): Record<Style, { flip: FlipRect; card: CardRect }> {
+  const defaults: Record<Style, { flip: FlipRect; card: CardRect }> = {
+    bgs: { flip: FRAME_META.bgs.flip, card: FRAME_META.bgs.card },
+    psa: { flip: FRAME_META.psa.flip, card: FRAME_META.psa.card },
+    clean: { flip: FRAME_META.clean.flip, card: FRAME_META.clean.card },
+  };
+  if (typeof window === "undefined") return defaults;
   try {
     const raw = window.localStorage.getItem(LS_KEY);
     if (!raw) throw new Error("empty");
-    return JSON.parse(raw);
-  } catch {
+    const parsed = JSON.parse(raw);
+    // Guard against older localStorage entries that pre-date the
+    // "clean" style — fall back to the default for missing keys so the
+    // page doesn't crash before the user hits Reset.
     return {
-      bgs: { flip: FRAME_META.bgs.flip, card: FRAME_META.bgs.card },
-      psa: { flip: FRAME_META.psa.flip, card: FRAME_META.psa.card },
+      bgs: parsed.bgs ?? defaults.bgs,
+      psa: parsed.psa ?? defaults.psa,
+      clean: parsed.clean ?? defaults.clean,
     };
+  } catch {
+    return defaults;
   }
 }
 
@@ -157,12 +159,16 @@ export default function SlabsPreviewPage() {
   };
 
   const copyCode = async () => {
+    const aspectRatio =
+      style === "bgs" ? "797 / 1344" : style === "psa" ? "816 / 1285" : "5 / 8";
+    const flipTone =
+      style === "bgs" ? "on-gold" : style === "psa" ? "on-white" : "on-black";
     const snippet = `${style}: {
   src: "/slab-frame-${style}.png",
-  aspectRatio: "${style === "bgs" ? "797 / 1344" : "816 / 1285"}",
+  aspectRatio: "${aspectRatio}",
   flip: { top: "${current.flip.top}", left: "${current.flip.left}", right: "${current.flip.right}", height: "${current.flip.height}" },
   card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
-  flipTone: "${style === "bgs" ? "on-gold" : "on-white"}",
+  flipTone: "${flipTone}",
 },`;
     try {
       await navigator.clipboard.writeText(snippet);
@@ -211,7 +217,7 @@ export default function SlabsPreviewPage() {
         {/* Style + debug controls (shared) */}
         <div className="flex flex-wrap items-center gap-3 mb-6 p-3 rounded-card bg-bg-surface border border-border">
           <div className="flex items-center gap-1 p-1 rounded-full bg-bg border border-border">
-            {(["bgs", "psa"] as const).map((s) => (
+            {(["bgs", "psa", "clean"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStyle(s)}
@@ -222,7 +228,7 @@ export default function SlabsPreviewPage() {
                     : "text-text-secondary hover:text-text-primary")
                 }
               >
-                Frame {s === "bgs" ? "1 · BGS" : "2 · PSA"}
+                Frame {s === "bgs" ? "1 · BGS" : s === "psa" ? "2 · PSA" : "3 · Clean"}
               </button>
             ))}
           </div>
@@ -262,7 +268,7 @@ export default function SlabsPreviewPage() {
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
               <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-tertiary mb-1">
-                Tuning · {style === "bgs" ? "Frame 1 · BGS" : "Frame 2 · PSA"}
+                Tuning · {style === "bgs" ? "Frame 1 · BGS" : style === "psa" ? "Frame 2 · PSA" : "Frame 3 · Clean"}
               </p>
               <h2 className="text-lg font-bold text-text-primary">
                 Move the flip well & card well
