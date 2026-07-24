@@ -355,9 +355,9 @@ export default function SlabsPreviewPage() {
               Move + resize the PullList mascot mark. bottom/left anchor
               the corner; width sets both dimensions (square).
             </p>
-            <SliderRow label="bottom" value={parsePct(current.emblem.bottom)} max={30} onChange={(v) => updateEmblem("bottom", v)} />
-            <SliderRow label="left" value={parsePct(current.emblem.left)} max={40} onChange={(v) => updateEmblem("left", v)} />
-            <SliderRow label="width" value={parsePct(current.emblem.width)} max={30} onChange={(v) => updateEmblem("width", v)} />
+            <SliderRow label="bottom" value={parsePct(current.emblem.bottom)} max={90} onChange={(v) => updateEmblem("bottom", v)} />
+            <SliderRow label="left" value={parsePct(current.emblem.left)} max={90} onChange={(v) => updateEmblem("left", v)} />
+            <SliderRow label="width" value={parsePct(current.emblem.width)} max={60} onChange={(v) => updateEmblem("width", v)} />
           </fieldset>
 
           {/* Card inset — global across styles. Real cards are the
