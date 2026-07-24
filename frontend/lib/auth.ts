@@ -282,6 +282,11 @@ export type CollectionItemDetail = {
   card_name: string;
   card_number: string | null;
   image_small: string | null;
+  /** Hi-res card art. Nullable — JP/KR catalogs sometimes ship only
+   *  the small variant. Consumers that render bigger than a
+   *  thumbnail (slabs, share cards) should prefer this and fall back
+   *  to image_small. */
+  image_large?: string | null;
   rarity: string | null;
   market_price_usd: number | null;
   /** "graded" when market_price_usd came from a card_price_snapshots

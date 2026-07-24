@@ -84,6 +84,11 @@ export const FRAME_META: Record<
      *  narrow flip well (BGS) can't fit the same 11px name a wide one
      *  (Clean) can. Preview tuner exposes these as sliders. */
     flipFonts: FlipFonts;
+    /** Default card image inset %. Real cards don't fill the well
+     *  edge-to-edge on every frame — Clean's card window especially
+     *  is generous. Per-style default so each frame ships with a
+     *  sensible inset without waiting for a prop override. */
+    cardInsetPct: number;
     /** Text tone on the flip label — the flip is gold on BGS, red-
      *  bordered white on PSA, black on the minimal Clean frame. */
     flipTone: "on-gold" | "on-white" | "on-black";
@@ -92,35 +97,34 @@ export const FRAME_META: Record<
   bgs: {
     src: "/slab-frame-bgs.png",
     aspectRatio: "797 / 1344",
-    flip: { top: "7%", left: "24%", right: "9.5%", height: "12%" },
+    flip: { top: "7%", left: "25%", right: "11.5%", height: "12%" },
     card: { top: "22%", left: "3.5%", right: "5%", bottom: "8.5%" },
-    emblem: { bottom: "3%", left: "3%", width: "12%" },
-    badge: { top: "7%", left: "70%", right: "9.5%", height: "12%" },
-    flipFonts: { yearSet: 7.5, cardName: 11 },
+    emblem: { bottom: "77.5%", left: "0%", width: "31%" },
+    badge: { top: "8%", left: "69.5%", right: "12.5%", height: "10.5%" },
+    flipFonts: { yearSet: 8, cardName: 11 },
+    cardInsetPct: 14.5,
     flipTone: "on-gold",
   },
   psa: {
     src: "/slab-frame-psa.png",
     aspectRatio: "816 / 1285",
-    flip: { top: "4%", left: "10%", right: "11%", height: "14%" },
-    card: { top: "20%", left: "1.5%", right: "2.5%", bottom: "2%" },
-    emblem: { bottom: "3%", left: "3%", width: "12%" },
-    badge: { top: "4%", left: "76%", right: "11%", height: "14%" },
-    flipFonts: { yearSet: 7.5, cardName: 11 },
+    flip: { top: "5.5%", left: "12%", right: "11.5%", height: "12%" },
+    card: { top: "21.5%", left: "3.5%", right: "2.5%", bottom: "2.5%" },
+    emblem: { bottom: "78%", left: "63%", width: "32.5%" },
+    badge: { top: "5.5%", left: "66%", right: "12.5%", height: "11.5%" },
+    flipFonts: { yearSet: 8, cardName: 12.5 },
+    cardInsetPct: 14,
     flipTone: "on-white",
   },
   clean: {
-    // Third frame — minimal transparent acrylic with black wells. Flip
-    // well sits top-left as a compact rectangle; card well fills most
-    // of the interior. Both wells have dark backgrounds so the flip
-    // text needs light-on-dark tone rendering.
     src: "/slab-frame-clean.png",
     aspectRatio: "5 / 8",
-    flip: { top: "7%", left: "12.5%", right: "11%", height: "14.5%" },
-    card: { top: "22%", left: "5%", right: "5%", bottom: "3%" },
-    emblem: { bottom: "3%", left: "3%", width: "12%" },
+    flip: { top: "5%", left: "11%", right: "25%", height: "15.5%" },
+    card: { top: "22%", left: "3%", right: "2.5%", bottom: "3%" },
+    emblem: { bottom: "74.5%", left: "61.5%", width: "38.5%" },
     badge: { top: "7%", left: "76%", right: "11%", height: "14.5%" },
-    flipFonts: { yearSet: 7.5, cardName: 11 },
+    flipFonts: { yearSet: 8, cardName: 13.5 },
+    cardInsetPct: 14.5,
     flipTone: "on-black",
   },
 };
@@ -184,7 +188,7 @@ export function SlabFrame({
   emblemOverride,
   badgeOverride,
   flipFontsOverride,
-  cardInsetPct = 0,
+  cardInsetPct,
 }: SlabProps) {
   const meta = FRAME_META[style];
   const flipRect = flipOverride ?? meta.flip;
@@ -192,7 +196,7 @@ export function SlabFrame({
   const emblemRect = emblemOverride ?? meta.emblem;
   const badgeRect = badgeOverride ?? meta.badge;
   const flipFonts = flipFontsOverride ?? meta.flipFonts;
-  const cardPadding = `${cardInsetPct}%`;
+  const cardPadding = `${cardInsetPct ?? meta.cardInsetPct}%`;
   const accent = SERVICE_ACCENT[service];
   const isPerfect10 = grade.trim().startsWith("10");
   const flipTextColor =

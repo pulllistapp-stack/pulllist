@@ -169,6 +169,7 @@ async def list_my_items(
                 card_name=card.name,
                 card_number=card.number,
                 image_small=card.image_small,
+                image_large=card.image_large,
                 rarity=card.rarity,
                 market_price_usd=price,
                 price_source=source,

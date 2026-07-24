@@ -59,6 +59,10 @@ class CollectionItemDetail(CollectionItemRead):
     card_name: str
     card_number: str | None
     image_small: str | None
+    # Hi-res card art — needed anywhere the row renders larger than a
+    # thumbnail (slab frames, share cards). Nullable because JP/KR
+    # catalogs sometimes only ship the small variant.
+    image_large: str | None = None
     rarity: str | None
     market_price_usd: float | None
     # "graded" when market_price_usd came from a card_price_snapshots

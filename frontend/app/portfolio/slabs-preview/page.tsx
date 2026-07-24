@@ -108,7 +108,7 @@ function styleDefault(s: Style): StyleTune {
     emblem: FRAME_META[s].emblem,
     badge: FRAME_META[s].badge,
     flipFonts: FRAME_META[s].flipFonts,
-    cardInsetPct: 0,
+    cardInsetPct: FRAME_META[s].cardInsetPct,
   };
 }
 

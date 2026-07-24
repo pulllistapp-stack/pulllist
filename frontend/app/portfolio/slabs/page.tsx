@@ -184,7 +184,7 @@ export default function SlabsPortfolioPage() {
                 <SlabFrame
                   style={frameStyle}
                   cardName={it.card_name}
-                  cardImage={it.image_small ?? undefined}
+                  cardImage={it.image_large ?? it.image_small ?? undefined}
                   yearSet={yearSet}
                   service={service}
                   grade={value}
