@@ -233,32 +233,53 @@ core platform stabilizes.
 
 ## 4. Pricing & business model — current plan
 
+Detailed spec: `docs/service-strategy/tier-design.md` · `pricing.md` ·
+`onboarding-flow.md`. Below is the short summary; §11.40 has the
+unit-economics reasoning that produced this shape.
+
 ```
 PullList Free  $0 forever
   Catalog (43,000+ cards) · Collection tracker · Wishlist
-  Portfolio + growth chart · Trending · Price history (7d/30d/90d/1y)
-  Cross-language search · Card scanning (5/day — limit not enforced yet)
-  Public portfolio sharing
-  Ads (Google AdSense, post-approval)
+  Portfolio + growth chart · Trending (7d/30d/90d)
+  Price history 90d · Cross-language search
+  Card scanning 5/day fair-use · Public portfolio sharing
+  Alerts: in-app bell only, daily digest batch (no channels)
+  Ads (Google AdSense + Mediavine/Ezoic when traffic warrants)
 
-PullList Pro  $5.99/mo  or  $59/year  (NOT LIVE YET)
-  Ad-free experience
-  Wishlist target-price alerts (Email + push)
-  Daily portfolio digest email
-  Unlimited card scanning
-  CSV / Excel import (export is free)
-  Custom price alerts ("Chaos Rising SIR drops 15%")
-  Multiple portfolios
-  Detailed analytics (1y/5y charts, full snapshot history)
-  Higher Trending API rate limits
-  Early access to new features
+PullList Pro  (NOT LIVE YET — Path F soft launch)
+  Beta price $3.99/mo · $29/yr — first 100 users = Founding Members
+  with PERMANENT grandfather (never re-priced). Launch anchored to
+  2026-09/10 after LO returns to Korea (F-1 → KR tax residence flip
+  enables clean W-8BEN + Article 12 tax treaty at 10% withholding).
+
+  Official price TBD from 3-6mo of Beta data — data-driven pick:
+    B  $5.99/$49  (balanced margin baseline · SaaS-standard yr discount)
+    E  $6.99/$59  (premium if Pro-hook uptake is strong)
+    C  $4.99/$39  (community undercut IF Free-tier unit-cost drops to
+                   $0.10/mo — requires Neon caching + Vercel edge +
+                   Mediavine CPM upgrade)
+
+  Perks over Free:
+    Ad-free
+    Discord alerts (Phase 1 webhook · Phase 2 Bot DM via official
+      server) + Web Push + Email
+    Realtime alerts (5-30 min polling — depends on eBay Growth Check)
+    Multi-grade prices · Cross-market gap · 1y price history
+    Multiple portfolios · CSV/Excel import
+    Scan 100/day fair-use (cost-managed vs "unlimited")
+    Session management UI (Level 3 auth byproduct — active devices
+      list, revoke individual sessions, log-out-all)
+    Portfolio daily digest email · Early access · VIP badge
 ```
 
-Affiliate income: **TCGplayer 3.5%** (live) + **eBay Partner Network**
-(live, 1–4% per item, 24h cookie).
+Affiliate: **TCGplayer 3.5%** (Impact, live) + **eBay Partner Network**
+(live, 1–4% per item, 24h cookie). **Amazon Associates** application
+paused pending F-1 status — resumes after 2026-09 KR return with
+W-8BEN + Article 12 treaty at 10% withholding.
 
-Ad income: **Google AdSense** + **Mediavine / Ezoic** later (when traffic
-crosses 10k MAU).
+Ad income: **Google AdSense** (under review) → **Ezoic** (10k PV) →
+**Mediavine** (50k session) → **Raptive** (100k PV). CPM 3-5× at each
+step.
 
 ---
 
@@ -628,6 +649,14 @@ Rough chronological summary of major work landed in this push:
 
 36. **KR promo catalog import from namu.wiki** (2026-07-22) — before this push the DB carried a single KR promo set (`ko-c-5f2269d335`, 25주년 프로모팩 2021); every other KR promo card (base era through MEGA) had no catalog entry, so a KR collector had no way to add a "루기아 001 PROMO" or "치코리타 M-P" to their vault. Scraped `namu.wiki/w/포켓몬 카드 게임/한국 프로모 카드 일람` with Playwright (React SPA, so `domcontentloaded` + 5s hydration + 10× scroll-to-bottom), parsed the 7 era tables (초대 / BW / XY / SM / 소드실드 / SV / MEGA — ADV, DP/PT, 기타 sections are empty on namu today), and upserted **7 new sets + 748 new cards**. Option-B `ko-p-{era}` id convention (`ko-p-base` / `ko-p-bw` / `ko-p-xy` / `ko-p-sm` / `ko-p-ss` / `ko-p-sv` / `ko-p-mega`), one bucket per H2 era matching how JP promos are already grouped (`set.py::set_type` docstring — PROMO_NEW year buckets). Era classification is by the promo-code suffix on the "번호" cell (`/BW`, `/XY-P`, `/SM-P`, `/S-P`, `/SV-P`, `/M-P`, ` PROMO`) rather than DOM order, so the parser stays right if namu reshuffles headings. Card numbers preserve the numeric prefix (`ko-p-bw-001` from `001/BW`), and the one row with no leading number (`SV-P 파라다이스 리조트`) gets a synthetic `p001` sentinel. **Rowspan is heavy on this page** — namu collapses cards that share an acquisition event into a single rowspanned "획득 경로" cell (SV era's `스타터 세트 ex 동봉 프로모팩` covers a dozen rows), and a naive `<tr>.cells` read leaves the later rows in the group missing the number+name columns. Fixed with a grid-fill algorithm that walks each cell's `rowspan`/`colspan` and writes to every covered (row, col) so every logical row lands as a full triple; SV table alone went from 64 raw rows to 26 unique cards after dedupe-by-(number, name). Raw counts by era: base 22 · bw 72 · xy 191 · sm 196 · ss 191 · sv 26 · mega 50 = 748. **Missing (13 SS rows)**: `009/S-P` through `020/S-P` + `182/S-P` have namu structure quirks (nested rowspan across both number and name columns for a "reserved but not yet assigned" batch) that the grid-fill couldn't reach cleanly — logged and skipped rather than fabricated. LO can hand-fill from source when needed; those specific numbers are commonly empty on namu's own current draft. **No images** — the "일람" listing page has zero inline card thumbnails; images live only on individual card articles. Catalog imports without image URLs; a follow-up pass can source from tcgdex KR / pokemon.com KR / per-card namu article scrape. Script is idempotent (upsert by id, updates over inserts) and offers `--from-html <path>` for offline re-runs against a saved dump so LO doesn't burn another Playwright session for parser iterations. Rarity defaults to "Promo" on every row so trending/completion queries pick these up under the promo bucket instead of the "Unknown" tail.
 
+40. **Service-strategy docs + Path F soft launch + bot detection + visits polish** (2026-07-24) —
+    **(A) `docs/service-strategy/` seed**: three planning docs (`tier-design.md` · `pricing.md` · `onboarding-flow.md`) codify how the Pro tier will roll. `pricing.md §0.5` runs unit-economics with live 2026 prices — Neon ($0.106/CU-hr + $0.35/GB storage), Render ($7 Starter), Anthropic Haiku 4.5 ($1/M input + $5/M output ≈ $0.0045/scan pre-OCR), Resend (free 3k → $20 Pro), Lemon Squeezy (5% + $0.50 + 1.5% intl on KR cards). Result: 100 Pro users at $5.99 nets ~$135/mo after Free-tier $0.25/mo/user variable cost; $4.99 is tight at $42/mo net and requires Free-cost optimization to break even; $6.99 has margin cushion but the conversion-rate hit swallows the gain. Pro "unlimited scan" removed in favor of **100/day fair-use** because a heavy scanner at 1000/mo eats $4.50 = 75% of $5.99 revenue.
+    **(B) Path F soft launch** (`pricing.md §2.0`): Beta $3.99/mo · $29/yr for the first 100 users = **Founding Members** with permanent grandfather (never re-priced even after official-price flip). 3-6mo Beta window → data-driven official-price pick from B ($5.99/$49) · E ($6.99/$59) · C ($4.99/$39 conditional on Free-cost optimization). Launch anchored to LO's 2026-09/10 KR return so W-8BEN + Article 12 tax treaty (10% withholding) works cleanly. Beta success thresholds: conversion 5-10%, 30d churn <10%, annual-plan uptake >25%, Pro-hook feature usage >60%.
+    **(C) Bot detection** — `visit_logs.bot_name VARCHAR(64)` column populated server-side from the User-Agent header via `app/services/bot_detect.py` (35 patterns across search / LLM / SEO / social / monitor / generic-bot fallback — only canonical names hit disk, raw UA never stored). New `/admin/visits/bots?days=N` aggregate endpoint with category tag. `frontend/app/robots.ts` grew explicit `Disallow: /` rules for 12 LLM training bots (GPTBot / ClaudeBot / Google-Extended / CCBot / PerplexityBot / Amazonbot / Bytespider / Diffbot / etc.) and 7 3rd-party SEO crawlers (AhrefsBot / SemrushBot / DotBot / PetalBot / DataForSeoBot / MJ12bot / BLEXBot) so policy-respecting bots stop hitting us; non-compliant ones surface in the `/admin/visits` Bot activity panel via UA classification. `python -m scripts.migrate_add_bot_name --dry-run` (idempotent, additive-only ALTER). Also fixed: `<TrackVisit/>` edge route was hitting the backend with Node's default `undici` UA, so every visit looked identical to `detect_bot` and bot_name stayed null — now forwards `h.get('user-agent')` into the outbound fetch headers.
+    **(D) Merged visitors panel** — new `/admin/visits/visitors?days=N&limit=N` endpoint unions signed-in accounts (grouped by user_id) with anonymous sessions (grouped by session_id) into one views-sorted list. Each row carries `type='user'|'anon'` plus the right identity fields (user_id + email/name/is_admin OR session_id + `anon-<8char>` label) with `last_country` + `last_city` hydrated from the most recent visit per bucket. `/admin/visits` frontend renders both in the same table — signed-in bold with Admin chip, anonymous muted with Anon chip, sorted by traffic weight (a heavy anon session outranks a low-view signed-in user, which is the point of the merged view). Legacy `/visits/by-user` kept as a fallback the frontend catches when the new endpoint 404s during a deploy race.
+    **(E) Pagination across every visits panel** — 7 rows per page with a compact `‹ 1 2 3 4 5 … 10 ›` bar (max 5 numeric buttons, first + last pinned, ellipsis for the middle gap). Reusable `<Pagination>` component + `paginate` / `totalPagesOf` / `pageWindow` utils. Window/scope changes reset every panel to page 1. Applied to Visitors · Top pages · Top referrers · Bot activity · Anonymous sessions · Recent activity.
+    **(F) UX polish stack**: `DailyBars` in the 7-day chart uses pixel-based heights (percentages inside a flex-1 parent resolved to 0px, leaving the strip visually empty), with view counts labeled above each bar (`h-28` container + `MAX_BAR_PX=68` reserves headroom). Panel loader switched to `Promise.allSettled` so one failing endpoint (typically a new route mid-deploy) doesn't blank the whole page. Scope toggle (All / Signed-in / Anonymous) now silently reloads only the Recent panel instead of triggering the whole loader — page no longer jumps back to the top mid-read. Full-screen spinner shows on first mount only (guarded via `hasLoadedOnceRef`) so window/scope changes keep previous data on screen. City column restored to Recent + Visitors tables (`US · Dallas` format, both mobile + desktop layouts).
+
 32. **JP catalog price coverage — 15k cards from "$?" to live** (2026-07-16) — TCGCSV's Pokemon Japan category (id 85) carries prices for ~448 groups but our JP catalog cards had `tcgplayer_product_id IS NULL` on 15,611 of 15,611 rows (100% blank) so the daily sync couldn't touch them. First attempt at a name-based join returned **11 matches out of 15,611** — root cause: our JP catalog stores JP names (`ストライク`) while TCGCSV's JP category stores EN names (`Scyther`), so string match is worse than random. Fixed by switching to number-based matching in `backfill_jp_card_tcgcsv_ids.py`: card number is language-invariant and unique within a printed set, so `number_int` on our side joins cleanly against TCGCSV's `extendedData.Number` (parsed with `_LEADING_INT_RE` to strip `NNN/YYY` and `NNa` variants). Match rate jumped to **15,408/15,611 (98.7%)** across **222 sets** — remaining 116 sets don't exist on TCGCSV at all (unreleased/early/sub-sets). Second failure: per-row `db.commit()` on 15k UPDATEs blew past the 45-min GH Actions timeout mid-run; refactored to per-SET batch commit (30-80 rows/set) — ~200x faster and preserves partial-recovery semantics if a run gets cancelled. Also patched `sync_tcgcsv_daily.py` to loop **both** category 3 (EN) and category 85 (JP) in one sync run (product IDs don't collide between categories so single `product_to_card` map still works). One-shot workflow `.github/workflows/backfill-jp-prices.yml` runs Phase 2 (backfill tcg_pid) then Phase 3 (first sync). Final numbers: Phase 2 cards_written=3,873 + cards_already=11,614 = 15,487 with tcg_pid; Phase 3 cards_refreshed=20,254 + snapshots_inserted=25,234 + group_errors=0. Verified live: SVHK 53/53 pid + 36 with price, S12a 100/100 sample + 100 with price, S8a top price $775 (Mew UR), S6a top $255 (Eevee Heroes Sylveon). Nightly TCGCSV sync now maintains both languages automatically.
 
 ---
@@ -636,8 +665,8 @@ Rough chronological summary of major work landed in this push:
 
 | Service | Purpose |
 |---|---|
-| Neon | Postgres database (Free tier, 512 MB) |
-| Render | Backend host (Free tier) |
+| Render Postgres | Postgres database (Basic-256mb $6/mo + 5 GB storage, Ohio internal DNS — replaced Neon 2026-07-13, see §11.23) |
+| Render | Backend host (Starter $7/mo — moved off Free tier alongside DB) |
 | Vercel | Frontend host (Free tier) |
 | Cloudflare | DNS for pulllist.org |
 | GitHub | Source + Actions cron |
@@ -647,11 +676,14 @@ Rough chronological summary of major work landed in this push:
 | Bulbapedia | JP rarity tables (CC-BY-SA-NC) |
 | japon-collection.com | JP set logos (SwSh era) |
 | PokéAPI | Multi-language Pokémon name index |
-| eBay Developer | Browse API for live listings + price snapshots |
-| Anthropic Console | Claude Haiku 4.5 (vision scanning) |
+| eBay Developer | Browse API for live listings + price snapshots (5k/day quota — Growth Check denied 2026-06-30) |
+| Anthropic Console | Claude Haiku 4.5 (vision scanning primary + newsbot generation) |
+| Google AI Studio | Gemini vision (A/B fallback endpoint for scan comparison) |
 | impact.com | TCGplayer affiliate (approved, 3.5%) |
 | eBay Partner Network | eBay affiliate (live, 1–4%, campaign 5339157076) |
+| Amazon Associates | Application paused pending F-1 → KR tax residence flip (2026-09) |
 | Google AdSense | Site verified (pub-9440218369165896), under review |
+| Lemon Squeezy | Pro tier MoR (Sprint 2 integration, launch aligned to 2026-09/10 KR return) |
 | PixelLab | Pixel-art mascots (MCP integrated) |
 
 ---
@@ -661,9 +693,13 @@ Rough chronological summary of major work landed in this push:
 PullList is a Pokémon TCG collector platform built for the global
 audience — English, Japanese, and Korean catalogs in one place — with
 daily-updated market data, per-variant collection tracking, cross-
-language card search, and a Bulk/Chase tier split that surfaces moves
-that actually matter. We charge nothing for the platform (ad-supported
-via AdSense + TCGplayer/eBay affiliate). A future Pro tier
-($5.99/mo via Lemon Squeezy) adds ad-free, alerts, deeper history, and
-CSV import. The moat is the multilingual catalog + market data quality
-the EN-first competitors don't bother with.
+language card search, Master-set binder tracking, sealed-inventory
+valuation, and a Bulk/Chase tier split that surfaces moves that
+actually matter. Free forever (ad-supported via AdSense + TCGplayer/
+eBay affiliate). A Pro tier launches 2026-09/10 via soft launch: Beta
+$3.99/mo for the first 100 Founding Members (permanent grandfather),
+then a data-driven official-price flip after 3-6mo. Pro adds ad-free,
+realtime Discord/Push/Email alerts, multi-grade prices, cross-market
+price gap, session management UI, and CSV import. The moat is the
+multilingual catalog + market-data quality the EN-first competitors
+don't bother with.

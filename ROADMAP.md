@@ -4,19 +4,51 @@
 > PROJECT_STATUS.md = "지금까지 만든 것" 스냅샷.
 > ROADMAP.md (이 파일) = "앞으로 할 것" 우선순위 + 결정 대기 사항.
 >
-> 마지막 큰 정리: 2026-06-27 (친구 베타 단계, Neon 80% transfer 사용 중)
+> 마지막 큰 정리: 2026-07-24 (Path F 소프트 런치 결정 · 인프라 Render Postgres 이관 완료)
 
 ---
 
 ## 0. 지금 우리 단계 한 줄
 
-**Friends-beta + Pre-Launch.** Render+Neon+Vercel 다 free tier, 9 유저 (친구 + organic 3명), AdSense 심사 중, 결제/유료화 미도입. 정식 오픈까지 디자인 + 알림 시스템 + Neon Launch 결제가 critical path.
+**Friends-beta + Pre-Launch.** Vercel free · Render Starter ($7) · Render Postgres Basic-256mb ($6) · 유저 소량, AdSense 심사 중. **Pro tier 는 Path F 소프트 런치 방식으로 확정** — 2026-09/10 (LO 한국 귀국 후) Beta $3.99 · 첫 100명 Founding Members · 3-6개월 Beta 후 정식 가격 결정 (`docs/service-strategy/pricing.md §2.0`). Critical path: SEO Fix Pack (한글 인덱싱 진입) · 알림 시스템 · Lemon Squeezy 통합 (Sprint 2, 9월 이후).
 
 ---
 
 ## 1. 이번 주 ~ 다음 주 (Top 5 Priority)
 
 이게 가장 ROI 좋은 5개. 다른 거 보지 말고 위에서 아래로 진행 추천.
+
+**2026-07-24 재정렬**: 아래 오래된 Top 5 (§1 #1-#5) 중 **#5 Cross-Market 갭 배너** 는 여전히 유효하지만 나머지는 이미 shipped 되었거나 우선순위 재검토 대상. 아래는 새 Top 5.
+
+### ★ #NEW-1. SEO Fix Pack — 반나절 ⚡⚡ 가장 급함
+- **무엇**: 한글 "풀리스트" 검색이 완전 미인덱싱. 4-part 수정: (a) `layout.tsx` metadata 에 한글 브랜드명 병기 (title · description · keywords), (b) JSON-LD Structured Data (`Organization` + `WebSite` schema · `alternateName: ["풀리스트", "Pulllist"]`), (c) hreflang 태그 (`en` · `ko` · `ja` · `x-default`), (d) 홈페이지 hero + Footer + About 에 "풀리스트" 자연 노출.
+- **왜**: Path F 소프트 런치 (2026-09/10) 유입 채널 열기. 한글 유저 검색 진입 없이는 Founding Members 100명 채우기 어려움. 영문 "Pulllist" 검색은 이미 2위 (SERP 확인 완료).
+- **레이어**: 프론트만 (`app/layout.tsx` · `robots.ts` · `page.tsx` · `about/page.tsx` · `Footer.tsx`).
+- **Blocker**: 다국어 라우팅 결정 (`/ko/...` 서브패스 vs `?lang=ko` vs 자동감지). 이거 30초 결정하면 spawn 가능.
+
+### ★ #NEW-2. Path F 소프트 런치 인프라 준비 — 2026-08/09
+- **무엇**: `/pricing` 페이지 UI (docs/service-strategy 반영) · Lemon Squeezy 통합 스펙 · Pro tier gating 미들웨어 · Founding Members 뱃지 · Beta 가격 $3.99/월 결제 링크.
+- **왜**: 2026-09/10 런치 시점 백지 상태로 시작 안 하도록 사전 준비. 코드는 미리, 결제 링크 활성화만 나중.
+- **Blocker**: LO 한국 귀국 · KR 사업자등록 · Amazon Associates 재신청 (W-8BEN).
+
+### ★ #NEW-3. Free 유저 원가 최적화 — 반나절
+- **무엇**: (a) Neon 쿼리 캐싱 (카드 페이지 → Redis / Vercel edge cache), (b) Vercel 이미지 CDN 최적화, (c) 스캔 quota strict enforcement (현재 UI 만 5/일, 백엔드 미강제).
+- **왜**: 현재 Free 유저 원가 $0.25/월 vs 광고 매출 $0.05-$1.00/월 → **자체 마이너스 잠재**. 이거 $0.10 이하로 낮추면 정식 가격 C ($4.99) 옵션 되살아남 (`pricing.md §0.5.7 Case 4`).
+- **레이어**: 백엔드 + 프론트 인프라. Neon 쿼리 캐시가 가장 임팩트 큼.
+
+### ★ #NEW-4. eBay Growth Check 재도전 — 2026-07-10 마감 지남, 재판단 필요
+- **무엇**: eBay Growth Check 재신청. 승인 시 quota 5k → 30-50k/day → Pro 실시간 알림 폴링 5분 가능.
+- **왜**: Pro 마케팅 문구 "실시간 알림" 이 이 quota 에 의존. 실패 시 30분 폴링으로 downgrade.
+- **상태**: 기한 지남 (7/10) → LO 재도전 여부 판단 필요. EPN 실적 데이터 · 티어 3-옵션 제안 등 앵글 준비.
+
+### ★ #NEW-5. Cross-Market 갭 배너 (남은 옛 Top 5 항목)
+- **무엇**: 원 §1 #5 참조. 카드 디테일 페이지 "🇰🇷 ₩X / 🇯🇵 ¥Y / 🇺🇸 $Z · 최대 75% 차이" 배너.
+- **왜**: 우리만의 강력한 USP · JP 가격 데이터 (§10.7) 붙는 순간 unblock.
+- **Blocker**: JP 가격 소스 (§10.7) 붙이기 필요.
+
+---
+
+## 1-B. 이전 Top 5 (참조용 · 대부분 완료 or 우선순위 하락)
 
 ### #1. 30d 통계 위젯 — 1.5시간 ⚡
 - **무엇**: 카드 디테일 페이지에 작은 위젯 — "30일 최저 / 평균 / 최고 / 변동성".
@@ -70,20 +102,11 @@
 - **레이어**: 백엔드 (PaddleOCR Python lib + matching 로직). Neon 무관, CPU 사용.
 - **작업**: 1-2일
 
-### #8. Sealed 카탈로그 ingest + UI — 2-3일
-- **무엇**: 박스 / ETB / 부스터 번들 / 틴 / 핀 컬렉션 등 sealed 상품도 카드처럼 카탈로그 + 가격 추적.
-- **왜**: Collectory 검증된 segment + TCGCSV에 이미 sealed 데이터 있음. 우리 디테일 페이지 모델 거의 재사용.
-- **레이어**:
-  - 백엔드: `SealedProduct` 모델 + `migrate_sealed_products.py` + TCGCSV ingest 스크립트
-  - 프론트: `/sealed` 페이지 + 디테일 페이지
-- **DB 부담**: 1,500-2,500 sealed row 추가 (카드 31k 대비 미미)
-- **작업**: 2-3일
+### #8. Sealed 카탈로그 ingest + UI — 2-3일 ✅ (2026-07-13, PROJECT_STATUS §11.28)
+- **완료**: `SealedProduct` 모델 + `sealed_collection_items` + `sealed_wishlist_items` + `product_price_snapshots` + `/products` + `/products/{id}` + `/products/set/{id}/list` + `/sealed/collection` + `/sealed/wishlist` + `/portfolio/sealed` 탭 + `ProductPriceChart`. Coverage 39 세트 / 963 SKU (SV/SWSH era 다). A/B/C/E/G 배포됨 (2026-07-13). 남은 것: D (딜 알람 · Resend 이메일 인프라 후) + F (UI 재정비 우선순위 낮음).
 
-### #9. Multi-Grade 가격 분해 — 3-4시간
-- **무엇**: 카드별 Raw / PSA 10 / PSA 9 / BGS 9.5 등 grade-tier별 median 가격 + 최근 매물 별도 표시.
-- **왜**: 컬렉터의 grading 결정 핵심 데이터. Collectory의 가장 강한 기능.
-- **레이어**: 백엔드 (eBay listing title regex로 grade 추출 → tier별 aggregate) + 프론트 (디테일 페이지 새 섹션)
-- **출처**: Collectory 파쿠리 Tier B.
+### #9. Multi-Grade 가격 분해 — ✅ (2026-07-13/20, PROJECT_STATUS §11.24-25, §11.30-35)
+- **완료**: `card_price_snapshots.grade` 컬럼 + `grade_classifier.py` + Phase 2 (raw + PSA 10 fanout) + Phase 2e (요일별 4-tier rotation: PSA 10 / CGC 10 / PSA 9 / CGC 9) + `GET /cards/{id}/graded-prices` + `GradedPricesGrid.tsx`. §11.30 (Playwright + `LH_Sold=1` eBay sold pipeline) + §11.31 (asking fallback + BGS/TAG 지원 · 총 10 tier + user Refresh 버튼) + §11.33 (5-issue hardening + Round 4 sweep) + §11.34 (BGS/TAG recall lift + set-page consensus fix + Round 5+6) + §11.35 (그레이드 슬라브 밸류에이션 vault-wide). 1,694 snapshots across ~2,000 EN cards (~73% of $25+ chase pool).
 - **UX 참조 (LO 2026-07-07 스샷)**:
   - `Price History` 카드 상단에 grade + currency 드롭다운 — 옵션: `Raw Market (USD)`, `Raw Market (EUR)`, `PSA 10 (USD)`, `PSA 10 (EUR)`, `PSA 9 (USD)`, `PSA 9 (EUR)`, `CGC 10 (USD)`, `CGC 10 (EUR)`, `CGC 9 (USD)`, `CGC 9 (EUR)`.
   - 히스토리 라인 차트: 45일 정도 스팬 (May 24 → Jul 6), y축 $0 → $240+ 자동 스케일. 밑에 "Latest: 231.65 USD / Tcgplayer / Holofoil" 서브라인.
@@ -425,14 +448,19 @@ Sealed 카탈로그 (#8) 이후 후속 개선 리스트. LO 픽 순서대로 진
 
 | 결정 | 옵션 | 영향 |
 |---|---|---|
-| 이번 주 작업 시작 — Top 5 중 어디부터? | #1 30d 통계 / #2 Cross-set / #3 Release / #4 Hash 캐시 / #5 Cross-market | 작업 1.5-3시간 |
-| 알림 첫 채널 | 인앱 벨 단독 / 인앱 벨 + Discord 동시 | 작업 1일 차이 |
-| 친구 베타 strict gating | invite code (조여서 출시 전 닫기) / organic 허용 (현재) | 작업 2-3시간 |
-| 쿠팡 파트너스 가입 | LO 자격 있음 → 가입 시작 / 없음 → 스킵 | KR 수익화 채널 |
-| Neon Launch upgrade 시점 | 지금 / Notification 직전 / transfer 한도 진짜 터질 때 | $19/월 결제 시작 시점 |
-| Sealed 위시리스트 통합 방식 | `target_type` 컬럼 (단일 테이블) / WishlistItemCard + WishlistItemSealed 분리 | 코드 구조 차이 |
-| v0/Variant 디자인 픽 | 결과 받으면 어느 컨셉 갈지 | 사이트 톤 정착 |
-| 차트 안정화 대상 | LO가 어느 차트의 어떤 문제인지 알려줘야 진행 가능 | 작업 범위 |
+| **다국어 라우팅 (SEO Fix Pack blocker)** | `/ko/...` 서브패스 / `?lang=ko` 쿼리 / 브라우저 자동감지 | SEO 진입 · 한글 인덱싱 |
+| **eBay Growth Check 재도전** | 지금 재신청 / Fallback (5k quota 유지) | Pro 실시간 알림 5min vs 30min 마케팅 문구 |
+| **쿠팡 파트너스 가입** | LO 사업자 자격 있음 → 가입 시작 / 없음 → 9월 귀국 후 | KR 수익화 채널 |
+| **Sealed 위시리스트 통합 방식** | `target_type` 컬럼 (단일 테이블) / WishlistItemCard + WishlistItemSealed 분리 | 코드 구조 차이 |
+| **v0/Variant 디자인 픽** | 결과 받으면 어느 컨셉 갈지 | 사이트 톤 정착 |
+| **차트 안정화 대상** | LO가 어느 차트의 어떤 문제인지 알려줘야 진행 가능 | 작업 범위 |
+| **Path F Tier 2 결정 18개** (`docs/service-strategy/`) | Beta 데이터 나올 때까지 유예 가능 · Pro 스캔 상한 · Multi-portfolio · VIP 인사이트 · 3티어 검토 · Sealed gate · 지역 가격 · 트라이얼 · 마이크로 결제 · 환불 · 학생 할인 · onboarding flow | Beta 후 정식 가격 확정 시 근거 |
+
+**결정 이미 확정** (참고 · docs 반영 완료):
+- ~~알림 첫 채널~~ → 인앱 벨 (Free) + Discord Phase 1 웹훅 (Pro) + Bot DM Phase 2 (`tier-design.md §3`)
+- ~~친구 베타 strict gating~~ → organic 허용 (현재 상태 유지)
+- ~~Neon Launch upgrade 시점~~ → Neon 자체 폐기, Render Postgres 이관 (§11.23)
+- ~~Pro 가격 오늘 확정~~ → Path F 소프트 런치 방식 (Beta $3.99 → 3-6개월 후 데이터 기반 결정)
 
 ---
 
@@ -440,14 +468,16 @@ Sealed 카탈로그 (#8) 이후 후속 개선 리스트. LO 픽 순서대로 진
 
 | 메트릭 | 현재 | 임계 | 확인 주기 |
 |---|---|---|---|
-| Neon transfer / 5 GB | 80% | 90%에서 Launch upgrade | 주 1회 |
-| Neon storage / 0.5 GB | 56% | 80%에서 정리 / upgrade | 주 1회 |
-| Neon compute / 100 CU-hrs | 55% | 80%에서 worry | 주 1회 |
-| eBay quota / 5,000/day | ~3,500 | Mon+Thu만 사용 중 | 매주 |
-| 총 유저 | 9 | 100 도달 시 정식 오픈 준비 | 매일 visit dashboard |
-| 일일 unique 방문 | (집계 시작) | 100+ 되면 SEO 영향 분석 | `/admin/visits` |
-| 스캔 비용 (Claude Haiku) | < $5/월 | $50/월 도달 시 OCR 도입 | 월 1회 |
-| GitHub Actions 사용 시간 | < 100분/월 | 1,500분/월 free 이내 | 월 1회 |
+| Render Postgres storage / 5 GB | (Neon 대비 여유 · 2026-07-13 이관) | 80%에서 검토 | 월 1회 |
+| Render backend cold-start | Starter tier (없음) | — | — |
+| eBay Browse API quota / 5,000/day | 5-tier rotation 중 (일마다 grade 다름) | Growth Check 통과 시 30-50k | 매주 |
+| eBay sold-scrape 커버리지 | ~2,000/2,757 chase cards (~73%) | 나머지 유저 Refresh 로 커버 | 월 1회 |
+| **총 유저** | (visit dashboard 재확인) | **100 Founding Members 도달 = Beta 정식 스코프** | 매일 `/admin/visits` |
+| **일일 unique 방문** | (Bot 트래픽 device='bot' 분리, bot_name 태깅 시작) | 100+ 되면 SEO 영향 분석 | `/admin/visits` |
+| **Bot activity (`/admin/visits/bots`)** | 24h 후 데이터 첫 확인 | SEO 크롤러 · LLM 봇 비율 | 주 1회 |
+| 스캔 비용 (Claude Haiku 4.5) | < $5/월 | $50/월 도달 시 OCR pre-pass (§2 #7) | 월 1회 |
+| GitHub Actions 사용 시간 | 지금 private repo (2000분/월 free) | public flip 검토 시 unlimited | 월 1회 |
+| **Path F Beta 지표** (2026-09/10 런치 후) | (미시작) | 컨버전 5-10% · churn <10% · 년간 25%+ · Pro-hook 실사용 60% · Free 원가 $0.10 이하 (`pricing.md §2.0.3`) | Beta 기간 매주 |
 
 ---
 
@@ -488,4 +518,4 @@ LO가 명시적으로 제외한 작업 — 다시 제안하지 말 것:
 
 ---
 
-*Generated 2026-06-27. Auto-update when major milestones flip.*
+*Last regenerated 2026-07-24 (Path F 소프트 런치 결정 · Render Postgres 이관 · bot detection + visits dashboard shipped). Auto-update when major milestones flip.*
