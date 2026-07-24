@@ -37,6 +37,11 @@ export async function POST(req: Request): Promise<NextResponse> {
   const country = h.get("x-vercel-ip-country");
   const region = h.get("x-vercel-ip-country-region");
   const city = h.get("x-vercel-ip-city");
+  // Forward the real client UA so backend bot detection
+  // (app.services.bot_detect) can classify crawlers. Without this,
+  // fetch() uses Node's default 'undici' UA and every visit looks the
+  // same to the backend — bot_name would stay null forever.
+  const userAgent = h.get("user-agent") ?? "";
 
   const token = (await cookies()).get(TOKEN_COOKIE)?.value;
 
@@ -56,6 +61,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "User-Agent": userAgent,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(payload),
