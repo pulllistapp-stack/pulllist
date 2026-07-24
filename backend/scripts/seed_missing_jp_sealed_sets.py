@@ -83,10 +83,33 @@ _SETS: list[dict] = [
         "release_date": date(2023, 11, 10),
         "printed_total": 34,
         "total": 34,
-        # Anniversary "Classic" set — a premium 3-deck reprint release
-        # (Charizard / Blastoise / Venusaur). Only the Charizard variant
-        # currently has a sealed SKU on TCGCSV, so we seed CLL alone;
-        # CLV / CLF can be added when they get sealed listings.
+        # Anniversary "Classic" set — a premium 3-deck reprint release.
+        # The Charizard/Blastoise/Venusaur variants each carry their own
+        # TCGCSV group (CLL/CLV/CLF) so we seed all three as sibling
+        # DECK stubs so ingest_jp_sealed can attach each variant's
+        # sealed SKU to its own tile.
+    },
+    {
+        "id": "CLV",
+        "name": "ポケモンカードゲーム クラシック カメックス",
+        "name_en": "Pokemon Card Game Classic: Blastoise",
+        "series": "Classic",
+        "set_type": "DECK",
+        "set_subtype": "SPECIAL",
+        "release_date": date(2023, 11, 10),
+        "printed_total": 34,
+        "total": 34,
+    },
+    {
+        "id": "CLF",
+        "name": "ポケモンカードゲーム クラシック フシギバナ",
+        "name_en": "Pokemon Card Game Classic: Venusaur",
+        "series": "Classic",
+        "set_type": "DECK",
+        "set_subtype": "SPECIAL",
+        "release_date": date(2023, 11, 10),
+        "printed_total": 34,
+        "total": 34,
     },
     {
         "id": "NPF1",
@@ -100,7 +123,30 @@ _SETS: list[dict] = [
         "total": 9,
         # Vintage 2001 premium collector's file with 9 unnumbered
         # Neo-era promo cards. Sealed file is the collectible; the
-        # cards go under it (not seeded here).
+        # cards go under it (not seeded here). NPF2/NPF3 follow the
+        # same shape — file 2 (2001-11) and file 3 (2002-06).
+    },
+    {
+        "id": "NPF2",
+        "name": "ネオプレミアムファイル2",
+        "name_en": "Neo Premium File 2",
+        "series": "Neo",
+        "set_type": "PROMO_LEGACY",
+        "set_subtype": None,
+        "release_date": date(2001, 11, 1),
+        "printed_total": 9,
+        "total": 9,
+    },
+    {
+        "id": "NPF3",
+        "name": "ネオプレミアムファイル3",
+        "name_en": "Neo Premium File 3",
+        "series": "Neo",
+        "set_type": "PROMO_LEGACY",
+        "set_subtype": None,
+        "release_date": date(2002, 6, 1),
+        "printed_total": 9,
+        "total": 9,
     },
     {
         "id": "PtA-GF",

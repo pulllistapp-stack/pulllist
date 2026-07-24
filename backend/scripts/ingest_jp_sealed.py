@@ -120,11 +120,34 @@ _PACKS_PER_TYPE: dict[str, int | None] = {
 }
 
 
+# TCGCSV extendedData keys that appear only on single-card products,
+# never on sealed. Any of these on a product marks it as a card so the
+# ingest skips it — union of modern-JP fields and vintage-JP fields
+# (ancient sets like Southern Island / PMCG carry HP/CardType/Rarity
+# but not "Number", so the union catches both eras).
+_CARD_ATTR_KEYS = {
+    "Number", "HP", "CardType", "Attack 1", "Attack 2",
+    "Retreat Cost", "Stage", "Weakness", "Resistance",
+    "Rarity", "Flavor Text",
+}
+
+
 def _classify_type(name: str) -> str:
     for tag, pattern in _TYPE_RULES:
         if pattern.search(name):
             return tag
     return "other"
+
+
+def _is_sealed_product(name: str, extended_data: list[dict]) -> bool:
+    """True if this TCGCSV product looks like a sealed SKU (box, deck,
+    kit, tin, ...) rather than a single card. Mirrors the classifier
+    used by the ingest loop so `--report-gaps` counts the same way."""
+    if any(e.get("name") in _CARD_ATTR_KEYS for e in extended_data):
+        return False
+    if not extended_data and not _looks_sealed(name):
+        return False
+    return True
 
 
 def _looks_sealed(name: str) -> bool:
@@ -217,6 +240,12 @@ _TCGCSV_ALIASES: dict[str, str] = {
 _GROUP_ID_OVERRIDES: dict[int, str] = {
     24054: "PtA-GF",  # Pt Arceus LV.X Deck: Grass & Fire
     24055: "PtA-LP",  # Pt Arceus LV.X Deck: Lightning & Psychic
+    # TCGCSV kept two duplicate entries for the Pt Arceus LV.X decks
+    # under different groupIds (Aug 2024 re-list). Both point at the
+    # same physical product line; route each to the same PullList
+    # set so their price rows survive whichever pass ingests first.
+    24002: "PtA-GF",  # Pt: Arceus LV.X Deck: Grass & Fire (dup)
+    24003: "PtA-LP",  # Pt: Arceus LV.X Deck: Lightning & Psychic (dup)
 }
 
 
@@ -242,6 +271,7 @@ async def _build_set_map() -> dict[str, str]:
 async def ingest(
     only_abbr: str | None,
     dry_run: bool,
+    report_gaps: bool = False,
 ) -> None:
     await init_db()
     set_map = await _build_set_map()
@@ -256,8 +286,10 @@ async def ingest(
         # reused across multiple groups, e.g., "Pt" fronts every Pt
         # deck and expansion), (2) abbreviation map (base match +
         # hand-curated aliases). Empty-abbr groups without an override
-        # are skipped — no way to route them.
+        # can't route to a set on their own — collected into
+        # `unmatched` so `--report-gaps` can rank them by sealed count.
         candidates: list[tuple[dict, str]] = []
+        unmatched: list[tuple[dict, str]] = []  # (group, reason)
         for g in groups:
             abbr = (g.get("abbreviation") or "").strip()
             gid = g.get("groupId")
@@ -271,12 +303,60 @@ async def ingest(
                 continue
 
             if not abbr:
+                unmatched.append((g, "empty-abbr"))
                 continue
             our_set = set_map.get(abbr.lower())
             if our_set is None:
+                unmatched.append((g, "no-matching-set"))
                 continue
             candidates.append((g, our_set))
-        log.info(f"matched groups to process: {len(candidates)}")
+        log.info(
+            f"matched groups to process: {len(candidates)}  "
+            f"(unmatched: {len(unmatched)})"
+        )
+
+        if report_gaps:
+            # Diagnostic-only path: walk every unmatched group,
+            # count sealed SKUs, and print groups worth adding an
+            # alias / override / stub set for. Sorted by sealed
+            # count descending so LO can triage top-value gaps
+            # first. No DB writes.
+            log.info("=== gap report — unmatched groups with sealed SKUs ===")
+            gap_rows: list[tuple[int, dict, str]] = []
+            for g, reason in unmatched:
+                try:
+                    products = await _fetch(
+                        client, f"{g['groupId']}/products"
+                    )
+                except Exception as exc:
+                    log.warning(
+                        f"  fetch failed for gid={g['groupId']}: {exc}"
+                    )
+                    continue
+                sealed = sum(
+                    1
+                    for p in products
+                    if _is_sealed_product(
+                        p.get("name") or "", p.get("extendedData") or []
+                    )
+                )
+                if sealed > 0:
+                    gap_rows.append((sealed, g, reason))
+            gap_rows.sort(key=lambda r: (-r[0], r[1].get("name") or ""))
+            log.info(
+                f"  {len(gap_rows)} unmatched groups carry sealed SKUs "
+                f"(of {len(unmatched)} unmatched total)"
+            )
+            for sealed, g, reason in gap_rows:
+                abbr = g.get("abbreviation") or "(empty)"
+                gid = g.get("groupId")
+                name = g.get("name") or ""
+                log.info(
+                    f"  sealed={sealed:3d}  abbr={abbr:12s}  "
+                    f"gid={gid:6d}  reason={reason:16s}  {name[:70]}"
+                )
+            log.info("=== end gap report — no writes ===")
+            return
 
         totals = {
             "groups_processed": 0,
@@ -319,29 +399,10 @@ async def ingest(
                     tcg_pid = p.get("productId")
                     if tcg_pid is None or not name:
                         continue
-                    # Primary filter: any TCGCSV extendedData attribute
-                    # that describes a card's rules text (HP, attack,
-                    # retreat cost, etc.) marks it as a single card,
-                    # not sealed. Modern JP cards carry "Number"; the
-                    # vintage sets (Southern Island, PMCG-era) carry
-                    # "HP" / "CardType" / "Attack 1" / "Rarity" but no
-                    # "Number". Union of both catches everything.
-                    _CARD_ATTR_KEYS = {
-                        "Number", "HP", "CardType", "Attack 1", "Attack 2",
-                        "Retreat Cost", "Stage", "Weakness", "Resistance",
-                        "Rarity", "Flavor Text",
-                    }
+                    # Delegate to the shared classifier hoisted to
+                    # module scope — same rules as `--report-gaps`.
                     ext = p.get("extendedData") or []
-                    is_card = any(
-                        e.get("name") in _CARD_ATTR_KEYS for e in ext
-                    )
-                    if is_card:
-                        totals["singles_skipped"] += 1
-                        continue
-                    # Secondary guard for the rare product that ships
-                    # without extendedData at all (mostly ancient promo
-                    # groups) — fall back to the name-based heuristic.
-                    if not ext and not _looks_sealed(name):
+                    if not _is_sealed_product(name, ext):
                         totals["singles_skipped"] += 1
                         continue
                     totals["sealed_found"] += 1
@@ -406,8 +467,17 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--only", help="limit to a single TCGCSV abbreviation, e.g. SV11B")
+    p.add_argument(
+        "--report-gaps",
+        action="store_true",
+        help=(
+            "Diagnostic: list every TCGCSV JP group that carries sealed "
+            "SKUs but doesn't route to a PullList set (candidates for a "
+            "new alias / groupId override / seeded stub). No writes."
+        ),
+    )
     args = p.parse_args()
-    asyncio.run(ingest(args.only, args.dry_run))
+    asyncio.run(ingest(args.only, args.dry_run, args.report_gaps))
 
 
 if __name__ == "__main__":

@@ -22,6 +22,10 @@ on:
         description: "Limit to a single TCGCSV abbreviation (e.g. SV11B). Blank = all matched groups."
         required: false
         default: ""
+      report_gaps:
+        description: "Diagnostic: list unmatched TCGCSV groups with sealed SKUs (no writes; skips seeding steps)."
+        required: false
+        default: "false"
 
 jobs:
   ingest:
@@ -44,11 +48,12 @@ jobs:
 
       - name: Seed missing JP set stubs
         # Idempotent — creates the sealed-focused stub sets that don't
-        # yet exist (SBC, JPP-M, CLL, NPF1, PtA-GF/LP, S8a-P, S8a-G)
+        # yet exist (SBC, JPP-M, CLL/CLV/CLF, NPF1/NPF2/NPF3, PtA-GF/LP)
         # so the ingest step below can attach their sealed SKUs.
-        # Skipped when `only` scopes the ingest to a single abbr —
-        # seeding is only relevant to the full-catalog pass.
-        if: inputs.only == ''
+        # Skipped when `only` scopes the ingest to a single abbr, or
+        # when running in report-gaps mode (diagnostic-only) — seeding
+        # is only relevant to the full-catalog write pass.
+        if: inputs.only == '' && inputs.report_gaps != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -67,7 +72,7 @@ jobs:
         # (30 base + 25 promo + 15 golden). The card-import step below
         # then re-imports the promo+golden groups directly into S8a
         # with number prefixes "P" and "G".
-        if: inputs.only == ''
+        if: inputs.only == '' && inputs.report_gaps != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -82,7 +87,7 @@ jobs:
         # an earlier import pass with a strict-suffix regex, and lifts
         # sets.S8a.total from 28 → 30 to include the SR + UR secrets.
         # Idempotent no-op on subsequent runs.
-        if: inputs.only == ''
+        if: inputs.only == '' && inputs.report_gaps != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -100,7 +105,7 @@ jobs:
         # backfills alongside any refreshed prices on the other 29.
         # Idempotent: existing cards get an UPDATE only when a field
         # changes; new ones are inserted.
-        if: inputs.only == ''
+        if: inputs.only == '' && inputs.report_gaps != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -116,7 +121,7 @@ jobs:
         # correctly-sized TCGCSV URLs so quality never regresses below
         # 400w even if the Bulbapedia HD restore below misses a card.
         # Idempotent; no-op after first successful run.
-        if: inputs.only == ''
+        if: inputs.only == '' && inputs.report_gaps != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -143,7 +148,7 @@ jobs:
         # CDN, so this step replaces those 29 URLs with the JP versions.
         # Mew UR #30 + S8a-P{1-25} + S8a-G{1-15} stay on the Bulbapedia
         # URLs — Limitless doesn't have them.
-        if: inputs.only == ''
+        if: inputs.only == '' && inputs.report_gaps != 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -164,5 +169,8 @@ jobs:
           fi
           if [ -n "${{ inputs.only }}" ]; then
             args="$args --only ${{ inputs.only }}"
+          fi
+          if [ "${{ inputs.report_gaps }}" = "true" ]; then
+            args="$args --report-gaps"
           fi
           python -m scripts.ingest_jp_sealed $args
