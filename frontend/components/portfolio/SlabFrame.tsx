@@ -133,18 +133,19 @@ const EMBLEM_INVERT: Record<SlabStyle, boolean> = {
 // visible at a size users can read.
 export const SERVICE_LOGO: Record<GradeService, string> = {
   PSA: "/graders/psa.png",
-  BGS: "/graders/bgs.png",
+  BGS: "/graders/bgs.svg",
   CGC: "/graders/cgc.png",
   TAG: "/graders/tag.png",
 };
 
-// Per-grader caption pill background. BGS's silver-on-transparent
-// lockup disappears entirely on light-mode UI, so it needs an
-// explicit dark backing. PSA/CGC/TAG carry their own opaque brands
-// (red-on-white / colored / black-rectangle) and read fine bare.
+// Per-grader caption pill background. BGS's official Beckett SVG is
+// solid #1C1B1E dark text on transparent — it becomes invisible on
+// the dark theme, so a light pill wraps it. TAG carries a black
+// rectangle already; PSA/CGC render on their own opaque brand chrome
+// so they stay bare.
 export const SERVICE_LOGO_PILL_CLASS: Record<GradeService, string> = {
   PSA: "",
-  BGS: "bg-neutral-900 rounded px-1.5",
+  BGS: "bg-white rounded px-1.5",
   CGC: "",
   TAG: "",
 };
