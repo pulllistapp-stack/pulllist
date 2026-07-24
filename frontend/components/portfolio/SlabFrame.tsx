@@ -76,20 +76,16 @@ export const FRAME_META: Record<
   bgs: {
     src: "/slab-frame-bgs.png",
     aspectRatio: "797 / 1344",
-    flip: { top: "3.5%", left: "20%", right: "17%", height: "13%" },
-    card: { top: "24%", left: "13.5%", right: "13.5%", bottom: "10%" },
+    flip: { top: "7%", left: "24%", right: "9.5%", height: "12%" },
+    card: { top: "22%", left: "3.5%", right: "5%", bottom: "8.5%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
     flipTone: "on-gold",
   },
   psa: {
     src: "/slab-frame-psa.png",
     aspectRatio: "816 / 1285",
-    // Frame-2 flip well physically sits toward the upper-LEFT of the
-    // PNG, but the label rect ends around 58% of the frame width. Push
-    // the overlay right + tighten it so the grade badge stops spilling
-    // past the physical red-border rectangle.
-    flip: { top: "4.5%", left: "10%", right: "40%", height: "14%" },
-    card: { top: "24%", left: "11%", right: "11%", bottom: "5%" },
+    flip: { top: "4%", left: "10%", right: "11%", height: "14%" },
+    card: { top: "20%", left: "1.5%", right: "2.5%", bottom: "2%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
     flipTone: "on-white",
   },
@@ -97,16 +93,25 @@ export const FRAME_META: Record<
     // Third frame — minimal transparent acrylic with black wells. Flip
     // well sits top-left as a compact rectangle; card well fills most
     // of the interior. Both wells have dark backgrounds so the flip
-    // text needs light-on-dark tone rendering. Source image is
-    // 800×1328; using the exact ratio (not the 5/8 approximation)
-    // keeps % coords from drifting a hair on retina renders.
+    // text needs light-on-dark tone rendering.
     src: "/slab-frame-clean.png",
-    aspectRatio: "800 / 1328",
-    flip: { top: "5%", left: "5%", right: "50%", height: "12%" },
+    aspectRatio: "5 / 8",
+    flip: { top: "7%", left: "12.5%", right: "11%", height: "14.5%" },
     card: { top: "22%", left: "5%", right: "5%", bottom: "3%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
     flipTone: "on-black",
   },
+};
+
+// Emblem inversion — PSA slab keeps the original black silhouette
+// (reads well on the cream-colored PSA flip and clear acrylic body);
+// BGS + Clean have darker slab tones so we invert to white via CSS
+// filter. The source PNG stays one file — the invert happens per
+// render based on the active style.
+const EMBLEM_INVERT: Record<SlabStyle, boolean> = {
+  bgs: true,
+  psa: false,
+  clean: true,
 };
 
 // Grader accent — badge outline + perfect-10 halo tint.
@@ -221,8 +226,17 @@ export function SlabFrame({
       )}
 
       {/* Flip label overlay — year/set + grade badge */}
+      {/* Flip content — two visually distinct boxes side by side inside
+          the flip well:
+          - LEFT: card info box (year/set + card name, card name wraps
+            to 2 lines if too long — no more mid-name truncation like
+            "MEGA CHARIZA…").
+          - RIGHT: grade+service badge box with its own background/
+            border so it reads as a separate "certification stamp".
+          Both are noticeably larger than the previous inline row —
+          the flip well is wide enough to afford the extra bulk. */}
       <div
-        className="absolute flex items-center gap-2 px-2"
+        className="absolute flex items-stretch gap-1.5 p-1"
         style={{
           top: flipRect.top,
           left: flipRect.left,
@@ -231,55 +245,70 @@ export function SlabFrame({
           zIndex: 3,
         }}
       >
-        <div className="flex flex-col justify-center min-w-0 flex-1 gap-0.5">
+        <div
+          className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-sm"
+          style={{
+            background:
+              meta.flipTone === "on-black"
+                ? "rgba(20, 20, 24, 0.55)"
+                : meta.flipTone === "on-gold"
+                ? "rgba(255, 250, 235, 0.35)"
+                : "rgba(255, 255, 255, 0.6)",
+            boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.08)",
+          }}
+        >
           <span
-            className="font-mono text-[6px] uppercase tracking-[0.1em] truncate leading-none"
+            className="font-mono text-[7.5px] uppercase tracking-[0.1em] truncate leading-none"
             style={{ color: flipMutedColor }}
           >
             {yearSet}
           </span>
           <span
-            className="font-bold text-[8.5px] uppercase truncate leading-tight"
+            className="font-bold text-[11px] uppercase leading-tight overflow-hidden"
             style={{
               color: flipTextColor,
               fontFamily: "'Bodoni Moda', Georgia, serif",
               letterSpacing: "-0.005em",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              wordBreak: "break-word",
             }}
           >
             {cardName}
           </span>
         </div>
         <div
-          className="flex flex-col items-center justify-center rounded-sm shrink-0"
+          className="flex flex-col items-center justify-center rounded-sm shrink-0 px-2"
           style={{
             background: "#101013",
             color: accent,
-            boxShadow: `inset 0 0 0 1px ${accent}, 0 0 5px -3px ${accent}`,
-            minWidth: "28px",
-            padding: "2px 5px 3px",
+            boxShadow: `inset 0 0 0 1.5px ${accent}, 0 0 6px -3px ${accent}`,
+            minWidth: "38px",
+            padding: "3px 8px 4px",
           }}
         >
           <span
-            className="font-bold text-[5.5px] tracking-[0.18em] leading-none"
+            className="font-bold text-[7px] tracking-[0.2em] leading-none"
             style={{ color: accent }}
           >
             {service}
           </span>
           <span
-            className="font-bold text-[13px] leading-none tabular-nums"
+            className="font-bold text-[17px] leading-none tabular-nums"
             style={{
               color: accent,
               fontFamily: "'Bodoni Moda', Georgia, serif",
               letterSpacing: "-0.02em",
-              marginTop: "1.5px",
+              marginTop: "2px",
             }}
           >
             {grade}
           </span>
           {suffix && (
             <span
-              className="text-[4.5px] tracking-[0.14em] uppercase leading-none opacity-80"
-              style={{ color: accent, marginTop: "1.5px" }}
+              className="text-[6px] tracking-[0.14em] uppercase leading-none opacity-85"
+              style={{ color: accent, marginTop: "2px" }}
             >
               {suffix}
             </span>
@@ -296,11 +325,10 @@ export function SlabFrame({
           BGS-specific frame gains a dedicated subgrade strip. */}
 
       {/* Brand emblem — PullList mascot silhouette in the bottom-left
-          "manufacturer mark" corner. Shared across all three frame
-          styles; the source PNG is a solid-black silhouette so it
-          reads on gold + red-white + black frame surfaces without any
-          per-style recolor. When we swap to per-style color variants
-          later, extend FRAME_META.emblem with `src` and switch here. */}
+          "manufacturer mark" corner. Single source PNG (solid black
+          silhouette on transparent); per-style CSS filter flips it to
+          white on the darker frames (BGS textured / Clean black wells)
+          while PSA keeps the original black on its cream+clear body. */}
       <div
         className="absolute pointer-events-none"
         style={{
@@ -309,6 +337,7 @@ export function SlabFrame({
           width: emblemRect.width,
           aspectRatio: "1 / 1",
           zIndex: 4,
+          filter: EMBLEM_INVERT[style] ? "invert(1)" : "none",
         }}
       >
         <Image

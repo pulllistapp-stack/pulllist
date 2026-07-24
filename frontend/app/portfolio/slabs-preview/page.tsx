@@ -23,6 +23,7 @@ import {
   FRAME_META,
   SlabFrame,
   type CardRect,
+  type EmblemRect,
   type FlipRect,
 } from "@/components/portfolio/SlabFrame";
 import { searchCards, type Card } from "@/lib/api";
@@ -86,25 +87,41 @@ const GRADE_OPTIONS: Array<{ value: string; suffix?: string }> = [
 
 const LS_KEY = "slab-tune-v1";
 
-function loadOverrides(): Record<Style, { flip: FlipRect; card: CardRect }> {
-  const defaults: Record<Style, { flip: FlipRect; card: CardRect }> = {
-    bgs: { flip: FRAME_META.bgs.flip, card: FRAME_META.bgs.card },
-    psa: { flip: FRAME_META.psa.flip, card: FRAME_META.psa.card },
-    clean: { flip: FRAME_META.clean.flip, card: FRAME_META.clean.card },
+type StyleTune = { flip: FlipRect; card: CardRect; emblem: EmblemRect };
+
+function loadOverrides(): Record<Style, StyleTune> {
+  const defaults: Record<Style, StyleTune> = {
+    bgs: {
+      flip: FRAME_META.bgs.flip,
+      card: FRAME_META.bgs.card,
+      emblem: FRAME_META.bgs.emblem,
+    },
+    psa: {
+      flip: FRAME_META.psa.flip,
+      card: FRAME_META.psa.card,
+      emblem: FRAME_META.psa.emblem,
+    },
+    clean: {
+      flip: FRAME_META.clean.flip,
+      card: FRAME_META.clean.card,
+      emblem: FRAME_META.clean.emblem,
+    },
   };
   if (typeof window === "undefined") return defaults;
   try {
     const raw = window.localStorage.getItem(LS_KEY);
     if (!raw) throw new Error("empty");
     const parsed = JSON.parse(raw);
-    // Guard against older localStorage entries that pre-date the
-    // "clean" style — fall back to the default for missing keys so the
-    // page doesn't crash before the user hits Reset.
-    return {
-      bgs: parsed.bgs ?? defaults.bgs,
-      psa: parsed.psa ?? defaults.psa,
-      clean: parsed.clean ?? defaults.clean,
-    };
+    // Guard against older localStorage entries that pre-date any of the
+    // stored shapes (added `clean` style, added `emblem` field) — fall
+    // back to defaults for missing keys so the page doesn't crash
+    // before the user hits Reset.
+    const merge = (s: Style): StyleTune => ({
+      flip: parsed[s]?.flip ?? defaults[s].flip,
+      card: parsed[s]?.card ?? defaults[s].card,
+      emblem: parsed[s]?.emblem ?? defaults[s].emblem,
+    });
+    return { bgs: merge("bgs"), psa: merge("psa"), clean: merge("clean") };
   } catch {
     return defaults;
   }
@@ -162,17 +179,33 @@ export default function SlabsPreviewPage() {
     },
     [style],
   );
+  const updateEmblem = useCallback(
+    (key: keyof EmblemRect, value: number) => {
+      setTune((prev) => ({
+        ...prev,
+        [style]: {
+          ...prev[style],
+          emblem: { ...prev[style].emblem, [key]: asPct(value) },
+        },
+      }));
+    },
+    [style],
+  );
 
   const resetCurrent = () => {
     setTune((prev) => ({
       ...prev,
-      [style]: { flip: FRAME_META[style].flip, card: FRAME_META[style].card },
+      [style]: {
+        flip: FRAME_META[style].flip,
+        card: FRAME_META[style].card,
+        emblem: FRAME_META[style].emblem,
+      },
     }));
   };
 
   const copyCode = async () => {
     const aspectRatio =
-      style === "bgs" ? "797 / 1344" : style === "psa" ? "816 / 1285" : "800 / 1328";
+      style === "bgs" ? "797 / 1344" : style === "psa" ? "816 / 1285" : "5 / 8";
     const flipTone =
       style === "bgs" ? "on-gold" : style === "psa" ? "on-white" : "on-black";
     const snippet = `${style}: {
@@ -180,6 +213,7 @@ export default function SlabsPreviewPage() {
   aspectRatio: "${aspectRatio}",
   flip: { top: "${current.flip.top}", left: "${current.flip.left}", right: "${current.flip.right}", height: "${current.flip.height}" },
   card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
+  emblem: { bottom: "${current.emblem.bottom}", left: "${current.emblem.left}", width: "${current.emblem.width}" },
   flipTone: "${flipTone}",
 },`;
     try {
@@ -313,6 +347,19 @@ export default function SlabsPreviewPage() {
             </fieldset>
           </div>
 
+          <fieldset className="mt-6 border border-lime-500/30 rounded-btn p-4">
+            <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-lime-400">
+              Emblem (chartreuse outline) · per-style
+            </legend>
+            <p className="text-[11px] text-text-tertiary mb-2 font-mono">
+              Move + resize the PullList mascot mark. bottom/left anchor
+              the corner; width sets both dimensions (square).
+            </p>
+            <SliderRow label="bottom" value={parsePct(current.emblem.bottom)} max={30} onChange={(v) => updateEmblem("bottom", v)} />
+            <SliderRow label="left" value={parsePct(current.emblem.left)} max={40} onChange={(v) => updateEmblem("left", v)} />
+            <SliderRow label="width" value={parsePct(current.emblem.width)} max={30} onChange={(v) => updateEmblem("width", v)} />
+          </fieldset>
+
           {/* Card inset — global across styles. Real cards are the
               same size regardless of slab, so this control isn't a
               per-frame FRAME_META override; it's just how much
@@ -350,7 +397,7 @@ function SamplesGrid({
 }: {
   style: Style;
   debug: boolean;
-  tune: { flip: FlipRect; card: CardRect };
+  tune: StyleTune;
   cardInsetPct: number;
 }) {
   return (
@@ -363,6 +410,7 @@ function SamplesGrid({
             debug={debug}
             flipOverride={tune.flip}
             cardOverride={tune.card}
+            emblemOverride={tune.emblem}
             cardInsetPct={cardInsetPct}
           />
           <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
@@ -385,7 +433,7 @@ function TryYourCard({
 }: {
   style: Style;
   debug: boolean;
-  tune: { flip: FlipRect; card: CardRect };
+  tune: StyleTune;
   cardInsetPct: number;
 }) {
   const [query, setQuery] = useState("");
@@ -552,6 +600,7 @@ function TryYourCard({
                 debug={debug}
                 flipOverride={tune.flip}
                 cardOverride={tune.card}
+                emblemOverride={tune.emblem}
                 cardInsetPct={cardInsetPct}
               />
             </div>
