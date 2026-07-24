@@ -574,6 +574,7 @@ export type VisitorItem = {
   views: number;
   last_seen: string | null;
   last_country: string | null;
+  last_city: string | null;
 };
 
 export async function getVisitsVisitors(

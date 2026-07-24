@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Activity, Globe, Loader2, ShieldAlert } from "lucide-react";
 
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import {
   getVisitsAnonSessions,
   getVisitsBots,
+  getVisitsByUser,
   getVisitsRecent,
   getVisitsSummary,
   getVisitsTopPaths,
@@ -61,8 +62,25 @@ function AdminVisitsContent() {
     setRecentPage(1);
   }, [windowDays, scope]);
 
+  // Full-screen spinner shows on very first load only. Every subsequent
+  // reload (window switch, scope toggle) keeps the previous data on
+  // screen so the whole page doesn't jump back to the top while React
+  // re-renders. Tracked via a ref so flipping it doesn't itself
+  // re-trigger the load callback.
+  const hasLoadedOnceRef = useRef(false);
+
+  // Latest scope kept in a ref so the main `load` function can read it
+  // without listing scope in its useCallback deps — if scope was a dep,
+  // the whole page would re-fetch on every scope toggle instead of just
+  // the Recent stream (which is the only panel scope actually filters).
+  const scopeRef = useRef(scope);
+  useEffect(() => {
+    scopeRef.current = scope;
+  }, [scope]);
+
   const load = useCallback(async () => {
-    setLoading(true);
+    const isFirst = !hasLoadedOnceRef.current;
+    if (isFirst) setLoading(true);
     try {
       // Every panel is independent — one failing endpoint (e.g. a new
       // backend route that isn't deployed yet after a frontend rollout)
@@ -74,12 +92,39 @@ function AdminVisitsContent() {
         getVisitsVisitors(windowDays, 60),
         getVisitsTopPaths(windowDays, 15),
         getVisitsTopReferrers(windowDays, 15),
-        getVisitsRecent({ limit: 60, scope }),
+        getVisitsRecent({ limit: 60, scope: scopeRef.current }),
         getVisitsAnonSessions(windowDays, 30),
         getVisitsBots(windowDays),
       ]);
       if (s.status === "fulfilled") setSummary(s.value);
-      if (v.status === "fulfilled") setVisitors(v.value.items);
+      if (v.status === "fulfilled") {
+        setVisitors(v.value.items);
+      } else {
+        // Legacy fallback while Render finishes deploying the new
+        // /admin/visits/visitors endpoint — at least keep signed-in
+        // users visible so LO doesn't stare at an empty panel.
+        try {
+          const legacy = await getVisitsByUser(windowDays);
+          setVisitors(
+            legacy.items.map((u) => ({
+              type: "user" as const,
+              id: u.user_id,
+              user_id: u.user_id,
+              session_id: null,
+              email: u.email,
+              name: u.name,
+              is_admin: u.is_admin,
+              views: u.views,
+              last_seen: u.last_seen,
+              last_country: u.last_country,
+              last_city: null,
+            })),
+          );
+        } catch (fallbackErr) {
+          console.warn("admin/visits: legacy by-user fallback also failed", fallbackErr);
+          setVisitors([]);
+        }
+      }
       if (tp.status === "fulfilled") setTopPaths(tp.value.items);
       if (tr.status === "fulfilled") setTopReferrers(tr.value.items);
       if (rec.status === "fulfilled") setRecent(rec.value.items);
@@ -99,13 +144,35 @@ function AdminVisitsContent() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (isFirst) {
+        setLoading(false);
+        hasLoadedOnceRef.current = true;
+      }
     }
-  }, [windowDays, scope]);
+  }, [windowDays]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Scope toggle only affects the Recent stream — reload just that one
+  // panel silently instead of firing the whole load() again. Skips the
+  // very first render so we don't double-fetch on mount.
+  const scopeMountRef = useRef(true);
+  useEffect(() => {
+    if (scopeMountRef.current) {
+      scopeMountRef.current = false;
+      return;
+    }
+    getVisitsRecent({ limit: 60, scope })
+      .then((rec) => {
+        setRecent(rec.items);
+        setRecentPage(1);
+      })
+      .catch((e) =>
+        console.warn("admin/visits: recent reload on scope change failed", e),
+      );
+  }, [scope]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
@@ -298,6 +365,7 @@ function AdminVisitsContent() {
                         )}
                         {countryFlag(v.last_country)}{" "}
                         {v.last_country ?? "??"}
+                        {v.last_city ? ` · ${v.last_city}` : ""}
                       </span>
                       <span>
                         last{" "}
@@ -397,6 +465,7 @@ function AdminVisitsContent() {
                             <ShieldAlert className="inline h-3 w-3 mr-1" />
                           )}
                           {countryFlag(v.last_country)} {v.last_country ?? "??"}
+                          {v.last_city ? ` · ${v.last_city}` : ""}
                         </td>
                       </tr>
                       );
@@ -710,6 +779,7 @@ function AdminVisitsContent() {
                       <span>
                         {countryFlag(v.country ?? null)}{" "}
                         {v.country ?? "??"}
+                        {v.city ? ` · ${v.city}` : ""}
                       </span>
                       <span>· {v.device ?? "—"}</span>
                       <span className="text-text-tertiary break-all">
@@ -770,6 +840,7 @@ function AdminVisitsContent() {
                           </td>
                           <td className="px-3 py-2 text-text-secondary whitespace-nowrap">
                             {countryFlag(v.country ?? null)} {v.country ?? "??"}
+                            {v.city ? ` · ${v.city}` : ""}
                           </td>
                           <td className="px-3 py-2 text-text-secondary">
                             {v.device ?? "—"}

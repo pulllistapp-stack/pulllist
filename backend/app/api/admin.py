@@ -687,27 +687,29 @@ async def visits_visitors(
         ).scalars():
             users[u.id] = u
 
-    # Last-seen country per user (mirrors /visits/by-user)
-    user_last_country: dict[str, str | None] = {}
+    # Last-seen (country, city) per user — one query, keyed by the most
+    # recent row per user_id. Kept as a single dict so the merged item
+    # emit below stays a single lookup instead of two.
+    user_last_geo: dict[str, tuple[str | None, str | None]] = {}
     if user_ids:
         stmt = (
-            select(VisitLog.user_id, VisitLog.country)
+            select(VisitLog.user_id, VisitLog.country, VisitLog.city)
             .where(
                 VisitLog.user_id.in_(user_ids),
                 VisitLog.created_at >= window_start,
             )
             .order_by(VisitLog.user_id, VisitLog.created_at.desc())
         )
-        for uid, country in (await db.execute(stmt)).all():
-            if uid not in user_last_country:
-                user_last_country[uid] = country
+        for uid, country, city in (await db.execute(stmt)).all():
+            if uid not in user_last_geo:
+                user_last_geo[uid] = (country, city)
 
-    # Last-seen country per anon session
+    # Last-seen (country, city) per anon session
     session_ids = [sid for sid, _, _ in anon_rows]
-    anon_last_country: dict[str, str | None] = {}
+    anon_last_geo: dict[str, tuple[str | None, str | None]] = {}
     if session_ids:
         stmt = (
-            select(VisitLog.session_id, VisitLog.country)
+            select(VisitLog.session_id, VisitLog.country, VisitLog.city)
             .where(
                 VisitLog.session_id.in_(session_ids),
                 VisitLog.user_id.is_(None),
@@ -715,15 +717,16 @@ async def visits_visitors(
             )
             .order_by(VisitLog.session_id, VisitLog.created_at.desc())
         )
-        for sid, country in (await db.execute(stmt)).all():
-            if sid not in anon_last_country:
-                anon_last_country[sid] = country
+        for sid, country, city in (await db.execute(stmt)).all():
+            if sid not in anon_last_geo:
+                anon_last_geo[sid] = (country, city)
 
     items: list[dict] = []
     for uid, views, last_seen in user_rows:
         if uid not in users:
             continue
         u = users[uid]
+        country, city = user_last_geo.get(uid, (None, None))
         items.append(
             {
                 "type": "user",
@@ -735,10 +738,12 @@ async def visits_visitors(
                 "is_admin": u.is_admin,
                 "views": int(views),
                 "last_seen": last_seen.isoformat() if last_seen else None,
-                "last_country": user_last_country.get(uid),
+                "last_country": country,
+                "last_city": city,
             }
         )
     for sid, views, last_seen in anon_rows:
+        country, city = anon_last_geo.get(sid, (None, None))
         items.append(
             {
                 "type": "anon",
@@ -750,7 +755,8 @@ async def visits_visitors(
                 "is_admin": False,
                 "views": int(views),
                 "last_seen": last_seen.isoformat() if last_seen else None,
-                "last_country": anon_last_country.get(sid),
+                "last_country": country,
+                "last_city": city,
             }
         )
 
