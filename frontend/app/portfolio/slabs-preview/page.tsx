@@ -172,7 +172,7 @@ export default function SlabsPreviewPage() {
 
   const copyCode = async () => {
     const aspectRatio =
-      style === "bgs" ? "797 / 1344" : style === "psa" ? "816 / 1285" : "5 / 8";
+      style === "bgs" ? "797 / 1344" : style === "psa" ? "816 / 1285" : "800 / 1328";
     const flipTone =
       style === "bgs" ? "on-gold" : style === "psa" ? "on-white" : "on-black";
     const snippet = `${style}: {

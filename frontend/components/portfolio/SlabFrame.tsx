@@ -97,9 +97,11 @@ export const FRAME_META: Record<
     // Third frame — minimal transparent acrylic with black wells. Flip
     // well sits top-left as a compact rectangle; card well fills most
     // of the interior. Both wells have dark backgrounds so the flip
-    // text needs light-on-dark tone rendering.
+    // text needs light-on-dark tone rendering. Source image is
+    // 800×1328; using the exact ratio (not the 5/8 approximation)
+    // keeps % coords from drifting a hair on retina renders.
     src: "/slab-frame-clean.png",
-    aspectRatio: "5 / 8",
+    aspectRatio: "800 / 1328",
     flip: { top: "5%", left: "5%", right: "50%", height: "12%" },
     card: { top: "22%", left: "5%", right: "5%", bottom: "3%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
