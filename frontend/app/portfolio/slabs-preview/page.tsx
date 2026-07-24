@@ -119,10 +119,22 @@ export default function SlabsPreviewPage() {
   const [debug, setDebug] = useState(true);
   const [tune, setTune] = useState(() => loadOverrides());
   const [copied, setCopied] = useState(false);
+  // Card image inset — shrinks the card inside its well without moving
+  // the well itself. Global across styles (real cards are the same size
+  // regardless of slab). Persisted separately from FRAME_META.
+  const [cardInsetPct, setCardInsetPct] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const raw = window.localStorage.getItem("slab-tune-v1-cardInset");
+    return raw ? parseFloat(raw) || 0 : 0;
+  });
 
   useEffect(() => {
     window.localStorage.setItem(LS_KEY, JSON.stringify(tune));
   }, [tune]);
+
+  useEffect(() => {
+    window.localStorage.setItem("slab-tune-v1-cardInset", String(cardInsetPct));
+  }, [cardInsetPct]);
 
   const current = tune[style];
 
@@ -258,9 +270,9 @@ export default function SlabsPreviewPage() {
         </div>
 
         {mode === "samples" ? (
-          <SamplesGrid style={style} debug={debug} tune={current} />
+          <SamplesGrid style={style} debug={debug} tune={current} cardInsetPct={cardInsetPct} />
         ) : (
-          <TryYourCard style={style} debug={debug} tune={current} />
+          <TryYourCard style={style} debug={debug} tune={current} cardInsetPct={cardInsetPct} />
         )}
 
         {/* Live tuning panel — visible under both modes */}
@@ -300,6 +312,28 @@ export default function SlabsPreviewPage() {
               <SliderRow label="bottom" value={parsePct(current.card.bottom)} max={30} onChange={(v) => updateCard("bottom", v)} />
             </fieldset>
           </div>
+
+          {/* Card inset — global across styles. Real cards are the
+              same size regardless of slab, so this control isn't a
+              per-frame FRAME_META override; it's just how much
+              breathing room the card image gets INSIDE the well. */}
+          <fieldset className="mt-6 border border-accent-yellow/30 rounded-btn p-4">
+            <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-accent-yellow">
+              Card image inset (global)
+            </legend>
+            <p className="text-[11px] text-text-tertiary mb-2 font-mono">
+              Shrinks the card image inward without moving the well.
+              0 = card fills the well edge-to-edge; 5 = 5% padding on
+              all four sides. Useful when the well rect is slightly
+              generous so real cards don&apos;t spill onto plastic.
+            </p>
+            <SliderRow
+              label="inset"
+              value={cardInsetPct}
+              max={15}
+              onChange={(v) => setCardInsetPct(v)}
+            />
+          </fieldset>
         </div>
       </div>
     </main>
@@ -312,10 +346,12 @@ function SamplesGrid({
   style,
   debug,
   tune,
+  cardInsetPct,
 }: {
   style: Style;
   debug: boolean;
   tune: { flip: FlipRect; card: CardRect };
+  cardInsetPct: number;
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
@@ -327,6 +363,7 @@ function SamplesGrid({
             debug={debug}
             flipOverride={tune.flip}
             cardOverride={tune.card}
+            cardInsetPct={cardInsetPct}
           />
           <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
             {s.service} {s.grade}
@@ -344,10 +381,12 @@ function TryYourCard({
   style,
   debug,
   tune,
+  cardInsetPct,
 }: {
   style: Style;
   debug: boolean;
   tune: { flip: FlipRect; card: CardRect };
+  cardInsetPct: number;
 }) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -513,6 +552,7 @@ function TryYourCard({
                 debug={debug}
                 flipOverride={tune.flip}
                 cardOverride={tune.card}
+                cardInsetPct={cardInsetPct}
               />
             </div>
             <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">

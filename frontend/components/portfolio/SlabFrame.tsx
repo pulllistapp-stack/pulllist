@@ -46,6 +46,13 @@ export type SlabProps = {
   flipOverride?: FlipRect;
   cardOverride?: CardRect;
   emblemOverride?: EmblemRect;
+  /** Extra breathing room around the card image WITHIN the card well,
+   *  as a % of the well's shorter side. 0 = card fills well edge-to-
+   *  edge (default); 5 = card shrinks 5% on each side, revealing a
+   *  frame of the underlying slab acrylic. Useful when the well
+   *  rectangle is a bit larger than a real card outline so cards
+   *  don't spill onto the plastic. */
+  cardInsetPct?: number;
 };
 
 // Frame-specific overlay coordinates. All values are % of the frame
@@ -121,11 +128,13 @@ export function SlabFrame({
   flipOverride,
   cardOverride,
   emblemOverride,
+  cardInsetPct = 0,
 }: SlabProps) {
   const meta = FRAME_META[style];
   const flipRect = flipOverride ?? meta.flip;
   const cardRect = cardOverride ?? meta.card;
   const emblemRect = emblemOverride ?? meta.emblem;
+  const cardPadding = `${cardInsetPct}%`;
   const accent = SERVICE_ACCENT[service];
   const isPerfect10 = grade.trim().startsWith("10");
   const flipTextColor =
@@ -168,28 +177,44 @@ export function SlabFrame({
         style={{ zIndex: 1 }}
       />
 
-      {/* Card image sits INSIDE the card well */}
+      {/* Card image sits INSIDE the card well.
+          - Outer container positions to cardRect and applies the
+            optional cardInsetPct % padding on all sides — this shrinks
+            the effective card area inward without moving the well.
+          - Inner wrapper carries the border-radius + overflow:hidden
+            so the img gets clipped to a rounded rectangle (matching
+            real TCG cards) INSIDE the padded area. */}
       {cardImage && (
         <div
-          className="absolute overflow-hidden"
+          className="absolute"
           style={{
             top: cardRect.top,
             left: cardRect.left,
             right: cardRect.right,
             bottom: cardRect.bottom,
             zIndex: 2,
-            borderRadius: "4px",
+            padding: cardPadding,
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={cardImage}
-            alt={cardName}
-            className="w-full h-full object-cover"
+          <div
+            className="relative w-full h-full overflow-hidden"
             style={{
-              boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)",
+              // Real TCG cards round at ~4-5% of their width. Using %
+              // keeps the profile constant across display sizes; fixed
+              // px would flatten small and over-round large.
+              borderRadius: "3.5%",
             }}
-          />
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cardImage}
+              alt={cardName}
+              className="w-full h-full object-cover"
+              style={{
+                boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.15)",
+              }}
+            />
+          </div>
         </div>
       )}
 
