@@ -703,6 +703,7 @@ export type Product = {
   name: string;
   set_id: string | null;
   set_name: string | null;
+  set_language: "en" | "ja" | "ko" | null;
   product_type: ProductType;
   packs_per_box: number | null;
   tcgplayer_product_id: number | null;
@@ -737,6 +738,7 @@ export type ProductList = {
 export type ProductBrowseParams = {
   set_id?: string;
   product_type?: ProductType;
+  language?: "en" | "ja" | "ko";
   sort?: "newest" | "price_desc" | "price_asc" | "name";
   page?: number;
   page_size?: number;

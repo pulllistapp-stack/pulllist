@@ -26,6 +26,19 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-24 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-24",
+    emoji: "🌐",
+    kr: "/products (Sealed) 페이지에 나라별 필터 추가 — 상단에 🌐 All / 🇺🇸 English / 🇯🇵 Japanese / 🇰🇷 Korean 4개 chip 이 새로 붙음. 원하는 나라 먼저 고르면 그 아래 상품 종류 (Booster Box / ETB / Bundle 등) 필터가 그 나라 카탈로그 안에서만 걸리게 됨. URL 에도 language 파라미터 지속 (?language=ja) 이라 링크 공유 / 북마크 그대로 됨. 백엔드도 /products?language=ja 형태로 필터링 지원.",
+    en: "/products (Sealed) page now has a country filter row up top — 🌐 All / 🇺🇸 English / 🇯🇵 Japanese / 🇰🇷 Korean. Pick a country first, then the existing product-type chips (Booster Box / ETB / Bundle / etc.) narrow within that catalog. State persists in the URL (?language=ja) so shared links and bookmarks preserve the filter. Backend supports the same param.",
+  },
+  {
+    date: "2026-07-24",
+    emoji: "🎁",
+    kr: "DECK 세트 'Sealed value' 커버리지 확대 준비 — Neo Premium File 2/3, Pokemon TCG Classic (블라스토이즈 / 비너사우르) 4개 세트 stub 을 seed 목록에 추가하고, TCGCSV 가 duplicate 로 붙여둔 Pt Arceus LV.X Deck (Grass&Fire / Lightning&Psychic) 의 두번째 groupId 도 매핑에 추가. 그리고 ingest_jp_sealed.py 에 --report-gaps 진단 모드 추가 — 어떤 TCGCSV 그룹이 sealed 상품을 들고 있는데 우리 세트에 안 붙는지, 몇 개 안 붙는지 정렬해서 로그. 다음 workflow 재실행 시 자동 반영 + 갭 리포트로 남은 세트들 우선순위 확인",
+    en: "Preparing broader 'Sealed value' coverage for DECK tiles — seed list now includes Neo Premium File 2/3 and Pokemon TCG Classic Blastoise/Venusaur stubs (4 new sets), and both duplicate TCGCSV groupIds for the Pt Arceus LV.X decks (Grass&Fire / Lightning&Psychic) now route correctly. The JP sealed ingest script also gains a --report-gaps diagnostic that lists every unmatched TCGCSV group carrying sealed SKUs, sorted by SKU count — so LO can see exactly which remaining sets need a new alias / override / stub. Effects land automatically on the next scheduled workflow re-run",
+  },
   // ── 2026-07-16 ─────────────────────────────────────────────────
   {
     date: "2026-07-16",

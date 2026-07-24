@@ -67,6 +67,11 @@ class ProductRead(BaseModel):
     name: str
     set_id: str | None
     set_name: str | None
+    set_language: str | None = None
+    """Language of the product's parent set ('en' | 'ja' | 'ko').
+    Sealed products don't carry their own language column — they inherit
+    from `sets.language`, which is what /products browse filters on.
+    None only when the product is orphaned (set_id null) — rare."""
     product_type: str
     packs_per_box: int | None
     tcgplayer_product_id: int | None
@@ -95,12 +100,17 @@ class ProductDetail(ProductRead):
     description: str | None
 
 
-def _row_to_read(row: Product, set_name: str | None) -> ProductRead:
+def _row_to_read(
+    row: Product,
+    set_name: str | None,
+    set_language: str | None = None,
+) -> ProductRead:
     return ProductRead(
         id=row.id,
         name=row.name,
         set_id=row.set_id,
         set_name=set_name,
+        set_language=set_language,
         product_type=row.product_type,
         packs_per_box=row.packs_per_box,
         tcgplayer_product_id=row.tcgplayer_product_id,
@@ -200,11 +210,23 @@ async def _compute_ev(
     )
 
 
+_VALID_LANGUAGES = {"en", "ja", "ko"}
+
+
 @router.get("", response_model=dict)
 async def list_products(
     response: Response,
     set_id: str | None = Query(None),
     product_type: str | None = Query(None),
+    language: str | None = Query(
+        None,
+        description=(
+            "Filter by parent set language: 'en' | 'ja' | 'ko'. "
+            "Omit for all languages. Sealed products inherit their "
+            "language from `sets.language` — the join is baked into "
+            "the base query already, so this is a WHERE-clause add-on."
+        ),
+    ),
     sort: str = Query("newest", pattern="^(newest|price_desc|price_asc|name)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(60, ge=1, le=200),
@@ -219,19 +241,29 @@ async def list_products(
     ),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Browse sealed products. Optional filters: set_id / product_type.
-    Sort: newest (default, via set release_date desc + created_at) /
-    price_desc / price_asc / name."""
+    """Browse sealed products. Optional filters: set_id / product_type /
+    language. Sort: newest (default, via set release_date desc +
+    created_at) / price_desc / price_asc / name."""
     if product_type and product_type not in VALID_TYPES:
         raise HTTPException(400, f"product_type must be one of {sorted(VALID_TYPES)}")
+    if language and language not in _VALID_LANGUAGES:
+        raise HTTPException(
+            400, f"language must be one of {sorted(_VALID_LANGUAGES)}"
+        )
 
-    base = select(Product, Set.name, Set.release_date).outerjoin(
-        Set, Product.set_id == Set.id
-    )
+    base = select(
+        Product, Set.name, Set.release_date, Set.language
+    ).outerjoin(Set, Product.set_id == Set.id)
     if set_id:
         base = base.where(Product.set_id == set_id)
     if product_type:
         base = base.where(Product.product_type == product_type)
+    if language:
+        # Inner-effect: the outerjoin becomes an inner join for this
+        # request because orphaned products (set_id null) can't
+        # possibly carry a language. Intentional — the browse grid
+        # doesn't want to surface orphans anyway.
+        base = base.where(Set.language == language)
     if not include_unpriced:
         # 14% of the catalog carries no market price (TCGCSV hasn't
         # listed sold inventory recently, or the SKU is a McDonald's
@@ -259,7 +291,10 @@ async def list_products(
 
     response.headers["Cache-Control"] = _CATALOG_CACHE
     return {
-        "items": [_row_to_read(p, sn).model_dump() for p, sn, _ in rows],
+        "items": [
+            _row_to_read(p, sn, sl).model_dump()
+            for p, sn, _, sl in rows
+        ],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -279,7 +314,11 @@ async def get_product(
     ev = await _compute_ev(db, row)
     response.headers["Cache-Control"] = _CATALOG_CACHE
     return ProductDetail(
-        **_row_to_read(row, set_row.name if set_row else None).model_dump(),
+        **_row_to_read(
+            row,
+            set_row.name if set_row else None,
+            set_row.language if set_row else None,
+        ).model_dump(),
         ev=ev,
         description=row.description,
     )
@@ -436,4 +475,4 @@ async def list_products_for_set(
     stmt = stmt.order_by(Product.market_price_usd.desc().nullslast())
     rows = (await db.execute(stmt)).scalars().all()
     response.headers["Cache-Control"] = _CATALOG_CACHE
-    return [_row_to_read(p, s.name) for p in rows]
+    return [_row_to_read(p, s.name, s.language) for p in rows]

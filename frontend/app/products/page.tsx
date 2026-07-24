@@ -24,6 +24,17 @@ const TYPE_CHIPS: { value: ProductType | "all"; label: string }[] = [
   { value: "build_battle", label: "Build & Battle" },
 ];
 
+// Country/language filter sits ABOVE the product-type row — pick a
+// catalog first, then narrow by SKU shape. Order mirrors the site's
+// established EN > JP > KR sort (see /sets), so muscle memory carries.
+type LanguageFilter = "all" | "en" | "ja" | "ko";
+const LANGUAGE_CHIPS: { value: LanguageFilter; label: string; flag: string }[] = [
+  { value: "all", label: "All countries", flag: "🌐" },
+  { value: "en", label: "English", flag: "🇺🇸" },
+  { value: "ja", label: "Japanese", flag: "🇯🇵" },
+  { value: "ko", label: "Korean", flag: "🇰🇷" },
+];
+
 export default function ProductsPage() {
   return (
     <Suspense fallback={<PageLoading />}>
@@ -47,6 +58,8 @@ function ProductsContent() {
   const [loading, setLoading] = useState(true);
 
   const activeType = (params.get("product_type") as ProductType | null) ?? "all";
+  const activeLanguage =
+    (params.get("language") as LanguageFilter | null) ?? "all";
   const sort = (params.get("sort") as ProductBrowseParams["sort"]) ?? "newest";
 
   useEffect(() => {
@@ -57,6 +70,9 @@ function ProductsContent() {
       page_size: 60,
     };
     if (activeType !== "all") query.product_type = activeType as ProductType;
+    if (activeLanguage !== "all") {
+      query.language = activeLanguage as "en" | "ja" | "ko";
+    }
     const setFilter = params.get("set_id");
     if (setFilter) query.set_id = setFilter;
 
@@ -73,12 +89,19 @@ function ProductsContent() {
     return () => {
       cancelled = true;
     };
-  }, [activeType, sort, params]);
+  }, [activeType, activeLanguage, sort, params]);
 
   const setChip = (t: ProductType | "all") => {
     const next = new URLSearchParams(params.toString());
     if (t === "all") next.delete("product_type");
     else next.set("product_type", t);
+    router.replace(`/products?${next}`, { scroll: false });
+  };
+
+  const setLanguageChip = (lang: LanguageFilter) => {
+    const next = new URLSearchParams(params.toString());
+    if (lang === "all") next.delete("language");
+    else next.set("language", lang);
     router.replace(`/products?${next}`, { scroll: false });
   };
 
@@ -106,6 +129,37 @@ function ProductsContent() {
           Booster boxes, ETBs, bundles, tins, and blisters. Prices from
           TCGplayer; expected value calculated from set rarity distribution.
         </p>
+      </div>
+
+      {/* Language / country chips — picked first so the type row below
+          filters within a chosen catalog. Placed above so the eye lands
+          on region before SKU shape (mirrors /sets filter ordering). */}
+      <div
+        role="tablist"
+        aria-label="Catalog language"
+        className="mb-2 flex flex-wrap gap-1.5"
+      >
+        {LANGUAGE_CHIPS.map((c) => {
+          const active = c.value === activeLanguage;
+          return (
+            <button
+              key={c.value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setLanguageChip(c.value)}
+              className={
+                "inline-flex items-center gap-1.5 rounded-chip border px-2.5 py-1 text-xs font-medium transition-colors " +
+                (active
+                  ? "bg-accent-yellow text-bg border-accent-yellow"
+                  : "bg-bg-surface text-text-secondary border-border hover:text-text-primary hover:border-text-tertiary")
+              }
+            >
+              <span aria-hidden="true">{c.flag}</span>
+              <span>{c.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Type chips */}
