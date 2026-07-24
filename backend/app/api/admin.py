@@ -715,6 +715,104 @@ async def visits_recent(
     }
 
 
+@router.get("/visits/bots")
+async def visits_bots(
+    admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001
+    days: int = Query(7, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Bot traffic breakdown over the last N days.
+
+    Groups by `bot_name` (set server-side from the User-Agent header —
+    see app.services.bot_detect). Only rows with a recognized bot name
+    are surfaced; human traffic and unknown UAs are excluded from this
+    endpoint entirely.
+
+    Response includes a coarse category tag ('search' / 'llm' / 'seo' /
+    'social' / 'monitor' / 'other') so the dashboard can color-code the
+    rows without duplicating the classification client-side.
+    """
+    window_start = _datetime.utcnow() - timedelta(days=days)
+
+    stmt = (
+        select(
+            VisitLog.bot_name,
+            func.count(VisitLog.id).label("views"),
+            func.max(VisitLog.created_at).label("last_seen"),
+        )
+        .where(
+            VisitLog.created_at >= window_start,
+            VisitLog.bot_name.is_not(None),
+        )
+        .group_by(VisitLog.bot_name)
+        .order_by(func.count(VisitLog.id).desc())
+    )
+    rows = (await db.execute(stmt)).all()
+
+    return {
+        "days": days,
+        "items": [
+            {
+                "bot_name": name,
+                "category": _bot_category(name),
+                "views": int(views),
+                "last_seen": last_seen.isoformat() if last_seen else None,
+            }
+            for name, views, last_seen in rows
+        ],
+    }
+
+
+# Classification used by /admin/visits/bots. Keep in sync with the
+# BOT_PATTERNS groupings in app.services.bot_detect. 'other' catches
+# anything not explicitly listed (including the generic-bot fallback).
+_BOT_CATEGORY: dict[str, str] = {
+    # search engines
+    "Googlebot": "search",
+    "Googlebot-Image": "search",
+    "Bingbot": "search",
+    "DuckDuckBot": "search",
+    "YandexBot": "search",
+    "NaverBot": "search",
+    "Applebot": "search",
+    # LLM / AI answer
+    "GPTBot": "llm",
+    "ChatGPT-User": "llm",
+    "OAI-SearchBot": "llm",
+    "ClaudeBot": "llm",
+    "anthropic-ai": "llm",
+    "Google-Extended": "llm",
+    "Applebot-Extended": "llm",
+    "CCBot": "llm",
+    "PerplexityBot": "llm",
+    "Amazonbot": "llm",
+    "Bytespider": "llm",
+    "Diffbot": "llm",
+    # 3rd-party SEO
+    "AhrefsBot": "seo",
+    "SemrushBot": "seo",
+    "DotBot": "seo",
+    "PetalBot": "seo",
+    "DataForSeoBot": "seo",
+    "MJ12bot": "seo",
+    "BLEXBot": "seo",
+    # social preview
+    "facebookexternalhit": "social",
+    "Twitterbot": "social",
+    "Discordbot": "social",
+    "Slackbot": "social",
+    "TelegramBot": "social",
+    "WhatsApp": "social",
+    # monitoring
+    "UptimeRobot": "monitor",
+    "Pingdom": "monitor",
+}
+
+
+def _bot_category(name: str | None) -> str:
+    return _BOT_CATEGORY.get(name or "", "other")
+
+
 @router.get("/visits/top-paths")
 async def visits_top_paths(
     admin: Annotated[User, Depends(get_current_admin)],  # noqa: ARG001

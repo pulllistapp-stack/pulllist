@@ -5,13 +5,14 @@ handler hits on every page view. Admin aggregate endpoints live in
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_optional
 from app.database import get_db
 from app.models import User, VisitLog
+from app.services.bot_detect import detect_bot
 
 
 router = APIRouter(prefix="/visits", tags=["visits"])
@@ -33,15 +34,21 @@ class VisitIn(BaseModel):
 @router.post("", status_code=status.HTTP_204_NO_CONTENT)
 async def log_visit(
     payload: VisitIn,
+    request: Request,
     user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Record a page view. The frontend's /api/track-visit route handler
     hydrates the geo fields from Vercel's edge headers before forwarding
     here, so the backend just persists the row.
+
+    Server-side bot detection: we read the incoming User-Agent header
+    and match against a fixed whitelist of known crawler names — only
+    the canonical bot identifier is persisted, never the raw UA string.
     """
     device = payload.device if payload.device in _VALID_DEVICE else None
     country = (payload.country or "").upper()[:2] or None
+    bot_name = detect_bot(request.headers.get("User-Agent"))
 
     row = VisitLog(
         user_id=user.id if user else None,
@@ -52,6 +59,7 @@ async def log_visit(
         city=payload.city,
         referrer=payload.referrer,
         device=device,
+        bot_name=bot_name,
         created_at=datetime.utcnow(),
     )
     db.add(row)

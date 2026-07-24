@@ -6,12 +6,14 @@ import { Activity, Globe, Loader2, ShieldAlert } from "lucide-react";
 import { AdminGuard } from "@/components/admin/AdminGuard";
 import {
   getVisitsAnonSessions,
+  getVisitsBots,
   getVisitsByUser,
   getVisitsRecent,
   getVisitsSummary,
   getVisitsTopPaths,
   getVisitsTopReferrers,
   type AnonSessionItem,
+  type BotItem,
   type TopPathItem,
   type TopReferrerItem,
   type VisitRecentItem,
@@ -36,6 +38,7 @@ function AdminVisitsContent() {
   const [topReferrers, setTopReferrers] = useState<TopReferrerItem[]>([]);
   const [recent, setRecent] = useState<VisitRecentItem[]>([]);
   const [anonSessions, setAnonSessions] = useState<AnonSessionItem[]>([]);
+  const [bots, setBots] = useState<BotItem[]>([]);
   const [windowDays, setWindowDays] = useState<number>(1);
   const [scope, setScope] = useState<VisitScope>("all");
   const [loading, setLoading] = useState(true);
@@ -43,13 +46,14 @@ function AdminVisitsContent() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, b, tp, tr, rec, anon] = await Promise.all([
+      const [s, b, tp, tr, rec, anon, bt] = await Promise.all([
         getVisitsSummary(),
         getVisitsByUser(windowDays),
         getVisitsTopPaths(windowDays, 15),
         getVisitsTopReferrers(windowDays, 15),
         getVisitsRecent({ limit: 60, scope }),
         getVisitsAnonSessions(windowDays, 30),
+        getVisitsBots(windowDays),
       ]);
       setSummary(s);
       setByUser(b.items);
@@ -57,6 +61,7 @@ function AdminVisitsContent() {
       setTopReferrers(tr.items);
       setRecent(rec.items);
       setAnonSessions(anon.items);
+      setBots(bt.items);
     } catch (e) {
       console.error(e);
     } finally {
@@ -377,6 +382,37 @@ function AdminVisitsContent() {
               )}
             </TrafficCard>
 
+          </section>
+
+          {/* Bot traffic breakdown — server-side UA classification.
+              Only rows with a recognized bot name reach this table; the
+              category tag drives the color chip. */}
+          <section className="mt-8">
+            <TrafficCard
+              title="Bot activity"
+              hint={`Last ${windowDays}d · server-side UA match`}
+            >
+              {bots.length === 0 ? (
+                <EmptyRow />
+              ) : (
+                <ul className="text-xs divide-y divide-border">
+                  {bots.map((b) => (
+                    <li
+                      key={b.bot_name}
+                      className="py-2 flex items-center gap-3 min-w-0"
+                    >
+                      <BotCategoryChip category={b.category} />
+                      <span className="font-mono text-text-primary truncate flex-1 min-w-0">
+                        {b.bot_name}
+                      </span>
+                      <span className="font-mono text-[10px] text-text-tertiary tabular-nums shrink-0">
+                        {b.views.toLocaleString()} views
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </TrafficCard>
           </section>
 
           {/* Anonymous sessions — who's been on the site not signed in */}
@@ -768,6 +804,52 @@ function countryFlag(code: string | null | undefined): string {
   return (
     String.fromCodePoint(A + cc.charCodeAt(0) - 65) +
     String.fromCodePoint(A + cc.charCodeAt(1) - 65)
+  );
+}
+
+// Bot category → chip label + color. Categories come from the backend
+// so this only styles what's already been classified server-side.
+const BOT_CATEGORY_STYLE: Record<
+  BotItem["category"],
+  { label: string; className: string }
+> = {
+  search: {
+    label: "search",
+    className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  llm: {
+    label: "llm",
+    className: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  },
+  seo: {
+    label: "seo",
+    className: "bg-orange-500/15 text-orange-700 dark:text-orange-400",
+  },
+  social: {
+    label: "social",
+    className: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  },
+  monitor: {
+    label: "monitor",
+    className: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  },
+  other: {
+    label: "other",
+    className: "bg-neutral-500/10 text-text-tertiary",
+  },
+};
+
+function BotCategoryChip({ category }: { category: BotItem["category"] }) {
+  const style = BOT_CATEGORY_STYLE[category];
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 rounded px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wide",
+        style.className,
+      )}
+    >
+      {style.label}
+    </span>
   );
 }
 

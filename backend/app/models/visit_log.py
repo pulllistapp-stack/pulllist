@@ -59,6 +59,12 @@ class VisitLog(Base):
     """Coarse device class: 'mobile' / 'desktop' / 'tablet' / 'bot'.
     Derived client-side from the UA so we don't store full UA strings."""
 
+    bot_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """Known-bot identifier extracted server-side from the User-Agent
+    header (e.g. 'Googlebot', 'GPTBot', 'AhrefsBot'). Only whitelisted
+    bot names are stored — full UA strings never touch disk to preserve
+    visitor privacy. None for human visits and unknown UAs."""
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )

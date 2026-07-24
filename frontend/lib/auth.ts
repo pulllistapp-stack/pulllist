@@ -563,6 +563,27 @@ export async function getVisitsAnonSessions(
   return authFetch(`/admin/visits/anon-sessions?days=${days}&limit=${limit}`);
 }
 
+export type BotCategory =
+  | "search"
+  | "llm"
+  | "seo"
+  | "social"
+  | "monitor"
+  | "other";
+
+export type BotItem = {
+  bot_name: string;
+  category: BotCategory;
+  views: number;
+  last_seen: string | null;
+};
+
+export async function getVisitsBots(
+  days = 7,
+): Promise<{ days: number; items: BotItem[] }> {
+  return authFetch(`/admin/visits/bots?days=${days}`);
+}
+
 // ────────── Single-card price refresh ──────────
 
 export type CardRefreshResult = {
