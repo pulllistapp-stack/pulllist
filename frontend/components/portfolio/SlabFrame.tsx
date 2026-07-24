@@ -125,6 +125,18 @@ const EMBLEM_INVERT: Record<SlabStyle, boolean> = {
   clean: true,
 };
 
+// Real grader logo lockups shipped under /public/graders/. Rendered
+// inside the grade badge in place of the plain service text so the
+// badge reads as an actual certification stamp. Falls back to text
+// when the requested service isn't in this map (e.g. legacy data
+// stored "SGC" before we locked to the 4-grader system).
+const SERVICE_LOGO: Record<GradeService, string> = {
+  PSA: "/graders/psa.png",
+  BGS: "/graders/bgs.png",
+  CGC: "/graders/cgc.png",
+  TAG: "/graders/tag.png",
+};
+
 // Grader accent — badge outline + perfect-10 halo tint.
 const SERVICE_ACCENT: Record<GradeService, string> = {
   PSA: "#c8102e",
@@ -282,13 +294,14 @@ export function SlabFrame({
         </span>
       </div>
 
-      {/* Grade + service badge — its own rect (orange debug outline)
-          so LO can drop it wherever on the slab: right of the card
-          info, above the card, corner-mounted, etc. Contents scale
-          against the badge rect via CSS clamp so the badge visually
-          grows/shrinks with the rect (not a single px stack). */}
+      {/* Grade + service badge — own rect (orange debug outline). Top
+          section renders the actual grader logo image when supported
+          (PSA/BGS/CGC/TAG); anything else falls back to the plain
+          text service label. Below the logo: grade number + optional
+          suffix. All type/logo scale via clamp() so bumping the rect
+          size grows contents proportionally. */}
       <div
-        className="absolute flex flex-col items-center justify-center rounded-sm"
+        className="absolute flex flex-col items-center justify-center rounded-sm overflow-hidden"
         style={{
           top: badgeRect.top,
           left: badgeRect.left,
@@ -298,33 +311,47 @@ export function SlabFrame({
           background: "#101013",
           color: accent,
           boxShadow: `inset 0 0 0 1.5px ${accent}, 0 0 6px -3px ${accent}`,
-          padding: "3px 4px",
+          padding: "6% 6% 4% 6%",
+          gap: "4%",
         }}
       >
-        <span
-          className="font-bold tracking-[0.2em] leading-none"
-          style={{ color: accent, fontSize: "clamp(6px, 1.4vw, 10px)" }}
-        >
-          {service}
-        </span>
+        {SERVICE_LOGO[service] ? (
+          <div
+            className="relative w-full shrink-0"
+            style={{ height: "30%", maxHeight: "24px" }}
+          >
+            <Image
+              src={SERVICE_LOGO[service]}
+              alt={service}
+              fill
+              sizes="60px"
+              style={{ objectFit: "contain" }}
+            />
+          </div>
+        ) : (
+          <span
+            className="font-bold tracking-[0.2em] leading-none"
+            style={{ color: accent, fontSize: "clamp(6px, 1.4vw, 10px)" }}
+          >
+            {service}
+          </span>
+        )}
         <span
           className="font-bold leading-none tabular-nums"
           style={{
             color: accent,
             fontFamily: "'Bodoni Moda', Georgia, serif",
             letterSpacing: "-0.02em",
-            marginTop: "2px",
-            fontSize: "clamp(14px, 3vw, 24px)",
+            fontSize: "clamp(14px, 3vw, 26px)",
           }}
         >
           {grade}
         </span>
         {suffix && (
           <span
-            className="tracking-[0.14em] uppercase leading-none opacity-85"
+            className="tracking-[0.14em] uppercase leading-none opacity-85 truncate w-full text-center"
             style={{
               color: accent,
-              marginTop: "2px",
               fontSize: "clamp(5px, 1.2vw, 8px)",
             }}
           >

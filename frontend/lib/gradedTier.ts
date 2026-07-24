@@ -23,7 +23,10 @@ export type GradedPricesResponse = Partial<
   _meta?: { last_scraped_at: string | null; days_window: number };
 };
 
-export const GRADE_SERVICES = ["PSA", "BGS", "CGC", "TAG", "SGC", "Ace"];
+// The only grading services our slab visual + tier price data supports.
+// Historically had SGC + Ace but we don't track price data for either,
+// don't ship a slab-frame variant, and LO's slab UI locks to these 4.
+export const GRADE_SERVICES = ["PSA", "BGS", "CGC", "TAG"];
 
 export function serviceGradeToKey(
   service: string,
