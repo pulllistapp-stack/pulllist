@@ -18,12 +18,13 @@
 
 import Image from "next/image";
 
-type SlabStyle = "bgs" | "psa";
+type SlabStyle = "bgs" | "psa" | "clean";
 
 type GradeService = "PSA" | "BGS" | "CGC" | "TAG";
 
 export type FlipRect = { top: string; left: string; right: string; height: string };
 export type CardRect = { top: string; left: string; right: string; bottom: string };
+export type EmblemRect = { bottom: string; left: string; width: string };
 
 export type SlabProps = {
   style?: SlabStyle;
@@ -44,6 +45,7 @@ export type SlabProps = {
    *  layout can be tuned without an edit-commit-deploy loop. */
   flipOverride?: FlipRect;
   cardOverride?: CardRect;
+  emblemOverride?: EmblemRect;
 };
 
 // Frame-specific overlay coordinates. All values are % of the frame
@@ -54,11 +56,14 @@ export const FRAME_META: Record<
   {
     src: string;
     aspectRatio: string;
-    flip: { top: string; left: string; right: string; height: string };
-    card: { top: string; left: string; right: string; bottom: string };
+    flip: FlipRect;
+    card: CardRect;
+    /** Shared PullList mascot emblem overlay position — sits in the
+     *  bottom-left "manufacturer mark" corner across all three styles. */
+    emblem: EmblemRect;
     /** Text tone on the flip label — the flip is gold on BGS, red-
-     *  bordered white on PSA, so contrast direction flips. */
-    flipTone: "on-gold" | "on-white";
+     *  bordered white on PSA, black on the minimal Clean frame. */
+    flipTone: "on-gold" | "on-white" | "on-black";
   }
 > = {
   bgs: {
@@ -66,6 +71,7 @@ export const FRAME_META: Record<
     aspectRatio: "797 / 1344",
     flip: { top: "3.5%", left: "20%", right: "17%", height: "13%" },
     card: { top: "24%", left: "13.5%", right: "13.5%", bottom: "10%" },
+    emblem: { bottom: "3%", left: "3%", width: "12%" },
     flipTone: "on-gold",
   },
   psa: {
@@ -77,7 +83,20 @@ export const FRAME_META: Record<
     // past the physical red-border rectangle.
     flip: { top: "4.5%", left: "10%", right: "40%", height: "14%" },
     card: { top: "24%", left: "11%", right: "11%", bottom: "5%" },
+    emblem: { bottom: "3%", left: "3%", width: "12%" },
     flipTone: "on-white",
+  },
+  clean: {
+    // Third frame — minimal transparent acrylic with black wells. Flip
+    // well sits top-left as a compact rectangle; card well fills most
+    // of the interior. Both wells have dark backgrounds so the flip
+    // text needs light-on-dark tone rendering.
+    src: "/slab-frame-clean.png",
+    aspectRatio: "5 / 8",
+    flip: { top: "5%", left: "5%", right: "50%", height: "12%" },
+    card: { top: "22%", left: "5%", right: "5%", bottom: "3%" },
+    emblem: { bottom: "3%", left: "3%", width: "12%" },
+    flipTone: "on-black",
   },
 };
 
@@ -101,14 +120,22 @@ export function SlabFrame({
   debug = false,
   flipOverride,
   cardOverride,
+  emblemOverride,
 }: SlabProps) {
   const meta = FRAME_META[style];
   const flipRect = flipOverride ?? meta.flip;
   const cardRect = cardOverride ?? meta.card;
+  const emblemRect = emblemOverride ?? meta.emblem;
   const accent = SERVICE_ACCENT[service];
   const isPerfect10 = grade.trim().startsWith("10");
-  const flipTextColor = meta.flipTone === "on-gold" ? "#1a1a1a" : "#1a1a1a";
-  const flipMutedColor = meta.flipTone === "on-gold" ? "#4a3f20" : "#6a5f4a";
+  const flipTextColor =
+    meta.flipTone === "on-black" ? "#f0eee6" : "#1a1a1a";
+  const flipMutedColor =
+    meta.flipTone === "on-black"
+      ? "#9a9790"
+      : meta.flipTone === "on-gold"
+      ? "#4a3f20"
+      : "#6a5f4a";
 
   return (
     <div
@@ -241,6 +268,31 @@ export function SlabFrame({
           stays part of the API so we can wire it up if a future
           BGS-specific frame gains a dedicated subgrade strip. */}
 
+      {/* Brand emblem — PullList mascot silhouette in the bottom-left
+          "manufacturer mark" corner. Shared across all three frame
+          styles; the source PNG is a solid-black silhouette so it
+          reads on gold + red-white + black frame surfaces without any
+          per-style recolor. When we swap to per-style color variants
+          later, extend FRAME_META.emblem with `src` and switch here. */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          bottom: emblemRect.bottom,
+          left: emblemRect.left,
+          width: emblemRect.width,
+          aspectRatio: "1 / 1",
+          zIndex: 4,
+        }}
+      >
+        <Image
+          src="/slab-emblem.png"
+          alt=""
+          fill
+          sizes="80px"
+          style={{ objectFit: "contain" }}
+        />
+      </div>
+
       {/* Debug overlays — dashed outlines around wells for coordinate tuning */}
       {debug && (
         <>
@@ -265,6 +317,18 @@ export function SlabFrame({
               right: cardRect.right,
               bottom: cardRect.bottom,
               border: "1px dashed rgba(0, 200, 255, 0.9)",
+              zIndex: 10,
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              bottom: emblemRect.bottom,
+              left: emblemRect.left,
+              width: emblemRect.width,
+              aspectRatio: "1 / 1",
+              border: "1px dashed rgba(180, 255, 100, 0.9)",
               zIndex: 10,
             }}
           />

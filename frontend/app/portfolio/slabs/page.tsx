@@ -19,7 +19,7 @@ import { PortfolioTabs } from "@/components/portfolio/PortfolioTabs";
 import { SlabFrame } from "@/components/portfolio/SlabFrame";
 import { CollectionItemDetail, listMyItems } from "@/lib/auth";
 
-type FrameStyle = "bgs" | "psa";
+type FrameStyle = "bgs" | "psa" | "clean";
 type GradeService = "PSA" | "BGS" | "CGC" | "TAG";
 
 const SERVICE_SET = new Set<GradeService>(["PSA", "BGS", "CGC", "TAG"]);
@@ -133,7 +133,7 @@ export default function SlabsPortfolioPage() {
             aria-label="Frame style"
             className="flex items-center gap-1 p-1 rounded-full bg-bg border border-border"
           >
-            {(["bgs", "psa"] as const).map((s) => (
+            {(["bgs", "psa", "clean"] as const).map((s) => (
               <button
                 key={s}
                 role="tab"
@@ -146,7 +146,7 @@ export default function SlabsPortfolioPage() {
                     : "text-text-secondary hover:text-text-primary")
                 }
               >
-                {s === "bgs" ? "BGS frame" : "PSA frame"}
+                {s === "bgs" ? "BGS frame" : s === "psa" ? "PSA frame" : "Clean frame"}
               </button>
             ))}
           </div>
