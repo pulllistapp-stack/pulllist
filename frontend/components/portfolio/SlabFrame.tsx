@@ -89,6 +89,11 @@ export const FRAME_META: Record<
      *  is generous. Per-style default so each frame ships with a
      *  sensible inset without waiting for a prop override. */
     cardInsetPct: number;
+    /** Border radius applied to the FRAME PNG itself — some source
+     *  images have square outer corners (BGS + Clean); a tiny radius
+     *  softens them without changing the file. PSA's PNG already has
+     *  the clear-acrylic curve baked in, so 0. */
+    frameRadius: string;
     /** Text tone on the flip label — the flip is gold on BGS, red-
      *  bordered white on PSA, black on the minimal Clean frame. */
     flipTone: "on-gold" | "on-white" | "on-black";
@@ -103,6 +108,7 @@ export const FRAME_META: Record<
     badge: { top: "8%", left: "69.5%", right: "12.5%", height: "10.5%" },
     flipFonts: { yearSet: 8, cardName: 11 },
     cardInsetPct: 14.5,
+    frameRadius: "1.5%",
     flipTone: "on-gold",
   },
   psa: {
@@ -114,6 +120,7 @@ export const FRAME_META: Record<
     badge: { top: "5.5%", left: "66%", right: "12.5%", height: "11.5%" },
     flipFonts: { yearSet: 8, cardName: 12.5 },
     cardInsetPct: 14,
+    frameRadius: "0",
     flipTone: "on-white",
   },
   clean: {
@@ -125,6 +132,7 @@ export const FRAME_META: Record<
     badge: { top: "7%", left: "76%", right: "11%", height: "14.5%" },
     flipFonts: { yearSet: 8, cardName: 13.5 },
     cardInsetPct: 14.5,
+    frameRadius: "1.5%",
     flipTone: "on-black",
   },
 };
@@ -198,6 +206,11 @@ export function SlabFrame({
   const flipFonts = flipFontsOverride ?? meta.flipFonts;
   const cardPadding = `${cardInsetPct ?? meta.cardInsetPct}%`;
   const accent = SERVICE_ACCENT[service];
+  // Perfect-10 celebration halo — soft radial gradient in the grader
+  // accent color when the grade tier is 10. LO asked about the red
+  // glow around PSA 10 slabs (the accent for PSA is crimson). Kept
+  // ON because it silently rewards the top tier; disable per-slab
+  // by dropping isPerfect10 to false if it clashes visually.
   const isPerfect10 = grade.trim().startsWith("10");
   const flipTextColor =
     meta.flipTone === "on-black" ? "#f0eee6" : "#1a1a1a";
@@ -236,7 +249,7 @@ export function SlabFrame({
         priority
         sizes="(max-width: 640px) 100vw, 320px"
         className="object-contain pointer-events-none select-none"
-        style={{ zIndex: 1 }}
+        style={{ zIndex: 1, borderRadius: meta.frameRadius }}
       />
 
       {/* Card image sits INSIDE the card well.

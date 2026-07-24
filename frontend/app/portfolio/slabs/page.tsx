@@ -12,7 +12,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { type ButtonHTMLAttributes, useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { MascotLoader } from "@/components/MascotLoader";
@@ -29,11 +29,27 @@ type GradeService = "PSA" | "BGS" | "CGC" | "TAG";
 
 const SERVICE_SET = new Set<GradeService>(["PSA", "BGS", "CGC", "TAG"]);
 
+// LO's mapping: each graded item uses the slab frame that matches its
+// grading service. CGC + TAG both ride on the minimal Clean frame; PSA
+// + BGS get their own dedicated frames. No user-facing toggle — the
+// service the user picked at collection-time chooses the frame.
+const SERVICE_FRAME: Record<GradeService, FrameStyle> = {
+  PSA: "psa",
+  BGS: "bgs",
+  CGC: "clean",
+  TAG: "clean",
+};
+
 const GRADE_SUFFIX: Record<string, string> = {
   "10": "Gem Mint",
   "9.5": "Mint+",
   "9": "Mint",
 };
+
+// Slab pagination — LO wants 3 slabs per page (bigger tiles), with a
+// number pager that shows at most 5 page buttons then ellipsizes.
+const SLABS_PER_PAGE = 3;
+const MAX_PAGE_BUTTONS = 5;
 
 function splitGrade(grade: string | null): {
   service: GradeService;
@@ -66,7 +82,7 @@ export default function SlabsPortfolioPage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CollectionItemDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [frameStyle, setFrameStyle] = useState<FrameStyle>("psa");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (authLoading) return;
@@ -96,6 +112,19 @@ export default function SlabsPortfolioPage() {
     [items],
   );
 
+  const totalPages = Math.max(1, Math.ceil(items.length / SLABS_PER_PAGE));
+  // Clamp page whenever the item count shrinks below what's on it
+  // (e.g. user deletes a card) so we don't render an empty page.
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () =>
+      items.slice(
+        (currentPage - 1) * SLABS_PER_PAGE,
+        currentPage * SLABS_PER_PAGE,
+      ),
+    [items, currentPage],
+  );
+
   if (authLoading || loading) {
     return (
       <main className="mx-auto max-w-[100rem] px-4 py-8">
@@ -112,48 +141,22 @@ export default function SlabsPortfolioPage() {
       <PortfolioTabs active="slabs" />
 
       <header className="mb-6 rounded-card border border-border bg-bg-surface/70 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-baseline gap-8">
-            <div>
-              <div className="text-3xl font-extrabold text-text-primary">
-                {items.length}
-              </div>
-              <div className="mt-1 text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
-                Graded cards
-              </div>
+        <div className="flex flex-wrap items-baseline gap-8">
+          <div>
+            <div className="text-3xl font-extrabold text-text-primary">
+              {items.length}
             </div>
-            <div>
-              <div className="text-3xl font-extrabold text-accent-green">
-                {fmtPrice(totalValue)}
-              </div>
-              <div className="mt-1 text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
-                Est. value
-              </div>
+            <div className="mt-1 text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+              Graded cards
             </div>
           </div>
-
-          {/* Frame style toggle */}
-          <div
-            role="tablist"
-            aria-label="Frame style"
-            className="flex items-center gap-1 p-1 rounded-full bg-bg border border-border"
-          >
-            {(["bgs", "psa", "clean"] as const).map((s) => (
-              <button
-                key={s}
-                role="tab"
-                aria-selected={frameStyle === s}
-                onClick={() => setFrameStyle(s)}
-                className={
-                  "px-3 py-1.5 text-xs font-mono uppercase tracking-wider rounded-full transition-colors " +
-                  (frameStyle === s
-                    ? "bg-accent-yellow text-gray-900 font-bold"
-                    : "text-text-secondary hover:text-text-primary")
-                }
-              >
-                {s === "bgs" ? "BGS frame" : s === "psa" ? "PSA frame" : "Clean frame"}
-              </button>
-            ))}
+          <div>
+            <div className="text-3xl font-extrabold text-accent-green">
+              {fmtPrice(totalValue)}
+            </div>
+            <div className="mt-1 text-[10px] font-mono uppercase tracking-wider text-text-tertiary">
+              Est. value
+            </div>
           </div>
         </div>
       </header>
@@ -168,13 +171,14 @@ export default function SlabsPortfolioPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {items.map((it) => {
+        <div className="grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
+          {pageItems.map((it) => {
             const { service, value, suffix } = splitGrade(it.grade);
             const setName = (it.set_name || it.set_id).toUpperCase();
             const yearSet = it.card_number
               ? `${setName} · #${it.card_number}`
               : setName;
+            const frameStyle = SERVICE_FRAME[service];
             return (
               <Link
                 key={it.id}
@@ -190,7 +194,7 @@ export default function SlabsPortfolioPage() {
                   grade={value}
                   suffix={suffix}
                 />
-                <div className="mt-3 flex items-center justify-between gap-2 px-1">
+                <div className="mt-1.5 flex items-center justify-between gap-2 px-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <div
                       className={
@@ -207,11 +211,10 @@ export default function SlabsPortfolioPage() {
                         style={{ objectFit: "contain", objectPosition: "left center" }}
                       />
                     </div>
-                    {suffix && (
-                      <span className="text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary truncate">
-                        · {suffix}
-                      </span>
-                    )}
+                    <span className="text-[12px] font-mono uppercase tracking-[0.1em] text-text-secondary tabular-nums truncate">
+                      · {value}
+                      {suffix ? ` ${suffix}` : ""}
+                    </span>
                     {it.qty > 1 && (
                       <span className="text-[11px] font-mono text-accent-yellow shrink-0">
                         ×{it.qty}
@@ -227,6 +230,114 @@ export default function SlabsPortfolioPage() {
           })}
         </div>
       )}
+
+      {items.length > SLABS_PER_PAGE && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Number pager — page 1..totalPages plus prev/next arrows. Shows at
+ * most MAX_PAGE_BUTTONS number buttons around the current page, with
+ * ellipses when we drop leading/trailing ranges (`1 … 4 5 6 … 12`).
+ */
+function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
+}) {
+  // Windowed range around currentPage. Half of MAX_PAGE_BUTTONS on
+  // each side, clamped so we don't overflow the [1, totalPages] bounds.
+  const half = Math.floor(MAX_PAGE_BUTTONS / 2);
+  let start = Math.max(1, currentPage - half);
+  const end = Math.min(totalPages, start + MAX_PAGE_BUTTONS - 1);
+  start = Math.max(1, end - MAX_PAGE_BUTTONS + 1);
+
+  const pages: number[] = [];
+  for (let i = start; i <= end; i++) pages.push(i);
+
+  const showLeadingEllipsis = start > 1;
+  const showTrailingEllipsis = end < totalPages;
+
+  return (
+    <nav
+      aria-label="Slab pagination"
+      className="mt-10 flex items-center justify-center gap-1 flex-wrap"
+    >
+      <PageButton
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(currentPage - 1)}
+        aria-label="Previous page"
+      >
+        ‹
+      </PageButton>
+      {showLeadingEllipsis && (
+        <>
+          <PageButton onClick={() => onPageChange(1)}>1</PageButton>
+          <span className="px-2 text-text-tertiary font-mono">…</span>
+        </>
+      )}
+      {pages.map((p) => (
+        <PageButton
+          key={p}
+          active={p === currentPage}
+          onClick={() => onPageChange(p)}
+          aria-current={p === currentPage ? "page" : undefined}
+        >
+          {p}
+        </PageButton>
+      ))}
+      {showTrailingEllipsis && (
+        <>
+          <span className="px-2 text-text-tertiary font-mono">…</span>
+          <PageButton onClick={() => onPageChange(totalPages)}>
+            {totalPages}
+          </PageButton>
+        </>
+      )}
+      <PageButton
+        disabled={currentPage === totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+        aria-label="Next page"
+      >
+        ›
+      </PageButton>
+    </nav>
+  );
+}
+
+function PageButton({
+  children,
+  active,
+  disabled,
+  onClick,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return (
+    <button
+      {...rest}
+      onClick={onClick}
+      disabled={disabled}
+      className={
+        "min-w-[36px] h-9 px-2 text-sm font-mono rounded-btn border transition-colors " +
+        (active
+          ? "bg-accent-yellow border-accent-yellow text-gray-900 font-bold"
+          : disabled
+            ? "bg-bg-surface border-border text-text-tertiary/40 cursor-not-allowed"
+            : "bg-bg-surface border-border text-text-secondary hover:text-text-primary hover:border-accent-yellow/40")
+      }
+    >
+      {children}
+    </button>
   );
 }
