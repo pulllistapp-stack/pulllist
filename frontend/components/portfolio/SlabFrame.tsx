@@ -26,6 +26,7 @@ export type FlipRect = { top: string; left: string; right: string; height: strin
 export type CardRect = { top: string; left: string; right: string; bottom: string };
 export type EmblemRect = { bottom: string; left: string; width: string };
 export type BadgeRect = { top: string; left: string; right: string; height: string };
+export type FlipFonts = { yearSet: number; cardName: number };
 
 export type SlabProps = {
   style?: SlabStyle;
@@ -48,6 +49,9 @@ export type SlabProps = {
   cardOverride?: CardRect;
   emblemOverride?: EmblemRect;
   badgeOverride?: BadgeRect;
+  /** px font sizes for the flip label — year/set line and card name.
+   *  Optional; falls back to the frame's FRAME_META defaults. */
+  flipFontsOverride?: FlipFonts;
   /** Extra breathing room around the card image WITHIN the card well,
    *  as a % of the well's shorter side. 0 = card fills well edge-to-
    *  edge (default); 5 = card shrinks 5% on each side, revealing a
@@ -76,6 +80,10 @@ export const FRAME_META: Record<
      *  in debug). Default drops it into the right side of the current
      *  flip footprint so out-of-the-box it looks familiar. */
     badge: BadgeRect;
+    /** Default px font sizes for the flip label. Per-style because a
+     *  narrow flip well (BGS) can't fit the same 11px name a wide one
+     *  (Clean) can. Preview tuner exposes these as sliders. */
+    flipFonts: FlipFonts;
     /** Text tone on the flip label — the flip is gold on BGS, red-
      *  bordered white on PSA, black on the minimal Clean frame. */
     flipTone: "on-gold" | "on-white" | "on-black";
@@ -88,6 +96,7 @@ export const FRAME_META: Record<
     card: { top: "22%", left: "3.5%", right: "5%", bottom: "8.5%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
     badge: { top: "7%", left: "70%", right: "9.5%", height: "12%" },
+    flipFonts: { yearSet: 7.5, cardName: 11 },
     flipTone: "on-gold",
   },
   psa: {
@@ -97,6 +106,7 @@ export const FRAME_META: Record<
     card: { top: "20%", left: "1.5%", right: "2.5%", bottom: "2%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
     badge: { top: "4%", left: "76%", right: "11%", height: "14%" },
+    flipFonts: { yearSet: 7.5, cardName: 11 },
     flipTone: "on-white",
   },
   clean: {
@@ -110,6 +120,7 @@ export const FRAME_META: Record<
     card: { top: "22%", left: "5%", right: "5%", bottom: "3%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
     badge: { top: "7%", left: "76%", right: "11%", height: "14.5%" },
+    flipFonts: { yearSet: 7.5, cardName: 11 },
     flipTone: "on-black",
   },
 };
@@ -172,6 +183,7 @@ export function SlabFrame({
   cardOverride,
   emblemOverride,
   badgeOverride,
+  flipFontsOverride,
   cardInsetPct = 0,
 }: SlabProps) {
   const meta = FRAME_META[style];
@@ -179,6 +191,7 @@ export function SlabFrame({
   const cardRect = cardOverride ?? meta.card;
   const emblemRect = emblemOverride ?? meta.emblem;
   const badgeRect = badgeOverride ?? meta.badge;
+  const flipFonts = flipFontsOverride ?? meta.flipFonts;
   const cardPadding = `${cardInsetPct}%`;
   const accent = SERVICE_ACCENT[service];
   const isPerfect10 = grade.trim().startsWith("10");
@@ -286,13 +299,16 @@ export function SlabFrame({
         }}
       >
         <span
-          className="font-mono text-[7.5px] uppercase tracking-[0.1em] truncate leading-none"
-          style={{ color: flipMutedColor }}
+          className="font-mono uppercase tracking-[0.1em] truncate leading-none"
+          style={{
+            color: flipMutedColor,
+            fontSize: `${flipFonts.yearSet}px`,
+          }}
         >
           {yearSet}
         </span>
         <span
-          className="font-bold text-[11px] uppercase leading-tight overflow-hidden"
+          className="font-bold uppercase leading-tight overflow-hidden"
           style={{
             color: flipTextColor,
             fontFamily: "var(--font-noto-sans), system-ui, sans-serif",
@@ -301,6 +317,7 @@ export function SlabFrame({
             WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
             wordBreak: "break-word",
+            fontSize: `${flipFonts.cardName}px`,
           }}
         >
           {cardName}

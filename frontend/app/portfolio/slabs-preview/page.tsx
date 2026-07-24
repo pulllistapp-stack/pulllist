@@ -28,6 +28,7 @@ import {
   type BadgeRect,
   type CardRect,
   type EmblemRect,
+  type FlipFonts,
   type FlipRect,
 } from "@/components/portfolio/SlabFrame";
 import { searchCards, type Card } from "@/lib/api";
@@ -96,28 +97,26 @@ type StyleTune = {
   card: CardRect;
   emblem: EmblemRect;
   badge: BadgeRect;
+  flipFonts: FlipFonts;
+  cardInsetPct: number;
 };
+
+function styleDefault(s: Style): StyleTune {
+  return {
+    flip: FRAME_META[s].flip,
+    card: FRAME_META[s].card,
+    emblem: FRAME_META[s].emblem,
+    badge: FRAME_META[s].badge,
+    flipFonts: FRAME_META[s].flipFonts,
+    cardInsetPct: 0,
+  };
+}
 
 function loadOverrides(): Record<Style, StyleTune> {
   const defaults: Record<Style, StyleTune> = {
-    bgs: {
-      flip: FRAME_META.bgs.flip,
-      card: FRAME_META.bgs.card,
-      emblem: FRAME_META.bgs.emblem,
-      badge: FRAME_META.bgs.badge,
-    },
-    psa: {
-      flip: FRAME_META.psa.flip,
-      card: FRAME_META.psa.card,
-      emblem: FRAME_META.psa.emblem,
-      badge: FRAME_META.psa.badge,
-    },
-    clean: {
-      flip: FRAME_META.clean.flip,
-      card: FRAME_META.clean.card,
-      emblem: FRAME_META.clean.emblem,
-      badge: FRAME_META.clean.badge,
-    },
+    bgs: styleDefault("bgs"),
+    psa: styleDefault("psa"),
+    clean: styleDefault("clean"),
   };
   if (typeof window === "undefined") return defaults;
   try {
@@ -129,6 +128,11 @@ function loadOverrides(): Record<Style, StyleTune> {
       card: parsed[s]?.card ?? defaults[s].card,
       emblem: parsed[s]?.emblem ?? defaults[s].emblem,
       badge: parsed[s]?.badge ?? defaults[s].badge,
+      flipFonts: parsed[s]?.flipFonts ?? defaults[s].flipFonts,
+      cardInsetPct:
+        typeof parsed[s]?.cardInsetPct === "number"
+          ? parsed[s].cardInsetPct
+          : defaults[s].cardInsetPct,
     });
     return { bgs: merge("bgs"), psa: merge("psa"), clean: merge("clean") };
   } catch {
@@ -145,22 +149,10 @@ export default function SlabsPreviewPage() {
   const [debug, setDebug] = useState(true);
   const [tune, setTune] = useState(() => loadOverrides());
   const [copied, setCopied] = useState(false);
-  // Card image inset — shrinks the card inside its well without moving
-  // the well itself. Global across styles (real cards are the same size
-  // regardless of slab). Persisted separately from FRAME_META.
-  const [cardInsetPct, setCardInsetPct] = useState<number>(() => {
-    if (typeof window === "undefined") return 0;
-    const raw = window.localStorage.getItem("slab-tune-v1-cardInset");
-    return raw ? parseFloat(raw) || 0 : 0;
-  });
 
   useEffect(() => {
     window.localStorage.setItem(LS_KEY, JSON.stringify(tune));
   }, [tune]);
-
-  useEffect(() => {
-    window.localStorage.setItem("slab-tune-v1-cardInset", String(cardInsetPct));
-  }, [cardInsetPct]);
 
   const current = tune[style];
 
@@ -212,17 +204,30 @@ export default function SlabsPreviewPage() {
     },
     [style],
   );
+  const updateFlipFont = useCallback(
+    (key: keyof FlipFonts, value: number) => {
+      setTune((prev) => ({
+        ...prev,
+        [style]: {
+          ...prev[style],
+          flipFonts: { ...prev[style].flipFonts, [key]: value },
+        },
+      }));
+    },
+    [style],
+  );
+  const updateCardInset = useCallback(
+    (value: number) => {
+      setTune((prev) => ({
+        ...prev,
+        [style]: { ...prev[style], cardInsetPct: value },
+      }));
+    },
+    [style],
+  );
 
   const resetCurrent = () => {
-    setTune((prev) => ({
-      ...prev,
-      [style]: {
-        flip: FRAME_META[style].flip,
-        card: FRAME_META[style].card,
-        emblem: FRAME_META[style].emblem,
-        badge: FRAME_META[style].badge,
-      },
-    }));
+    setTune((prev) => ({ ...prev, [style]: styleDefault(style) }));
   };
 
   const copyCode = async () => {
@@ -237,6 +242,8 @@ export default function SlabsPreviewPage() {
   card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
   emblem: { bottom: "${current.emblem.bottom}", left: "${current.emblem.left}", width: "${current.emblem.width}" },
   badge: { top: "${current.badge.top}", left: "${current.badge.left}", right: "${current.badge.right}", height: "${current.badge.height}" },
+  flipFonts: { yearSet: ${current.flipFonts.yearSet}, cardName: ${current.flipFonts.cardName} },
+  cardInsetPct: ${current.cardInsetPct},
   flipTone: "${flipTone}",
 },`;
     try {
@@ -327,9 +334,9 @@ export default function SlabsPreviewPage() {
         </div>
 
         {mode === "samples" ? (
-          <SamplesGrid style={style} debug={debug} tune={current} cardInsetPct={cardInsetPct} />
+          <SamplesGrid style={style} debug={debug} tune={current} />
         ) : (
-          <TryYourCard style={style} debug={debug} tune={current} cardInsetPct={cardInsetPct} />
+          <TryYourCard style={style} debug={debug} tune={current} />
         )}
 
         {/* Live tuning panel — visible under both modes */}
@@ -393,25 +400,48 @@ export default function SlabsPreviewPage() {
             <SliderRow label="width" value={parsePct(current.emblem.width)} max={60} onChange={(v) => updateEmblem("width", v)} />
           </fieldset>
 
-          {/* Card inset — global across styles. Real cards are the
-              same size regardless of slab, so this control isn't a
-              per-frame FRAME_META override; it's just how much
-              breathing room the card image gets INSIDE the well. */}
+          {/* Card inset — per-style now. LO's frames don't line up
+              equally with a real card outline (Clean's card well is
+              generous, BGS's is snug) so a global value can't fit all
+              three; each style carries its own inset. */}
           <fieldset className="mt-6 border border-accent-yellow/30 rounded-btn p-4">
             <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-accent-yellow">
-              Card image inset (global)
+              Card image inset · per-style
             </legend>
             <p className="text-[11px] text-text-tertiary mb-2 font-mono">
               Shrinks the card image inward without moving the well.
               0 = card fills the well edge-to-edge; 5 = 5% padding on
-              all four sides. Useful when the well rect is slightly
-              generous so real cards don&apos;t spill onto plastic.
+              all four sides.
             </p>
             <SliderRow
               label="inset"
-              value={cardInsetPct}
+              value={current.cardInsetPct}
               max={15}
-              onChange={(v) => setCardInsetPct(v)}
+              onChange={updateCardInset}
+            />
+          </fieldset>
+
+          {/* Flip label font sizes — px per-style so a narrow BGS flip
+              can carry smaller text than a roomy Clean flip. */}
+          <fieldset className="mt-4 border border-fuchsia-500/30 rounded-btn p-4">
+            <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-fuchsia-400">
+              Flip label fonts · per-style · in px
+            </legend>
+            <p className="text-[11px] text-text-tertiary mb-2 font-mono">
+              yearSet = the year / set / number line above the card
+              name. cardName = the big line ("Mega Charizard ex").
+            </p>
+            <SliderRow
+              label="yearSet"
+              value={current.flipFonts.yearSet}
+              max={20}
+              onChange={(v) => updateFlipFont("yearSet", v)}
+            />
+            <SliderRow
+              label="cardName"
+              value={current.flipFonts.cardName}
+              max={30}
+              onChange={(v) => updateFlipFont("cardName", v)}
             />
           </fieldset>
         </div>
@@ -426,12 +456,10 @@ function SamplesGrid({
   style,
   debug,
   tune,
-  cardInsetPct,
 }: {
   style: Style;
   debug: boolean;
   tune: StyleTune;
-  cardInsetPct: number;
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
@@ -445,7 +473,8 @@ function SamplesGrid({
             cardOverride={tune.card}
             emblemOverride={tune.emblem}
             badgeOverride={tune.badge}
-            cardInsetPct={cardInsetPct}
+            flipFontsOverride={tune.flipFonts}
+            cardInsetPct={tune.cardInsetPct}
           />
           <div className="mt-3 flex items-center justify-center gap-2">
             <div
@@ -481,12 +510,10 @@ function TryYourCard({
   style,
   debug,
   tune,
-  cardInsetPct,
 }: {
   style: Style;
   debug: boolean;
   tune: StyleTune;
-  cardInsetPct: number;
 }) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -654,7 +681,8 @@ function TryYourCard({
                 cardOverride={tune.card}
                 emblemOverride={tune.emblem}
                 badgeOverride={tune.badge}
-                cardInsetPct={cardInsetPct}
+                flipFontsOverride={tune.flipFonts}
+                cardInsetPct={tune.cardInsetPct}
               />
             </div>
             <div className="mt-3 flex items-center justify-center gap-2">
