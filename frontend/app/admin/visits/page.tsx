@@ -43,6 +43,24 @@ function AdminVisitsContent() {
   const [scope, setScope] = useState<VisitScope>("all");
   const [loading, setLoading] = useState(true);
 
+  // Per-panel page state — 7 rows per page. Reset to 1 whenever the
+  // underlying window or scope changes so the user doesn't land on
+  // page 5 of a dataset that just shrunk to 3 rows.
+  const [visitorsPage, setVisitorsPage] = useState(1);
+  const [pathsPage, setPathsPage] = useState(1);
+  const [referrersPage, setReferrersPage] = useState(1);
+  const [anonPage, setAnonPage] = useState(1);
+  const [botsPage, setBotsPage] = useState(1);
+  const [recentPage, setRecentPage] = useState(1);
+  useEffect(() => {
+    setVisitorsPage(1);
+    setPathsPage(1);
+    setReferrersPage(1);
+    setAnonPage(1);
+    setBotsPage(1);
+    setRecentPage(1);
+  }, [windowDays, scope]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -211,7 +229,7 @@ function AdminVisitsContent() {
               {/* Mobile: per-visitor card list — signed-in + anon merged,
                   all fields visible without a swipe-to-scroll gesture. */}
               <ul className="sm:hidden space-y-2">
-                {visitors.map((v) => {
+                {paginate(visitors, visitorsPage).map((v) => {
                   const isAnon = v.type === "anon";
                   return (
                   <li
@@ -310,7 +328,7 @@ function AdminVisitsContent() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visitors.map((v) => {
+                    {paginate(visitors, visitorsPage).map((v) => {
                       const isAnon = v.type === "anon";
                       return (
                       <tr
@@ -387,6 +405,11 @@ function AdminVisitsContent() {
                 </table>
                 </div>
               </div>
+              <Pagination
+                currentPage={visitorsPage}
+                totalPages={totalPagesOf(visitors)}
+                onPageChange={setVisitorsPage}
+              />
               </>
             )}
           </section>
@@ -397,8 +420,9 @@ function AdminVisitsContent() {
               {topPaths.length === 0 ? (
                 <EmptyRow />
               ) : (
+                <>
                 <ul className="text-xs divide-y divide-border">
-                  {topPaths.map((p) => (
+                  {paginate(topPaths, pathsPage).map((p) => (
                     <li key={p.path} className="py-2 min-w-0 overflow-hidden">
                       {/* Long URLs (/news/ascended-heroes-focused-…)
                           were sliding past the viewport because the
@@ -417,6 +441,12 @@ function AdminVisitsContent() {
                     </li>
                   ))}
                 </ul>
+                <Pagination
+                  currentPage={pathsPage}
+                  totalPages={totalPagesOf(topPaths)}
+                  onPageChange={setPathsPage}
+                />
+                </>
               )}
             </TrafficCard>
 
@@ -424,8 +454,9 @@ function AdminVisitsContent() {
               {topReferrers.length === 0 ? (
                 <EmptyRow />
               ) : (
+                <>
                 <ul className="text-xs divide-y divide-border">
-                  {topReferrers.map((r) => (
+                  {paginate(topReferrers, referrersPage).map((r) => (
                     <li
                       key={r.domain}
                       className="py-2 min-w-0 overflow-hidden"
@@ -447,6 +478,12 @@ function AdminVisitsContent() {
                     </li>
                   ))}
                 </ul>
+                <Pagination
+                  currentPage={referrersPage}
+                  totalPages={totalPagesOf(topReferrers)}
+                  onPageChange={setReferrersPage}
+                />
+                </>
               )}
             </TrafficCard>
 
@@ -463,8 +500,9 @@ function AdminVisitsContent() {
               {bots.length === 0 ? (
                 <EmptyRow />
               ) : (
+                <>
                 <ul className="text-xs divide-y divide-border">
-                  {bots.map((b) => (
+                  {paginate(bots, botsPage).map((b) => (
                     <li
                       key={b.bot_name}
                       className="py-2 flex items-center gap-3 min-w-0"
@@ -479,6 +517,12 @@ function AdminVisitsContent() {
                     </li>
                   ))}
                 </ul>
+                <Pagination
+                  currentPage={botsPage}
+                  totalPages={totalPagesOf(bots)}
+                  onPageChange={setBotsPage}
+                />
+                </>
               )}
             </TrafficCard>
           </section>
@@ -502,7 +546,7 @@ function AdminVisitsContent() {
               {/* Mobile: card per session — all 7 fields visible via
                   compact vertical stacking + inline chips. */}
               <ul className="sm:hidden space-y-2">
-                {anonSessions.map((s) => (
+                {paginate(anonSessions, anonPage).map((s) => (
                   <li
                     key={s.session_id}
                     className="rounded-card border border-border bg-bg-surface p-3"
@@ -566,7 +610,7 @@ function AdminVisitsContent() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {anonSessions.map((s) => (
+                      {paginate(anonSessions, anonPage).map((s) => (
                         <tr key={s.session_id} className="hover:bg-bg/40">
                           <td className="px-3 py-2 font-mono text-text-tertiary">
                             {s.session_id.slice(0, 8)}…
@@ -596,6 +640,11 @@ function AdminVisitsContent() {
                   </table>
                 </div>
               </div>
+              <Pagination
+                currentPage={anonPage}
+                totalPages={totalPagesOf(anonSessions)}
+                onPageChange={setAnonPage}
+              />
               </>
             )}
           </section>
@@ -631,7 +680,7 @@ function AdminVisitsContent() {
                   No visits match this filter.
                 </li>
               ) : (
-                recent.map((v) => (
+                paginate(recent, recentPage).map((v) => (
                   <li
                     key={v.id}
                     className="rounded-card border border-border bg-bg-surface p-3"
@@ -697,7 +746,7 @@ function AdminVisitsContent() {
                         </td>
                       </tr>
                     ) : (
-                      recent.map((v) => (
+                      paginate(recent, recentPage).map((v) => (
                         <tr key={v.id} className="hover:bg-bg/40">
                           <td className="px-3 py-2 font-mono text-text-tertiary whitespace-nowrap">
                             {relativeTime(v.created_at)}
@@ -732,6 +781,13 @@ function AdminVisitsContent() {
                 </table>
               </div>
             </div>
+            {recent.length > 0 && (
+              <Pagination
+                currentPage={recentPage}
+                totalPages={totalPagesOf(recent)}
+                onPageChange={setRecentPage}
+              />
+            )}
           </section>
         </>
       )}
@@ -924,6 +980,95 @@ function BotCategoryChip({ category }: { category: BotItem["category"] }) {
     >
       {style.label}
     </span>
+  );
+}
+
+// ────────── Pagination ──────────
+// 7 rows per page across every panel. Client-side slice — every panel
+// already fetches its whole window in one call, so no server round-trip
+// on page change. Max 5 numeric buttons visible; first/last always
+// pinned with an ellipsis for the gap.
+
+const PANEL_PAGE_SIZE = 7;
+
+function paginate<T>(items: T[], page: number, size = PANEL_PAGE_SIZE): T[] {
+  return items.slice((page - 1) * size, page * size);
+}
+
+function totalPagesOf<T>(items: T[], size = PANEL_PAGE_SIZE): number {
+  return Math.max(1, Math.ceil(items.length / size));
+}
+
+/** Compact page-number layout: up to 5 numeric buttons, first + last
+ *  always visible, an ellipsis stands in for the skipped range. */
+function pageWindow(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, "...", total];
+  if (current >= total - 3) {
+    return [1, "...", total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, "...", current - 1, current, current + 1, "...", total];
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const pages = pageWindow(currentPage, totalPages);
+  return (
+    <nav className="mt-3 flex items-center justify-center gap-1 text-[11px] font-mono">
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        disabled={currentPage === 1}
+        aria-label="Previous page"
+        className="px-2 py-1 rounded text-text-tertiary hover:text-text-primary hover:bg-bg/40 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+      >
+        ‹
+      </button>
+      {pages.map((p, i) =>
+        p === "..." ? (
+          <span
+            key={`ellipsis-${i}`}
+            className="px-1 text-text-tertiary select-none"
+          >
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPageChange(p)}
+            aria-current={p === currentPage ? "page" : undefined}
+            className={cn(
+              "min-w-[24px] px-1.5 py-1 rounded tabular-nums",
+              p === currentPage
+                ? "bg-accent-yellow/60 text-gray-900 font-bold"
+                : "text-text-secondary hover:text-text-primary hover:bg-bg/40",
+            )}
+          >
+            {p}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        onClick={() =>
+          onPageChange(Math.min(totalPages, currentPage + 1))
+        }
+        disabled={currentPage === totalPages}
+        aria-label="Next page"
+        className="px-2 py-1 rounded text-text-tertiary hover:text-text-primary hover:bg-bg/40 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+      >
+        ›
+      </button>
+    </nav>
   );
 }
 
