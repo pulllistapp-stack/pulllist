@@ -26,6 +26,13 @@ export type UpdateEntry = {
 };
 
 export const UPDATES: UpdateEntry[] = [
+  // ── 2026-07-24 ─────────────────────────────────────────────────
+  {
+    date: "2026-07-24",
+    emoji: "🇰🇷",
+    kr: "**KR 프로모 카탈로그 clean-up + tcgbox.co.kr KR-native 스캔 백필 (66장)** — 어제 collectory.cc 임포트가 잘못됐다는 걸 발견 (`region` 필드 확인 결과: SV-P 378장 다 CN/JP 프린트, XY-P/SM/SS BSP 다 US 프린트 — KR 발매 카드 0장). Collectory 는 국제 프로모 카탈로그에 한국어 이름 번역만 얹은 것이라 실제 KR 프로모 아니었음. 1,150장 삭제 → namu 「한국 프로모 카드 일람」 의 748장 (실제 KR-발매) 로 복구. 이후 tcgbox.co.kr (KR TCG 리테일러) sitemap 스크레이핑 → 66개 promo product 페이지에서 실제 KR 스캔 URL 뽑음 → 42장 기존 namu 카드에 이미지 붙이고 + namu 에 없던 24장 신규 insert (전부 SV era 최신). 최종 커버리지: **66/772 (8.5%)** — SV 31/50 (62%), MEGA 7/50 (14%), SM 20/196 (10%), SS 8/191 (4%), XY/BW/base 0%. TCGBOX 는 리테일러라 최근 재고만 있어서 오래된 프로모는 아직 커버리지 없음. 별도 소스 트랙 필요. 지금은 tcgbox.co.kr URL 직접 링크 (later batch 에 R2 미러 가능). 이미지 컴포넌트가 `tcgbox.co.kr` allowlist 에 이미 있어서 프론트 코드 변경 없음.",
+    en: "**KR promo catalog cleanup + tcgbox.co.kr KR-native scans backfilled (66 cards)** — the collectory.cc backfill from yesterday turned out to be wrong: the `region` field on collectory cards showed SV-P was 378 CN/JP prints, XY-P was 216 US Black Star Promos, SM/SS BSP were all US — zero KR-released cards. Collectory was serving international promo catalogs with KR name overlays, not actual KR promos. Deleted the 1,150 misleading rows and restored the namu 「한국 프로모 카드 일람」-based 748-card catalog. Then scraped tcgbox.co.kr (a KR TCG retail marketplace) via sitemap: 66 promo product pages yielded real KR-native card scan URLs — 42 updated existing namu cards, 24 inserted new rows for KR promos namu missed (all in recent SV era). Final coverage: **66/772 (8.5%)** — SV 31/50 (62%), MEGA 7/50 (14%), SM 20/196 (10%), SS 8/191 (4%), XY/BW/base 0%. TCGBOX only stocks recent-market promos, so older eras have no coverage. For now the URLs point directly at tcgbox.co.kr (its hostname was already on the next/image allowlist from earlier logo work); a later batch can mirror into R2.",
+  },
   // ── 2026-07-22 ─────────────────────────────────────────────────
   {
     date: "2026-07-22",
