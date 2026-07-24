@@ -22,6 +22,7 @@ import { Loader2 } from "lucide-react";
 import {
   FRAME_META,
   SlabFrame,
+  type BadgeRect,
   type CardRect,
   type EmblemRect,
   type FlipRect,
@@ -87,7 +88,12 @@ const GRADE_OPTIONS: Array<{ value: string; suffix?: string }> = [
 
 const LS_KEY = "slab-tune-v1";
 
-type StyleTune = { flip: FlipRect; card: CardRect; emblem: EmblemRect };
+type StyleTune = {
+  flip: FlipRect;
+  card: CardRect;
+  emblem: EmblemRect;
+  badge: BadgeRect;
+};
 
 function loadOverrides(): Record<Style, StyleTune> {
   const defaults: Record<Style, StyleTune> = {
@@ -95,16 +101,19 @@ function loadOverrides(): Record<Style, StyleTune> {
       flip: FRAME_META.bgs.flip,
       card: FRAME_META.bgs.card,
       emblem: FRAME_META.bgs.emblem,
+      badge: FRAME_META.bgs.badge,
     },
     psa: {
       flip: FRAME_META.psa.flip,
       card: FRAME_META.psa.card,
       emblem: FRAME_META.psa.emblem,
+      badge: FRAME_META.psa.badge,
     },
     clean: {
       flip: FRAME_META.clean.flip,
       card: FRAME_META.clean.card,
       emblem: FRAME_META.clean.emblem,
+      badge: FRAME_META.clean.badge,
     },
   };
   if (typeof window === "undefined") return defaults;
@@ -112,14 +121,11 @@ function loadOverrides(): Record<Style, StyleTune> {
     const raw = window.localStorage.getItem(LS_KEY);
     if (!raw) throw new Error("empty");
     const parsed = JSON.parse(raw);
-    // Guard against older localStorage entries that pre-date any of the
-    // stored shapes (added `clean` style, added `emblem` field) — fall
-    // back to defaults for missing keys so the page doesn't crash
-    // before the user hits Reset.
     const merge = (s: Style): StyleTune => ({
       flip: parsed[s]?.flip ?? defaults[s].flip,
       card: parsed[s]?.card ?? defaults[s].card,
       emblem: parsed[s]?.emblem ?? defaults[s].emblem,
+      badge: parsed[s]?.badge ?? defaults[s].badge,
     });
     return { bgs: merge("bgs"), psa: merge("psa"), clean: merge("clean") };
   } catch {
@@ -191,6 +197,18 @@ export default function SlabsPreviewPage() {
     },
     [style],
   );
+  const updateBadge = useCallback(
+    (key: keyof BadgeRect, value: number) => {
+      setTune((prev) => ({
+        ...prev,
+        [style]: {
+          ...prev[style],
+          badge: { ...prev[style].badge, [key]: asPct(value) },
+        },
+      }));
+    },
+    [style],
+  );
 
   const resetCurrent = () => {
     setTune((prev) => ({
@@ -199,6 +217,7 @@ export default function SlabsPreviewPage() {
         flip: FRAME_META[style].flip,
         card: FRAME_META[style].card,
         emblem: FRAME_META[style].emblem,
+        badge: FRAME_META[style].badge,
       },
     }));
   };
@@ -214,6 +233,7 @@ export default function SlabsPreviewPage() {
   flip: { top: "${current.flip.top}", left: "${current.flip.left}", right: "${current.flip.right}", height: "${current.flip.height}" },
   card: { top: "${current.card.top}", left: "${current.card.left}", right: "${current.card.right}", bottom: "${current.card.bottom}" },
   emblem: { bottom: "${current.emblem.bottom}", left: "${current.emblem.left}", width: "${current.emblem.width}" },
+  badge: { top: "${current.badge.top}", left: "${current.badge.left}", right: "${current.badge.right}", height: "${current.badge.height}" },
   flipTone: "${flipTone}",
 },`;
     try {
@@ -345,6 +365,16 @@ export default function SlabsPreviewPage() {
               <SliderRow label="right" value={parsePct(current.card.right)} max={40} onChange={(v) => updateCard("right", v)} />
               <SliderRow label="bottom" value={parsePct(current.card.bottom)} max={30} onChange={(v) => updateCard("bottom", v)} />
             </fieldset>
+
+            <fieldset className="border border-orange-500/30 rounded-btn p-4">
+              <legend className="px-2 text-[10px] font-mono uppercase tracking-[0.14em] text-orange-400">
+                Grade badge (orange outline)
+              </legend>
+              <SliderRow label="top" value={parsePct(current.badge.top)} max={90} onChange={(v) => updateBadge("top", v)} />
+              <SliderRow label="left" value={parsePct(current.badge.left)} max={95} onChange={(v) => updateBadge("left", v)} />
+              <SliderRow label="right" value={parsePct(current.badge.right)} max={95} onChange={(v) => updateBadge("right", v)} />
+              <SliderRow label="height" value={parsePct(current.badge.height)} max={40} onChange={(v) => updateBadge("height", v)} />
+            </fieldset>
           </div>
 
           <fieldset className="mt-6 border border-lime-500/30 rounded-btn p-4">
@@ -411,6 +441,7 @@ function SamplesGrid({
             flipOverride={tune.flip}
             cardOverride={tune.card}
             emblemOverride={tune.emblem}
+            badgeOverride={tune.badge}
             cardInsetPct={cardInsetPct}
           />
           <p className="mt-3 text-center text-[11px] font-mono uppercase tracking-[0.12em] text-text-tertiary">
@@ -601,6 +632,7 @@ function TryYourCard({
                 flipOverride={tune.flip}
                 cardOverride={tune.card}
                 emblemOverride={tune.emblem}
+                badgeOverride={tune.badge}
                 cardInsetPct={cardInsetPct}
               />
             </div>

@@ -25,6 +25,7 @@ type GradeService = "PSA" | "BGS" | "CGC" | "TAG";
 export type FlipRect = { top: string; left: string; right: string; height: string };
 export type CardRect = { top: string; left: string; right: string; bottom: string };
 export type EmblemRect = { bottom: string; left: string; width: string };
+export type BadgeRect = { top: string; left: string; right: string; height: string };
 
 export type SlabProps = {
   style?: SlabStyle;
@@ -46,6 +47,7 @@ export type SlabProps = {
   flipOverride?: FlipRect;
   cardOverride?: CardRect;
   emblemOverride?: EmblemRect;
+  badgeOverride?: BadgeRect;
   /** Extra breathing room around the card image WITHIN the card well,
    *  as a % of the well's shorter side. 0 = card fills well edge-to-
    *  edge (default); 5 = card shrinks 5% on each side, revealing a
@@ -63,11 +65,17 @@ export const FRAME_META: Record<
   {
     src: string;
     aspectRatio: string;
+    /** Card info well — year/set + card name lives here (pink outline
+     *  in debug). No longer contains the grade badge. */
     flip: FlipRect;
     card: CardRect;
-    /** Shared PullList mascot emblem overlay position — sits in the
-     *  bottom-left "manufacturer mark" corner across all three styles. */
+    /** Shared PullList mascot emblem overlay position. */
     emblem: EmblemRect;
+    /** Grade + service badge well — its own absolute rect so it can be
+     *  positioned independently of the card info well (orange outline
+     *  in debug). Default drops it into the right side of the current
+     *  flip footprint so out-of-the-box it looks familiar. */
+    badge: BadgeRect;
     /** Text tone on the flip label — the flip is gold on BGS, red-
      *  bordered white on PSA, black on the minimal Clean frame. */
     flipTone: "on-gold" | "on-white" | "on-black";
@@ -79,6 +87,7 @@ export const FRAME_META: Record<
     flip: { top: "7%", left: "24%", right: "9.5%", height: "12%" },
     card: { top: "22%", left: "3.5%", right: "5%", bottom: "8.5%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
+    badge: { top: "7%", left: "70%", right: "9.5%", height: "12%" },
     flipTone: "on-gold",
   },
   psa: {
@@ -87,6 +96,7 @@ export const FRAME_META: Record<
     flip: { top: "4%", left: "10%", right: "11%", height: "14%" },
     card: { top: "20%", left: "1.5%", right: "2.5%", bottom: "2%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
+    badge: { top: "4%", left: "76%", right: "11%", height: "14%" },
     flipTone: "on-white",
   },
   clean: {
@@ -99,6 +109,7 @@ export const FRAME_META: Record<
     flip: { top: "7%", left: "12.5%", right: "11%", height: "14.5%" },
     card: { top: "22%", left: "5%", right: "5%", bottom: "3%" },
     emblem: { bottom: "3%", left: "3%", width: "12%" },
+    badge: { top: "7%", left: "76%", right: "11%", height: "14.5%" },
     flipTone: "on-black",
   },
 };
@@ -135,12 +146,14 @@ export function SlabFrame({
   flipOverride,
   cardOverride,
   emblemOverride,
+  badgeOverride,
   cardInsetPct = 0,
 }: SlabProps) {
   const meta = FRAME_META[style];
   const flipRect = flipOverride ?? meta.flip;
   const cardRect = cardOverride ?? meta.card;
   const emblemRect = emblemOverride ?? meta.emblem;
+  const badgeRect = badgeOverride ?? meta.badge;
   const cardPadding = `${cardInsetPct}%`;
   const accent = SERVICE_ACCENT[service];
   const isPerfect10 = grade.trim().startsWith("10");
@@ -226,94 +239,98 @@ export function SlabFrame({
       )}
 
       {/* Flip label overlay — year/set + grade badge */}
-      {/* Flip content — two visually distinct boxes side by side inside
-          the flip well:
-          - LEFT: card info box (year/set + card name, card name wraps
-            to 2 lines if too long — no more mid-name truncation like
-            "MEGA CHARIZA…").
-          - RIGHT: grade+service badge box with its own background/
-            border so it reads as a separate "certification stamp".
-          Both are noticeably larger than the previous inline row —
-          the flip well is wide enough to afford the extra bulk. */}
+      {/* Card info well — year/set + card name.
+          Standalone rect (pink debug outline). Card name wraps to 2
+          lines via -webkit-line-clamp so long names like "Mega
+          Charizard ex" don't truncate mid-word. */}
       <div
-        className="absolute flex items-stretch gap-1.5 p-1"
+        className="absolute flex flex-col justify-center gap-0.5 rounded-sm px-1.5 py-1"
         style={{
           top: flipRect.top,
           left: flipRect.left,
           right: flipRect.right,
           height: flipRect.height,
           zIndex: 3,
+          background:
+            meta.flipTone === "on-black"
+              ? "rgba(20, 20, 24, 0.55)"
+              : meta.flipTone === "on-gold"
+              ? "rgba(255, 250, 235, 0.35)"
+              : "rgba(255, 255, 255, 0.6)",
+          boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.08)",
         }}
       >
-        <div
-          className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 px-1.5 py-1 rounded-sm"
+        <span
+          className="font-mono text-[7.5px] uppercase tracking-[0.1em] truncate leading-none"
+          style={{ color: flipMutedColor }}
+        >
+          {yearSet}
+        </span>
+        <span
+          className="font-bold text-[11px] uppercase leading-tight overflow-hidden"
           style={{
-            background:
-              meta.flipTone === "on-black"
-                ? "rgba(20, 20, 24, 0.55)"
-                : meta.flipTone === "on-gold"
-                ? "rgba(255, 250, 235, 0.35)"
-                : "rgba(255, 255, 255, 0.6)",
-            boxShadow: "inset 0 0 0 0.5px rgba(0,0,0,0.08)",
+            color: flipTextColor,
+            fontFamily: "'Bodoni Moda', Georgia, serif",
+            letterSpacing: "-0.005em",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            wordBreak: "break-word",
           }}
         >
-          <span
-            className="font-mono text-[7.5px] uppercase tracking-[0.1em] truncate leading-none"
-            style={{ color: flipMutedColor }}
-          >
-            {yearSet}
-          </span>
-          <span
-            className="font-bold text-[11px] uppercase leading-tight overflow-hidden"
-            style={{
-              color: flipTextColor,
-              fontFamily: "'Bodoni Moda', Georgia, serif",
-              letterSpacing: "-0.005em",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              wordBreak: "break-word",
-            }}
-          >
-            {cardName}
-          </span>
-        </div>
-        <div
-          className="flex flex-col items-center justify-center rounded-sm shrink-0 px-2"
+          {cardName}
+        </span>
+      </div>
+
+      {/* Grade + service badge — its own rect (orange debug outline)
+          so LO can drop it wherever on the slab: right of the card
+          info, above the card, corner-mounted, etc. Contents scale
+          against the badge rect via CSS clamp so the badge visually
+          grows/shrinks with the rect (not a single px stack). */}
+      <div
+        className="absolute flex flex-col items-center justify-center rounded-sm"
+        style={{
+          top: badgeRect.top,
+          left: badgeRect.left,
+          right: badgeRect.right,
+          height: badgeRect.height,
+          zIndex: 3,
+          background: "#101013",
+          color: accent,
+          boxShadow: `inset 0 0 0 1.5px ${accent}, 0 0 6px -3px ${accent}`,
+          padding: "3px 4px",
+        }}
+      >
+        <span
+          className="font-bold tracking-[0.2em] leading-none"
+          style={{ color: accent, fontSize: "clamp(6px, 1.4vw, 10px)" }}
+        >
+          {service}
+        </span>
+        <span
+          className="font-bold leading-none tabular-nums"
           style={{
-            background: "#101013",
             color: accent,
-            boxShadow: `inset 0 0 0 1.5px ${accent}, 0 0 6px -3px ${accent}`,
-            minWidth: "38px",
-            padding: "3px 8px 4px",
+            fontFamily: "'Bodoni Moda', Georgia, serif",
+            letterSpacing: "-0.02em",
+            marginTop: "2px",
+            fontSize: "clamp(14px, 3vw, 24px)",
           }}
         >
+          {grade}
+        </span>
+        {suffix && (
           <span
-            className="font-bold text-[7px] tracking-[0.2em] leading-none"
-            style={{ color: accent }}
-          >
-            {service}
-          </span>
-          <span
-            className="font-bold text-[17px] leading-none tabular-nums"
+            className="tracking-[0.14em] uppercase leading-none opacity-85"
             style={{
               color: accent,
-              fontFamily: "'Bodoni Moda', Georgia, serif",
-              letterSpacing: "-0.02em",
               marginTop: "2px",
+              fontSize: "clamp(5px, 1.2vw, 8px)",
             }}
           >
-            {grade}
+            {suffix}
           </span>
-          {suffix && (
-            <span
-              className="text-[6px] tracking-[0.14em] uppercase leading-none opacity-85"
-              style={{ color: accent, marginTop: "2px" }}
-            >
-              {suffix}
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
       {/* BGS subgrades intentionally NOT rendered inside the slab
@@ -385,6 +402,18 @@ export function SlabFrame({
               width: emblemRect.width,
               aspectRatio: "1 / 1",
               border: "1px dashed rgba(180, 255, 100, 0.9)",
+              zIndex: 10,
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute pointer-events-none"
+            style={{
+              top: badgeRect.top,
+              left: badgeRect.left,
+              right: badgeRect.right,
+              height: badgeRect.height,
+              border: "1px dashed rgba(255, 165, 0, 0.9)",
               zIndex: 10,
             }}
           />
